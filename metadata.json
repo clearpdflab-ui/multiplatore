@@ -1,0 +1,6 @@
+{
+  "name": "Calcolatore Copertura Multiple a Scalare",
+  "description": "Modellatore, simulatore e calcolatore per strategie di copertura multipla e a scalare.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
