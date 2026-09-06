@@ -125,6 +125,21 @@ export interface StepCalculation {
   roiPercentage: number;
 }
 
+export interface ModelParameters {
+  totalEvents: number;
+  baseStake: number;
+  underOdds: number;
+  overOdds: number;
+  targetProfit: number;
+  model: CalculationModel;
+  finalSingleOdds: number;
+  enableBooster?: boolean;
+  boosterOdds?: number;
+  boosterThresholdEvents?: number;
+  asymmetricMode?: AsymmetricMode;
+  bookmakerModel?: BookmakerModelId;
+}
+
 export interface WeakPoint {
   id: string;
   title: string;

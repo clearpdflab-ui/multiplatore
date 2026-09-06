@@ -1,8 +1,41 @@
+*
+!.gitignore
+!.eslint.config.js
+!.prettierrc
+!*.md
+!PLAN.md
+!docker/
+!.github/
+!server/
+!tests/
+!src/engine/
+!src/types.ts
+!src/utils/mathEngine.ts
+!src/App.tsx
+!public/
+!docs/
 node_modules/
-build/
 dist/
 coverage/
-.DS_Store
+*.db
+.env
+.env.local
 *.log
-.env*
-!.env.example
+.DS_Store
+*.swp
+*.swo
+
+# Vite
+vite.config.ts
+vitest.config.ts
+tsconfig.json
+tsconfig.node.json
+
+# OS
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
