@@ -1,4 +1,4 @@
-export type ViewMode = 'live_slips' | 'calendar_odds' | 'practical' | 'math' | 'books';
+export type ViewMode = 'live_slips' | 'calendar_odds' | 'practical' | 'math' | 'books' | 'cycles';
 
 export type CalculationModel = 'original_sum' | 'real_product' | 'optimized_sequential';
 
@@ -222,5 +222,46 @@ export interface BookBonusVersion {
 export interface TicketLeg {
   odds: number; // quota reale al piazzamento
   market?: 'OVER' | 'UNDER';
+  label?: string; // etichetta match (es. "Inter-Milan") per shared-leg guard
+}
+
+// F3 — ledger multi-ciclo (un ticket attivo per path decisionale).
+export type CycleStatus = 'active' | 'closed';
+export type CycleTicketKind = 'MOTHER' | 'COVERAGE' | 'LOCK' | 'TERMINATION';
+export type CycleTicketStatus = 'pending' | 'won' | 'lost' | 'void';
+
+export interface CycleMotherEvent {
+  odds: number;
+  market?: 'OVER' | 'UNDER';
+  label?: string;
+}
+
+export interface Cycle {
+  id: string;
+  name: string;
+  bankrollStart: number;
+  s0: number;
+  targetBase: number;
+  status: CycleStatus;
+  motherEvents: CycleMotherEvent[];
+  createdAt: string; // ISO
+  closedAt?: string | null;
+}
+
+export interface CycleTicket {
+  id: string;
+  cycleId: string;
+  kind: CycleTicketKind;
+  idx: number;
+  legs: TicketLeg[];
+  bookId?: string | null;
+  bookName: string;
+  bonusVersionId?: string | null;
+  stake: number;
+  finale: number;
+  target: number;
+  status: CycleTicketStatus;
+  placedAt: string; // ISO
+  settledAt?: string | null;
 }
 

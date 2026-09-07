@@ -1,6 +1,7 @@
 # HANDOFF — Multiplatore a scalare (production)
 
-> Ultimo aggiornamento: 2026-09-07. Stato: F0+F1+F2 completati e pushati.
+> Ultimo aggiornamento: 2026-09-07. Stato: F0+F1+F2 completati e pushati;
+> F3 implementata in locale NON committata (vedi §9).
 > Repo: `git@github.com:clearpdflab-ui/multiplatore.git` (branch `main`, tree pulito).
 > Progetto Supabase: **Multiplatore a scalare** (`ekzjsltnamndtydodkhx`, West EU).
 
@@ -84,6 +85,9 @@ OS win32, shell pwsh. Push via **deploy key SSH repo-scoped**
 - `pyengine/model.py`, `core.py`, `cli.py`, `tests/test_core.py`
 - `src/components/BooksManager.tsx`, `src/hooks/useBooks.ts`, `src/services/supabaseClient.ts`
 - `supabase/migrations/20260907134515_create_books_and_bonus.sql`
+- F3 (locale, da committare): `supabase/migrations/20260907180000_create_cycles_and_tickets.sql`,
+  `src/engine/cycles.ts`, `tests/unit/cycles.test.ts`, `src/hooks/useCycles.ts`,
+  `src/hooks/useAuth.ts`, `src/components/CyclesDashboard.tsx`, `src/components/AuthBar.tsx`
 - Comandi: `npx vitest run` · `npx tsc --noEmit` · `python -m pytest pyengine/tests -q` ·
   `python -m pyengine.cli chain --n 30` · supabase: serve `SUPABASE_ACCESS_TOKEN` da
   `.env:SUPABASE_TOKEN_ACCESS` nell'env di shell prima dei comandi.
@@ -93,10 +97,31 @@ OS win32, shell pwsh. Push via **deploy key SSH repo-scoped**
 MAI stampare/inccollare valori secret in chat o tool-output. Nomi ammessi. `.env` è
 gitignored. service_role solo server-side. Deploy key solo per questo repo.
 
-## 9. Da fare (prossimo: F3)
+## 9. Da fare (F3 implementata in locale 2026-09-07, NON committata)
 
-- **F3 cicli UI**: dashboard cicli, ledger multi-ciclo + tabelle Supabase (cycles/tickets),
-  calcolatore terminazione, flusso void/top-up, exposure meter + shared-leg guard, auth UI.
+- **F3 cicli UI — FATTO in locale** (locale-first + auth minimale, da committare):
+  migration `supabase/migrations/20260907180000_create_cycles_and_tickets.sql`
+  (tabelle cycles + tickets + RLS, CREATA ma NON applicata su Supabase);
+  `src/engine/cycles.ts` (refill-30, shared-leg guard, exposure summary,
+  gambe terminazione) + `tests/unit/cycles.test.ts` (**7/7 verdi**);
+  tipi Cycle/CycleTicket + ViewMode 'cycles' (`src/types.ts`);
+  `src/hooks/useCycles.ts` (localStorage-first, 1 ticket attivo/ciclo,
+  void gamba/ticket, top-up bankroll, refill-30, sync Supabase best-effort);
+  `src/hooks/useAuth.ts` + `src/components/AuthBar.tsx` (login email/pw minimale);
+  `src/components/CyclesDashboard.tsx` (exposure meter, shared-leg conflicts,
+  ledger ticket W/L/V, void singola gamba, piazza ticket con preview sizing,
+  calcolatore terminazione full→N corto→lock→stop, top-up, refill-30,
+  chiudi/elimina); nav Header/Footer/App; shim `src/types/lucide-react.d.ts`
+  esteso (LogIn/LogOut/User/Ban/Wallet/Repeat).
+  Verifiche: `tsc` pulito, `vitest` **43/43**, `vite build` OK.
+- **Prima del commit F3**: applicare migration su Supabase
+  (`SUPABASE_TOKEN_ACCESS` in env shell) + verifica REST; decidere commit/push.
+- **Nota 2026-09-07 (lavoro parallelo)**: apparsi su origin/main `ef44492`
+  (parity rho default pyengine↔harmony) e `3f85c91` (green-up back+lay per LOCK,
+  solo Python: `lay_stake_for_green`, `green_profit`, `back_stake_for_target_green`
+  + sottocomando `lock` in `pyengine/cli.py`). NON ancora cablato in
+  build_chain/resolve_fallback: serve matching update di `harmony.ts` per parità
+  TS/Python (task aperto, posteriore a F3). Nessun conflitto con i file F3.
 - **F4**: ingest odds-api.net (Edge Function SDK TS + mock test), comparatore book live,
   Gemini, lock manuale (istruzione calcolata). Verificare servizio della key in .env.
 - **F6**: rimuovere Express (`server/`) + proxy `/api`, full test/lint.

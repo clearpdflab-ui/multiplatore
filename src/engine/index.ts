@@ -12,6 +12,11 @@ export {
   resolveWithFallback, portfolioExposure, canOpenCycle, expectedBleed,
 } from './harmony';
 export type { TicketPhase, SizedTicket, ChainRow, CycleLedger } from './harmony';
+export {
+  refillToThirty, normalizeLegKey, findSharedLegs, exposureSummary,
+  buildTerminationLegs,
+} from './cycles';
+export type { LabeledLeg, CycleLegSet, SharedLegConflict, ExposureSummary } from './cycles';
 export type { Book, BookBonusVersion, TicketLeg } from '../types';
 export { roundToFiftyCents, getStepTargetProfit } from './dutching';
 export type { ModelParameters } from '../types';

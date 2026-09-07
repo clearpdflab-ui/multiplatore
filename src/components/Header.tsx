@@ -1,6 +1,7 @@
 import React from 'react';
 import { ViewMode } from '../types';
-import { Activity, ShieldAlert, Cpu, Layers, Calendar, BookOpen } from 'lucide-react';
+import { Activity, ShieldAlert, Cpu, Layers, Calendar, BookOpen, Repeat } from 'lucide-react';
+import { AuthBar } from './AuthBar';
 
 interface HeaderProps {
   currentView: ViewMode;
@@ -28,6 +29,9 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => 
       </div>
 
       <div className="flex items-center gap-2 sm:gap-4">
+        <div className="hidden lg:block">
+          <AuthBar />
+        </div>
         <div className="flex border border-[#2D3139] bg-[#0A0B10] p-0.5 rounded-xs font-mono">
           <button
             onClick={() => onViewChange('calendar_odds')}
@@ -66,6 +70,19 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => 
             <Activity className="w-3.5 h-3.5 text-white" />
             <span className="hidden sm:inline">Simulatore</span>
             <span className="sm:hidden">Simul.</span>
+          </button>
+
+          <button
+            onClick={() => onViewChange('cycles')}
+            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium uppercase tracking-wider transition-colors rounded-xs flex items-center gap-1.5 ${
+              currentView === 'cycles'
+                ? 'bg-[#3B82F6] text-white shadow-sm font-bold'
+                : 'text-[#94A3B8] hover:text-white'
+            }`}
+          >
+            <Repeat className="w-3.5 h-3.5 text-violet-400" />
+            <span className="hidden sm:inline">Cicli</span>
+            <span className="sm:hidden">Cicli</span>
           </button>
 
           <button

@@ -44,4 +44,10 @@ declare module 'lucide-react' {
   export const Download: ComponentType<IconProps>;
   export const Upload: ComponentType<IconProps>;
   export const History: ComponentType<IconProps>;
+  export const LogIn: ComponentType<IconProps>;
+  export const LogOut: ComponentType<IconProps>;
+  export const User: ComponentType<IconProps>;
+  export const Ban: ComponentType<IconProps>;
+  export const Wallet: ComponentType<IconProps>;
+  export const Repeat: ComponentType<IconProps>;
 }
