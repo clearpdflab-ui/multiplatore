@@ -40,4 +40,8 @@ declare module 'lucide-react' {
   export const Shield: ComponentType<IconProps>;
   export const Calculator: ComponentType<IconProps>;
   export const Coins: ComponentType<IconProps>;
+  export const BookOpen: ComponentType<IconProps>;
+  export const Download: ComponentType<IconProps>;
+  export const Upload: ComponentType<IconProps>;
+  export const History: ComponentType<IconProps>;
 }

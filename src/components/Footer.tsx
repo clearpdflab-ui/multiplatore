@@ -62,6 +62,16 @@ export const Footer: React.FC<FooterProps> = ({ currentView, onViewChange }) => 
           Simulatore
         </button>
         <button
+          onClick={() => onViewChange('books')}
+          className={`px-3 sm:px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all rounded-xs cursor-pointer ${
+            currentView === 'books'
+              ? 'bg-[#3B82F6] text-white shadow-sm'
+              : 'bg-transparent border border-[#2D3139] text-[#94A3B8] hover:bg-[#1A1D26] hover:text-white'
+          }`}
+        >
+          Book &amp; Bonus
+        </button>
+        <button
           onClick={() => onViewChange('math')}
           className={`px-3 sm:px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all rounded-xs cursor-pointer ${
             currentView === 'math'

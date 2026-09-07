@@ -6,6 +6,7 @@ import { MathematicalAnalysis } from './components/MathematicalAnalysis';
 import { PracticalSimulator } from './components/PracticalSimulator';
 import { LiveSlipTracker } from './components/LiveSlipTracker';
 import { CalendarOddsMonitor } from './components/CalendarOddsMonitor';
+import { BooksManager } from './components/BooksManager';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewMode>('live_slips');
@@ -34,6 +35,8 @@ export default function App() {
           />
         ) : currentView === 'practical' ? (
           <PracticalSimulator />
+        ) : currentView === 'books' ? (
+          <BooksManager />
         ) : (
           <MathematicalAnalysis />
         )}
