@@ -171,7 +171,7 @@ def select_best_book(books: list, legs: list) -> dict | None:
 
 
 def resolve_fallback(candidates: list, spent: float, bleed: float = 0.0,
-                     target_base: float = 45.0, rho: float = 0.0,
+                     target_base: float = 45.0, rho: float = 1.0,
                      min_stake: float = 1.0, s_cap: float = 150.0,
                      budget: float = math.inf) -> dict | None:
     """First feasible plan wins (full T/N -> reduced T -> lock). None = stop."""

@@ -91,6 +91,29 @@ def test_void_and_fallback_and_books():
     assert C.select_best_book([small], [U() for _ in range(12)]) is None
 
 
+def test_chain_30_lock_hits_spend_ceiling():
+    """Reference-chain audit signal: at N=30/s0=2 only the final LOCK row
+    exceeds s_cap (never a MOTHER/COVERAGE row) -- the exact threshold
+    lock_spend_limit() computes. Live sizing must step down via
+    resolve_fallback before this point, not use the raw neutral chain."""
+    res = C.build_chain(n_mother=30, s0=2.0)
+    bad = [r for r in res["rows"] if not r["feasible"]]
+    assert [r["kind"] for r in bad] == ["LOCK"]
+    lock_row = res["rows"][-2]  # last coverage row, pre-LOCK spend
+    ceiling = C.lock_spend_limit(150.0, 2.75, 45.0, 0.0)
+    assert lock_row["spent_cum"] > ceiling
+
+
+def test_resolve_fallback_rho_grows_with_spent():
+    """Default rho=1.0 mirrors harmony.ts resolveWithFallback: recovery
+    target grows with cumulative spend instead of staying flat at 45."""
+    legs = [{"odds": 2.75, "market": "OVER"}]
+    low = C.resolve_fallback([{"label": "lock", "legs": legs}], spent=10.0)
+    high = C.resolve_fallback([{"label": "lock", "legs": legs}], spent=100.0)
+    assert low["target"] == pytest.approx(45.0)
+    assert high["target"] == pytest.approx(100.0)  # rho=1: target tracks spent
+
+
 def test_expected_bleed():
     assert C.expected_bleed([1.0, 1.0, 1.0]) == pytest.approx(1.51, abs=0.01)
     assert C.expected_bleed([]) == 0.0
