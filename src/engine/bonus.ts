@@ -1,7 +1,4 @@
-export function getBonusPercentage(eventCount: number): number {
-  if (eventCount >= 8) return 26.2;
-  if (eventCount === 7) return 18.0;
-  if (eventCount === 6) return 12.0;
-  if (eventCount === 5) return 6.0;
-  return 0.0;
-}
+// DEPRECATED: per-book live tables live in src/engine/books.ts.
+// Kept as a thin re-export so existing imports keep working.
+export { getBonusPercentage, getBonusForBook, DEFAULT_BONUS_TABLE, DEFAULT_BOOK } from './books';
+export type { BookSelection } from './books';

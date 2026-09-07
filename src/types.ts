@@ -195,3 +195,32 @@ export interface FixtureMatch {
   suggestedBookmaker: BookmakerId;
 }
 
+// Registry book per bonus multipla (sezione Book gestionale, tabelle versionate su Supabase).
+export interface Book {
+  id: string;
+  name: string;
+  bonusTable: Record<number, number>; // N eventi -> % bonus (es. 30 -> 354.9)
+  bonusCap: number; // tetto % applicato (es. 500)
+  minStake: number; // default 1
+  maxPayout: number | null; // null = illimitato
+  maxLegs: number; // default 30
+  overEligible: boolean; // gamba Over ammessa nel bonus
+  competitions: string[]; // ['all'] = tutti i campionati
+  apiBookKey?: string; // mapping nomi bookmaker odds-api.net
+  isActive: boolean;
+}
+
+export interface BookBonusVersion {
+  id: string;
+  bookId: string;
+  validFrom: string; // ISO date
+  tableData: Record<number, number>;
+  supersededBy?: string | null;
+}
+
+// Gamba di un ticket candidato (madre/copertura/terminazione).
+export interface TicketLeg {
+  odds: number; // quota reale al piazzamento
+  market?: 'OVER' | 'UNDER';
+}
+

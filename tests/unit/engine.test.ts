@@ -1,6 +1,8 @@
 import { describe, expect, it, test } from 'vitest';
 import { calculateBookmakerAggio, BOOKMAKER_MODELS } from '../../src/engine/odds';
 import { getBonusPercentage } from '../../src/engine/bonus';
+import { DEFAULT_BOOK, selectBestBook } from '../../src/engine/books';
+import type { Book } from '../../src/types';
 import { roundToFiftyCents, getStepTargetProfit } from '../../src/engine/dutching';
 import { calculateSteps } from '../../src/engine/calculations';
 import { calculateBinomialRisk } from '../../src/engine/risk_internal';
@@ -27,14 +29,49 @@ describe('BOOKMAKER_MODELS', () => {
   });
 });
 
-describe('getBonusPercentage', () => {
-  it('should return correct bonus percentages', () => {
+describe('getBonusPercentage (validated per-book table, default Main)', () => {
+  it('should return validated bonus percentages', () => {
+    expect(getBonusPercentage(30)).toBe(354.9);
+    expect(getBonusPercentage(15)).toBe(89.8);
+    expect(getBonusPercentage(9)).toBe(33.8);
     expect(getBonusPercentage(8)).toBe(26.2);
-    expect(getBonusPercentage(7)).toBe(18.0);
-    expect(getBonusPercentage(6)).toBe(12.0);
+    expect(getBonusPercentage(7)).toBe(19.1);
+    expect(getBonusPercentage(6)).toBe(12.4);
     expect(getBonusPercentage(5)).toBe(6.0);
     expect(getBonusPercentage(4)).toBe(0.0);
     expect(getBonusPercentage(3)).toBe(0.0);
+  });
+
+  it('should enforce per-book bonus cap', () => {
+    const capped: Book = { ...DEFAULT_BOOK, id: 'cap', name: 'Cap', bonusCap: 100 };
+    expect(getBonusPercentage(30, capped)).toBe(100);
+    expect(getBonusPercentage(15, capped)).toBe(89.8);
+  });
+});
+
+describe('selectBestBook', () => {
+  const legs12 = Array.from({ length: 12 }, () => ({ odds: 1.32 }));
+
+  it('should pick the book with the highest finale', () => {
+    const low: Book = {
+      ...DEFAULT_BOOK, id: 'low', name: 'Low',
+      bonusTable: { ...DEFAULT_BOOK.bonusTable, 12: 10 },
+    };
+    const best = selectBestBook([low, DEFAULT_BOOK], legs12);
+    expect(best?.book.id).toBe('main');
+    expect(best?.finale).toBeCloseTo(1.32 ** 12 * 1.594, 2);
+  });
+
+  it('should exclude books over max legs or over-ineligible', () => {
+    const small: Book = { ...DEFAULT_BOOK, id: 'small', name: 'Small', maxLegs: 10 };
+    expect(selectBestBook([small], legs12)).toBeNull();
+    const noOver: Book = { ...DEFAULT_BOOK, id: 'noover', name: 'NoOver', overEligible: false };
+    expect(selectBestBook([noOver], [{ odds: 3.0, market: 'OVER' as const }, ...legs12])).toBeNull();
+  });
+
+  it('should return null when no book is eligible', () => {
+    expect(selectBestBook([], legs12)).toBeNull();
+    expect(selectBestBook([DEFAULT_BOOK], [])).toBeNull();
   });
 });
 
