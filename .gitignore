@@ -54,6 +54,10 @@ desktop.ini
 *.suo
 *.user
 
+# Local agent/tooling artifacts (never commit)
+.claude/
+.tokensave/
+
 # Vite / TS caches
 vite.config.ts.timestamp-*
 *.tsbuildinfo
