@@ -1,41 +1,63 @@
-*
-!.gitignore
-!.eslint.config.js
-!.prettierrc
-!*.md
-!PLAN.md
-!docker/
-!.github/
-!server/
-!tests/
-!src/engine/
-!src/types.ts
-!src/utils/mathEngine.ts
-!src/App.tsx
-!public/
-!docs/
+# Dependencies
 node_modules/
-dist/
-coverage/
-*.db
-.env
-.env.local
-*.log
-.DS_Store
-*.swp
-*.swo
+.pnp
+.pnp.*
 
-# Vite
-vite.config.ts
-vitest.config.ts
-tsconfig.json
-tsconfig.node.json
+# Build outputs
+dist/
+dist-ssr/
+coverage/
+*.local
+
+# Supabase local state (project link ref lives in CI secrets / relink)
+supabase/.temp/
+supabase/.branches/
+supabase/config.toml
+
+# Python tooling caches
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment & secrets (NEVER commit)
+.env
+.env.*
+!.env.example
+*.bak
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS
+.DS_Store
 Thumbs.db
+desktop.ini
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+*.suo
+*.user
+
+# Vite / TS caches
+vite.config.ts.timestamp-*
+*.tsbuildinfo
+
+# Misc temp
+.tmp/
+temp/
