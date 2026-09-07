@@ -91,6 +91,29 @@ def test_void_and_fallback_and_books():
     assert C.select_best_book([small], [U() for _ in range(12)]) is None
 
 
+def test_lock_green_up_trade():
+    """Inter-Genoa example: back 1 @1.45 >=2d before kickoff, lay @1.40 once
+    the crowd's money shortens it. Profit identical both outcomes."""
+    lay_stake = C.lay_stake_for_green(100.0, 1.45, 1.40)
+    profit = C.green_profit(100.0, 1.45, 1.40)
+    assert lay_stake == pytest.approx(103.57, abs=0.01)
+    assert profit == pytest.approx(3.57, abs=0.01)
+    # win leg: back wins, lay loses -> S*(B-1) - lay*(L-1)
+    win_profit = round(100.0 * (1.45 - 1) - lay_stake * (1.40 - 1), 2)
+    # lose leg: back loses, lay wins -> lay_stake - S
+    lose_profit = round(lay_stake - 100.0, 2)
+    assert win_profit == pytest.approx(profit, abs=0.01)
+    assert lose_profit == pytest.approx(profit, abs=0.01)
+
+
+def test_lock_back_stake_for_target_and_wrong_drift():
+    back_stake = C.back_stake_for_target_green(45.0, 1.45, 1.40)
+    assert back_stake == pytest.approx(1260.0)
+    assert C.green_profit(back_stake, 1.45, 1.40) == pytest.approx(45.0)
+    # odds moved the wrong way (drifted up, not shortened): no stake saves it
+    assert C.back_stake_for_target_green(45.0, 1.40, 1.45) is None
+
+
 def test_chain_30_lock_hits_spend_ceiling():
     """Reference-chain audit signal: at N=30/s0=2 only the final LOCK row
     exceeds s_cap (never a MOTHER/COVERAGE row) -- the exact threshold

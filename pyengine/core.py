@@ -101,6 +101,26 @@ def expected_bleed(later_stakes: list, reach_p: float = 0.6944) -> float:
     return r2(b)
 
 
+def lay_stake_for_green(back_stake: float, back_odds: float, lay_odds: float) -> float:
+    """Lay stake that equalizes profit on both outcomes of a back+lay trade."""
+    return r2(back_stake * back_odds / lay_odds)
+
+
+def green_profit(back_stake: float, back_odds: float, lay_odds: float) -> float:
+    """Guaranteed profit (same both outcomes) when odds shorten back_odds->lay_odds.
+    Positive only if back_odds > lay_odds (the crowd's money shortened the price)."""
+    return r2(back_stake * (back_odds - lay_odds) / lay_odds)
+
+
+def back_stake_for_target_green(target: float, back_odds: float, lay_odds: float) -> float | None:
+    """Back stake needed so trading out at lay_odds locks exactly `target` profit
+    on both outcomes. None if back_odds <= lay_odds (drift the wrong way: no
+    stake makes that trade a guaranteed win, so refuse rather than fake it)."""
+    if back_odds <= lay_odds:
+        return None
+    return r2(target * lay_odds / (back_odds - lay_odds))
+
+
 def build_chain(n_mother: int = 30, under: float = 1.32, over: float = 3.0,
                 s0: float = 2.0, target_base: float = 45.0, rho: float = 0.0,
                 book: dict | None = None, lock_odds: float = 2.75,
