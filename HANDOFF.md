@@ -1,7 +1,7 @@
 # HANDOFF — Multiplatore a scalare (production)
 
-> Ultimo aggiornamento: 2026-09-07. Stato: F0+F1+F2 completati e pushati;
-> F3 implementata in locale NON committata (vedi §9).
+> Ultimo aggiornamento: 2026-09-07. Stato: F0+F1+F2+F3 pushati;
+> F4a (feed odds-api.io) in locale NON committata (vedi §9).
 > Repo: `git@github.com:clearpdflab-ui/multiplatore.git` (branch `main`, tree pulito).
 > Progetto Supabase: **Multiplatore a scalare** (`ekzjsltnamndtydodkhx`, West EU).
 
@@ -52,8 +52,9 @@ rollover M2 = 195.46€ (motore) / 96.73€ con floor Excel 0.50 (obsoleto, vedi
 - Book main: cap bonus 500%, min stake 1€ (operativo 2–5€). Cover su book diversi per quote.
 - Sezione Book gestionale IN APP (CRUD+versioni+CSV), versionamento append-only, rollback = nuova versione.
 - Excel ELIMINATO dal repo (commit 4236ac5); calcoli in `pyengine/`. Niente più openpyxl.
-- odds-api.net (NON the-odds-api.com): SDK TS+Python, mock mode, comparison. ⚠️ `.env` ha
-  `THE_ODDS_API_KEY` (naming da the-odds-api.com!) — VERIFICARE a quale servizio appartiene la key (test status-only in F4).
+- ~~odds-api.net~~ → **odds-api.io** (scelta 2026-09-07, vedi §9): SDK TS+Python,
+  mock mode, comparison. Key `.env` `THE_ODDS_API_KEY` = **the-odds-api.com**
+  (VERIFICATO 2026-09-07: 200 lì, 401 su odds-api.io/net) → non riusarla per odds-api.io.
 
 ## 5. Stack e ambiente (verificati)
 
@@ -85,9 +86,11 @@ OS win32, shell pwsh. Push via **deploy key SSH repo-scoped**
 - `pyengine/model.py`, `core.py`, `cli.py`, `tests/test_core.py`
 - `src/components/BooksManager.tsx`, `src/hooks/useBooks.ts`, `src/services/supabaseClient.ts`
 - `supabase/migrations/20260907134515_create_books_and_bonus.sql`
-- F3 (locale, da committare): `supabase/migrations/20260907180000_create_cycles_and_tickets.sql`,
+- F3 (pushata `b3723a1`): `supabase/migrations/20260907180000_create_cycles_and_tickets.sql`,
   `src/engine/cycles.ts`, `tests/unit/cycles.test.ts`, `src/hooks/useCycles.ts`,
   `src/hooks/useAuth.ts`, `src/components/CyclesDashboard.tsx`, `src/components/AuthBar.tsx`
+- F4a (locale): `src/engine/oddsFeed.ts`, `src/data/mockOdds.ts`, `tests/unit/oddsFeed.test.ts`,
+  `src/services/oddsApi.ts`, `supabase/functions/odds/index.ts`
 - Comandi: `npx vitest run` · `npx tsc --noEmit` · `python -m pytest pyengine/tests -q` ·
   `python -m pyengine.cli chain --n 30` · supabase: serve `SUPABASE_ACCESS_TOKEN` da
   `.env:SUPABASE_TOKEN_ACCESS` nell'env di shell prima dei comandi.
@@ -97,7 +100,7 @@ OS win32, shell pwsh. Push via **deploy key SSH repo-scoped**
 MAI stampare/inccollare valori secret in chat o tool-output. Nomi ammessi. `.env` è
 gitignored. service_role solo server-side. Deploy key solo per questo repo.
 
-## 9. Da fare (F3 implementata in locale 2026-09-07, NON committata)
+## 9. Da fare (F3 committata+pushata `b3723a1`; F4a in locale 2026-09-07)
 
 - **F3 cicli UI — FATTO in locale** (locale-first + auth minimale, da committare):
   migration `supabase/migrations/20260907180000_create_cycles_and_tickets.sql`
@@ -114,8 +117,30 @@ gitignored. service_role solo server-side. Deploy key solo per questo repo.
   chiudi/elimina); nav Header/Footer/App; shim `src/types/lucide-react.d.ts`
   esteso (LogIn/LogOut/User/Ban/Wallet/Repeat).
   Verifiche: `tsc` pulito, `vitest` **43/43**, `vite build` OK.
-- **Prima del commit F3**: applicare migration su Supabase
-  (`SUPABASE_TOKEN_ACCESS` in env shell) + verifica REST; decidere commit/push.
+- **F4 — decisione servizio (2026-09-07, utente)**: si usa **odds-api.io**
+  (https://docs.odds-api.io, base `https://api.odds-api.io/v3`, auth `?apiKey=`).
+  Free tier: **2 bookmaker/account, 100 req/h, 500 req/giorno** → fino a 6 book con
+  3 account free. `/odds/multi` = 1 chiamata fino a 10 eventi (chiave del budget):
+  sweep completo 30 eventi × 1 account = 3 chiamate → ~166 sweep/giorno.
+  Book IT disponibili: Snai IT, Eurobet IT, Goldbet IT, Sisal IT, Planetwin365 IT,
+  Lottomatica IT, BetFlag IT, 888Sport IT... **Partenza decisa: 2 book
+  (Snai IT + Eurobet IT)** su 1 account, architettura già pronta a 3 chiavi.
+  ⚠ VERIFICATO: `THE_ODDS_API_KEY` in `.env` appartiene a **the-odds-api.com**
+  (HTTP 200; su odds-api.io e odds-api.net dà 401) → va trattata come servizio
+  diverso/unused. Le chiavi odds-api.io si impostano SOLO server-side:
+  `supabase secrets set ODDS_API_IO_KEYS=key1,key2,key3` (+ opzionale
+  `ODDS_API_IO_BOOKIES="Snai IT|Eurobet IT;;..."`; selection per-account è su
+  odds-api.io, endpoint `/bookmakers/selected`).
+- **F4a — FATTO in locale (non committato)**: `src/engine/oddsFeed.ts`
+  (normalize Totals @line, best-across-book, findRegistryBook ↔ Book.apiBookKey,
+  planSweep budget) + `src/data/mockOdds.ts` (shape docs, buco 3.5 gestito) +
+  `tests/unit/oddsFeed.test.ts` (9/9, totale **52/52**); Edge Function
+  `supabase/functions/odds/index.ts` (proxy multi-chiave server-side, merge
+  bookmakers, chunk 10, CORS; NON deployata); client `src/services/oddsApi.ts`
+  (POST edge → fallback mock). tsc pulito.
+- **F4b (prossimo)**: deploy Edge Function + chiavi nel `.env`/secrets (utente),
+  comparatore book live nel Calendario (ingest `/events`→eventIds→oddsFeed),
+  import quote nelle schedine, Gemini, lock manuale (istruzione calcolata).
 - **Nota 2026-09-07 (lavoro parallelo)**: apparsi su origin/main `ef44492`
   (parity rho default pyengine↔harmony) e `3f85c91` (green-up back+lay per LOCK,
   solo Python: `lay_stake_for_green`, `green_profit`, `back_stake_for_target_green`
@@ -135,5 +160,58 @@ Discussione lunga su: metodo multipla a scalare, tabelle bonus/assicurazione for
 dall'utente, validazione EV, dimensionamento stake, throughput 100/ciclo/sett,
 parallelismo e correlazione, bleed dei ticket intermedi (scoperta chiave),
 terminazione, restart refill-30, no-loss/no-stop-loss, sezione Book, audit script,
-repo odds-api.net, setup F0/F1/F2 con credenziali già in `.env`
+servizio odds (odds-api.io), setup F0/F1/F2 con credenziali già in `.env`
 (SUPABASE_TOKEN_ACCESS, THE_ODDS_API_KEY, GEMINI_API_KEY, VITE_*).
+
+## F5 — OddsScasser (liberidalavoro.it) + risultati live (scoretrend.net) — M1–M3 FATTO in locale
+
+**Piano approvato**: C:\Users\Quixel\.claude\plans\snug-beaming-music.md
+
+### Stato
+- Fonti esterne confermate via curl diretto (non assunte):
+  - **liberidalavoro.it / OddsScasser**: `https://api.ldl-test.eu/v1/oddsscasser/*`, Bearer-token
+    auth (401 senza token, verificato). Rotte reali enumerate dal bundle JS: `events`, `odds`,
+    `coverodds`, `bestevents`, `sites` (+ `bonuses*`, `multiples*`, `rollovers`, `singles*`, non
+    usate in F5). `coverodds` è il target diretto per "quote migliori per le coperture".
+  - **scoretrend.net**: API pubblica, nessuna auth. `GET /live-event-filtered` (live scores),
+    `POST /search/matches` con body **array di stringhe** id (non oggetto, non int) →
+    `time_status` (0/1/3), `ss` "H-A". sofascore (403 Cloudflare) e diretta.it/flashscore (418)
+    scartati: non richiamabili server-side.
+- **M1 — quote LDL (FATTO)**: `src/engine/coverOddsFeed.ts` (normalize eventi+sites@line,
+  `bestCoverSide`, mappatura stati italiani `normalizeLdlStatus`; shape `RawLdlEvent` presa
+  dal dump reale dell'utente, shape `sites`/`coverodds` da confermare contro l'API autenticata
+  reale — normalizzatore scritto tollerante/difensivo apposta) + `src/data/mockCoverOdds.ts`
+  (incl. caso `sites: null` come nel dump reale) + `tests/unit/coverOddsFeed.test.ts` (7/7).
+  Edge Function `supabase/functions/ldl-odds/index.ts` (proxy GET events/odds/coverodds/
+  bestevents/sites, header `Authorization: Bearer $LDL_BEARER_TOKEN`, 401 esplicito se
+  token assente/scaduto; NON deployata). Client `src/services/ldlOddsApi.ts` (fetch edge →
+  fallback mock, riusa `findRegistryBook` da `oddsFeed.ts` per i nomi book).
+- **M2 — risultati scoretrend (FATTO)**: `src/engine/resultsFeed.ts` (`parseScoreString` "H-A",
+  `normalizeMatchTimeStatus` 0/1/3 con default prudente `'live'` sui codici non mappati,
+  `isOverLine`, `matchEventByTeams` match esatto per nome squadra normalizzato — ambiguo/nessun
+  match → null, nessun campo orario affidabile nello schema osservato per disambiguare) +
+  `src/data/mockResults.ts` + `tests/unit/resultsFeed.test.ts` (10/10). Edge Function
+  `supabase/functions/results/index.ts` (proxy pubblico, nessun secret; NON deployata). Client
+  `src/services/resultsApi.ts`.
+- **M3 — aggancio dati/UI (FATTO)**: `TicketLeg`/`CycleMotherEvent` estesi con
+  `externalEventId?`/`ldlEventId?` (`src/types.ts`, dentro JSONB, nessuna migration). In
+  `CyclesDashboard.tsx`, sezione "Piazza ticket" ora ha un pannello "Quote suggerite
+  (liberidalavoro.it)" (bottone manuale `Aggiorna quote LDL`, mai polling automatico) con
+  bottoni U/O per riga che aggiungono la gamba precompilata e risolvono `externalEventId` via
+  scoretrend in background (best-effort, silenzioso se ambiguo/non trovato).
+- Verifiche fatte: `npx vitest run` **69/69 verdi** (52 pre-F5 + 17 nuovi), `npx tsc --noEmit`
+  pulito. Non ancora verificato contro le API reali (serve il token LDL, vedi blocco sotto) né
+  fatto `vite build`/test manuale in UI.
+- **Non committato** (locale, come F4a): nessun file F5 è ancora in un commit.
+
+### Blocco per verifica end-to-end di M1 (LDL odds)
+Serve che l'utente imposti lui stesso (mai passato in chat, per policy §8):
+`supabase secrets set LDL_BEARER_TOKEN=<token da DevTools, login su liberidalavoro.it>`
+Senza questo secret la Edge Function `ldl-odds` non può essere verificata contro l'API reale
+(incl. la shape esatta di `coverodds`, ancora da confermare) — il fallback mock funziona già.
+
+### Fuori scope in F5 (rimandato, dipende da questo)
+Agente cron auto-copertura (F6, richiede `pg_cron`/`pg_net`, nessun precedente nel repo) e
+riempimento assistito schedina via browser automation (book-per-book, ispezione live di
+Snai/Eurobet/BetFlag — non fattibile "alla cieca"). Piazzamento resta sempre a conferma
+manuale dell'utente.

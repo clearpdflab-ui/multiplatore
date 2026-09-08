@@ -16,6 +16,10 @@ import {
   exposureSummary,
   findSharedLegs,
 } from '../engine/cycles';
+import { bestCoverSide, type CoverOddsRow } from '../engine/coverOddsFeed';
+import { fetchCoverOdds } from '../services/ldlOddsApi';
+import { matchEventByTeams } from '../engine/resultsFeed';
+import { fetchResults } from '../services/resultsApi';
 import type { CycleTicketKind, TicketLeg } from '../types';
 
 const inputCls =
@@ -31,6 +35,8 @@ interface LegRow {
   odds: string;
   market: 'OVER' | 'UNDER';
   label: string;
+  ldlEventId?: string; // F5: valorizzato quando la gamba viene da "usa" sulle quote LDL
+  externalEventId?: string; // F5: id scoretrend risolto in background per il tracking risultati
 }
 
 const emptyLeg = (): LegRow => ({ odds: '1.32', market: 'UNDER', label: '' });
@@ -40,7 +46,13 @@ function parseLegs(rows: LegRow[]): { legs?: TicketLeg[]; error?: string } {
   for (let i = 0; i < rows.length; i++) {
     const q = Number(rows[i].odds);
     if (!Number.isFinite(q) || q <= 1) return { error: `Gamba ${i + 1}: quota non valida (>1)` };
-    legs.push({ odds: q, market: rows[i].market, label: rows[i].label.trim() || undefined });
+    legs.push({
+      odds: q,
+      market: rows[i].market,
+      label: rows[i].label.trim() || undefined,
+      ldlEventId: rows[i].ldlEventId,
+      externalEventId: rows[i].externalEventId,
+    });
   }
   if (legs.length < 1 || legs.length > 30) return { error: 'N gambe 1–30' };
   return { legs };
@@ -71,6 +83,39 @@ export const CyclesDashboard: React.FC = () => {
   const [bookId, setBookId] = useState<string>('');
   const [legRows, setLegRows] = useState<LegRow[]>([emptyLeg()]);
   const [bleed, setBleed] = useState('0');
+
+  // F5 — quote suggerite da liberidalavoro.it/OddsScasser (caricamento manuale)
+  const [ldlRows, setLdlRows] = useState<CoverOddsRow[]>([]);
+  const [ldlLoading, setLdlLoading] = useState(false);
+  const [ldlSource, setLdlSource] = useState<'edge' | 'mock' | null>(null);
+
+  async function loadLdlOdds() {
+    setLdlLoading(true);
+    try {
+      const r = await fetchCoverOdds();
+      setLdlRows(r.matches);
+      setLdlSource(r.source);
+    } finally {
+      setLdlLoading(false);
+    }
+  }
+
+  function applyLdlRow(row: CoverOddsRow, side: 'under' | 'over') {
+    const best = bestCoverSide(row, side);
+    if (!best) return;
+    setLegRows((rows) => [
+      ...rows,
+      { odds: String(best.odds), market: side === 'under' ? 'UNDER' : 'OVER', label: `${row.home}-${row.away}`, ldlEventId: row.eventId },
+    ]);
+    // risoluzione scoretrend best-effort in background, non blocca l'inserimento
+    void fetchResults().then((res) => {
+      const raw = res.matches.map((m) => ({ eventid: m.eventId, home: m.home, away: m.away }));
+      const match = matchEventByTeams(raw, row.home, row.away);
+      if (match) {
+        setLegRows((rows) => rows.map((r) => (r.ldlEventId === row.eventId ? { ...r, externalEventId: match.eventid } : r)));
+      }
+    });
+  }
 
   // terminazione + top-up
   const [termN, setTermN] = useState('5');
@@ -381,6 +426,42 @@ export const CyclesDashboard: React.FC = () => {
                 bleed atteso catena: {expectedBleed(selTickets.filter((t) => t.status === 'pending').map((t) => t.stake))}€
               </div>
             </div>
+
+            {/* F5 — quote suggerite liberidalavoro.it/OddsScasser */}
+            <div className="mb-3 border border-[#2D3139] rounded-xs p-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className={labelCls}>Quote suggerite (liberidalavoro.it)</span>
+                <button className={btnGhost} onClick={() => void loadLdlOdds()} disabled={ldlLoading}>
+                  {ldlLoading ? 'Carico…' : 'Aggiorna quote LDL'}
+                </button>
+              </div>
+              {ldlSource === 'mock' && (
+                <div className="text-[10px] font-mono text-amber-400 mb-1">
+                  dati mock (edge non raggiungibile o LDL_BEARER_TOKEN non impostato)
+                </div>
+              )}
+              {ldlRows.length === 0 ? (
+                <div className="text-[11px] font-mono text-[#64748B]">Nessuna quota caricata.</div>
+              ) : (
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {ldlRows.map((row) => {
+                    const u = bestCoverSide(row, 'under');
+                    const o = bestCoverSide(row, 'over');
+                    return (
+                      <div key={row.eventId} className="flex items-center justify-between gap-2 text-[11px] font-mono text-white">
+                        <span className="truncate">{row.home} - {row.away}</span>
+                        <div className="flex gap-1 shrink-0">
+                          {u && <button className={btnGhost} onClick={() => applyLdlRow(row, 'under')}>U {u.odds.toFixed(2)}</button>}
+                          {o && <button className={btnGhost} onClick={() => applyLdlRow(row, 'over')}>O {o.odds.toFixed(2)}</button>}
+                          {!u && !o && <span className="text-[#64748B]">nessuna quota @{row.line}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="space-y-1.5 mb-2">
               {legRows.map((r, i) => (
                 <div key={i} className="flex gap-1.5">

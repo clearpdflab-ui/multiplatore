@@ -223,6 +223,8 @@ export interface TicketLeg {
   odds: number; // quota reale al piazzamento
   market?: 'OVER' | 'UNDER';
   label?: string; // etichetta match (es. "Inter-Milan") per shared-leg guard
+  externalEventId?: string; // F5: id scoretrend.net (per il tracking risultati live)
+  ldlEventId?: string; // F5: id evento liberidalavoro.it/OddsScasser (origine quota)
 }
 
 // F3 — ledger multi-ciclo (un ticket attivo per path decisionale).
@@ -234,6 +236,8 @@ export interface CycleMotherEvent {
   odds: number;
   market?: 'OVER' | 'UNDER';
   label?: string;
+  externalEventId?: string; // F5: id scoretrend.net (per il tracking risultati live)
+  ldlEventId?: string; // F5: id evento liberidalavoro.it/OddsScasser (origine quota)
 }
 
 export interface Cycle {
