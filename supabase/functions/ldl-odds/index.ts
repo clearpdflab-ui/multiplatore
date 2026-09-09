@@ -15,7 +15,7 @@
 // Risposta: { data: unknown, error?: string }
 // (shape RAW OddsScasser; la normalizzazione avviene lato app in coverOddsFeed.ts)
 
-const LDL_BASE = 'https://api.ldl-test.eu/v1/oddsscasser/';
+const LDL_BASE = 'https://api.liberidalavoro.it/v1/oddsscasser/';
 const ALLOWED_RESOURCES = new Set(['events', 'odds', 'coverodds', 'bestevents', 'sites']);
 
 type Json = Record<string, unknown>;

@@ -1,7 +1,7 @@
 # HANDOFF — Multiplatore a scalare (production)
 
-> Ultimo aggiornamento: 2026-09-07. Stato: F0+F1+F2+F3 pushati;
-> F4a (feed odds-api.io) in locale NON committata (vedi §9).
+> Ultimo aggiornamento: 2026-09-08. Stato: F0–F3 + F4a (`ced7b46`) + F5 (`de860ea`) pushati;
+> migration F3 `20260907180000` APPLICATA su remote (REST verificato 200 su cycles+tickets).
 > Repo: `git@github.com:clearpdflab-ui/multiplatore.git` (branch `main`, tree pulito).
 > Progetto Supabase: **Multiplatore a scalare** (`ekzjsltnamndtydodkhx`, West EU).
 
@@ -104,7 +104,7 @@ gitignored. service_role solo server-side. Deploy key solo per questo repo.
 
 - **F3 cicli UI — FATTO in locale** (locale-first + auth minimale, da committare):
   migration `supabase/migrations/20260907180000_create_cycles_and_tickets.sql`
-  (tabelle cycles + tickets + RLS, CREATA ma NON applicata su Supabase);
+  (tabelle cycles + tickets + RLS, CREATA e APPLICATA su remote 2026-09-08);
   `src/engine/cycles.ts` (refill-30, shared-leg guard, exposure summary,
   gambe terminazione) + `tests/unit/cycles.test.ts` (**7/7 verdi**);
   tipi Cycle/CycleTicket + ViewMode 'cycles' (`src/types.ts`);
@@ -169,10 +169,17 @@ servizio odds (odds-api.io), setup F0/F1/F2 con credenziali già in `.env`
 
 ### Stato
 - Fonti esterne confermate via curl diretto (non assunte):
-  - **liberidalavoro.it / OddsScasser**: `https://api.ldl-test.eu/v1/oddsscasser/*`, Bearer-token
-    auth (401 senza token, verificato). Rotte reali enumerate dal bundle JS: `events`, `odds`,
+  - **liberidalavoro.it / OddsScasser**: base reale **`https://api.liberidalavoro.it/v1/oddsscasser/*`**
+    (VERIFICATO 2026-09-09: 200 con dati reali su `sites` e `events`), Bearer-token auth (401 senza
+    token, verificato). `https://api.ldl-test.eu/` (usato inizialmente in `ldl-odds/index.ts`) è
+    **SBAGLIATO per produzione**: è solo il fallback dev del bundle del sito quando
+    `hostname.includes("localhost")` (funzione `Lm()` in `main.<hash>.js`); in produzione il sito
+    stesso usa `api.{hostname}` → `api.liberidalavoro.it`. Rotte reali enumerate dal bundle JS: `events`, `odds`,
     `coverodds`, `bestevents`, `sites` (+ `bonuses*`, `multiples*`, `rollovers`, `singles*`, non
-    usate in F5). `coverodds` è il target diretto per "quote migliori per le coperture".
+    usate in F5). `coverodds` è il target diretto per "quote migliori per le coperture". Auth:
+    Cognito **access token** (non id token) via `Authorization: Bearer`, JWKS
+    `https://cognito-idp.eu-central-1.amazonaws.com/<userPoolId>/.well-known/jwks.json`, scade
+    e va rinnovato a mano da DevTools (nessun refresh automatico in questa fase).
   - **scoretrend.net**: API pubblica, nessuna auth. `GET /live-event-filtered` (live scores),
     `POST /search/matches` con body **array di stringhe** id (non oggetto, non int) →
     `time_status` (0/1/3), `ss` "H-A". sofascore (403 Cloudflare) e diretta.it/flashscore (418)
@@ -184,8 +191,9 @@ servizio odds (odds-api.io), setup F0/F1/F2 con credenziali già in `.env`
   (incl. caso `sites: null` come nel dump reale) + `tests/unit/coverOddsFeed.test.ts` (7/7).
   Edge Function `supabase/functions/ldl-odds/index.ts` (proxy GET events/odds/coverodds/
   bestevents/sites, header `Authorization: Bearer $LDL_BEARER_TOKEN`, 401 esplicito se
-  token assente/scaduto; NON deployata). Client `src/services/ldlOddsApi.ts` (fetch edge →
-  fallback mock, riusa `findRegistryBook` da `oddsFeed.ts` per i nomi book).
+  token assente/scaduto; **DEPLOYATA e VERIFICATA end-to-end 2026-09-09**, `resource=events`
+  e `resource=sites` rispondono 200 con dati reali). Client `src/services/ldlOddsApi.ts`
+  (fetch edge → fallback mock, riusa `findRegistryBook` da `oddsFeed.ts` per i nomi book).
 - **M2 — risultati scoretrend (FATTO)**: `src/engine/resultsFeed.ts` (`parseScoreString` "H-A",
   `normalizeMatchTimeStatus` 0/1/3 con default prudente `'live'` sui codici non mappati,
   `isOverLine`, `matchEventByTeams` match esatto per nome squadra normalizzato — ambiguo/nessun
@@ -200,15 +208,26 @@ servizio odds (odds-api.io), setup F0/F1/F2 con credenziali già in `.env`
   bottoni U/O per riga che aggiungono la gamba precompilata e risolvono `externalEventId` via
   scoretrend in background (best-effort, silenzioso se ambiguo/non trovato).
 - Verifiche fatte: `npx vitest run` **69/69 verdi** (52 pre-F5 + 17 nuovi), `npx tsc --noEmit`
-  pulito. Non ancora verificato contro le API reali (serve il token LDL, vedi blocco sotto) né
-  fatto `vite build`/test manuale in UI.
-- **Non committato** (locale, come F4a): nessun file F5 è ancora in un commit.
+  pulito. Verificato anche contro l'API reale (2026-09-09, vedi sotto), non ancora fatto
+  `vite build`/test manuale in UI con dati LDL live.
+- **COMMITTATO**: F4a → `ced7b46`, F5 → `de860ea`, entrambi pushati su origin/main.
 
-### Blocco per verifica end-to-end di M1 (LDL odds)
-Serve che l'utente imposti lui stesso (mai passato in chat, per policy §8):
-`supabase secrets set LDL_BEARER_TOKEN=<token da DevTools, login su liberidalavoro.it>`
-Senza questo secret la Edge Function `ldl-odds` non può essere verificata contro l'API reale
-(incl. la shape esatta di `coverodds`, ancora da confermare) — il fallback mock funziona già.
+### F4b — deploy Edge Functions: fatto, con un blocco residuo (2026-09-09)
+Tutte e tre le Edge Function sono deployate su `ekzjsltnamndtydodkhx` e verificate via curl:
+- `results` (scoretrend.net): nessun secret richiesto, 200 subito.
+- `ldl-odds`: **risolto un bug reale** — `LDL_BASE` puntava a `https://api.ldl-test.eu/` (fallback
+  dev del sito, usato quando `hostname.includes("localhost")` nel bundle JS di liberidalavoro.it),
+  mentre l'host di produzione vero è `https://api.liberidalavoro.it/` (bundle: `Lm()` → `"https://api."+hostname+"/"`).
+  Corretto in `supabase/functions/ldl-odds/index.ts`, riddeployato, secret `LDL_BEARER_TOKEN`
+  aggiornato con un access token Cognito valido, verificato end-to-end (200 con dati reali su
+  `resource=events` e `resource=sites` passando dalla Edge Function, non solo diretto su LDL).
+  La shape esatta di `coverodds` resta da confermare contro l'API reale (non ancora testata,
+  solo `events`/`sites`). Il token va **rinnovato a mano** quando scade (nessun refresh
+  automatico) — riprendere la procedura DevTools se torna 401.
+- `odds` (odds-api.io): **bloccato indefinitamente** — le registrazioni free-tier di odds-api.io
+  sono sospese a tempo indeterminato (dichiarato dall'utente 2026-09-09). Nessuna azione
+  possibile finché non si sblocca la registrazione o si trova un'alternativa; il fallback mock
+  lato client resta attivo.
 
 ### Fuori scope in F5 (rimandato, dipende da questo)
 Agente cron auto-copertura (F6, richiede `pg_cron`/`pg_net`, nessun precedente nel repo) e
