@@ -17,7 +17,7 @@ import {
   findSharedLegs,
 } from '../engine/cycles';
 import { bestCoverSide, type CoverOddsRow } from '../engine/coverOddsFeed';
-import { fetchCoverOdds } from '../services/ldlOddsApi';
+import { fetchCoverSuggestions } from '../services/ldlOddsApi';
 import { matchEventByTeams } from '../engine/resultsFeed';
 import { fetchResults } from '../services/resultsApi';
 import type { CycleTicketKind, TicketLeg } from '../types';
@@ -84,17 +84,34 @@ export const CyclesDashboard: React.FC = () => {
   const [legRows, setLegRows] = useState<LegRow[]>([emptyLeg()]);
   const [bleed, setBleed] = useState('0');
 
-  // F5 — quote suggerite da liberidalavoro.it/OddsScasser (caricamento manuale)
+  // F5 — coperture suggerite da liberidalavoro.it/OddsScasser /puntapunta
+  // (madre Under 3.5 @ Lottomatica[16], copertura Over 3.5 @ Sisal[23],
+  // quota madre nella fascia del metodo 1.25–1.49, ordinati per rating).
+  const LDL_SITES_MADRE = [16];
+  const LDL_SITES_COPERTURA = [23];
   const [ldlRows, setLdlRows] = useState<CoverOddsRow[]>([]);
   const [ldlLoading, setLdlLoading] = useState(false);
   const [ldlSource, setLdlSource] = useState<'edge' | 'mock' | null>(null);
+  const [ldlError, setLdlError] = useState<string | null>(null);
 
   async function loadLdlOdds() {
     setLdlLoading(true);
+    setLdlError(null);
     try {
-      const r = await fetchCoverOdds();
+      const r = await fetchCoverSuggestions({
+        sites1: LDL_SITES_MADRE,
+        sites2PuntaPunta: LDL_SITES_COPERTURA,
+        oddsMin: 1.25,
+        oddsMax: 1.49,
+        dateTo: new Date(Date.now() + 48 * 3600_000).toISOString(),
+      });
       setLdlRows(r.matches);
       setLdlSource(r.source);
+      if (r.errors.length) setLdlError(r.errors.join('; '));
+    } catch (e) {
+      setLdlRows([]);
+      setLdlSource(null);
+      setLdlError(e instanceof Error ? e.message : String(e));
     } finally {
       setLdlLoading(false);
     }
@@ -430,7 +447,7 @@ export const CyclesDashboard: React.FC = () => {
             {/* F5 — quote suggerite liberidalavoro.it/OddsScasser */}
             <div className="mb-3 border border-[#2D3139] rounded-xs p-2">
               <div className="flex items-center justify-between mb-1.5">
-                <span className={labelCls}>Quote suggerite (liberidalavoro.it)</span>
+                <span className={labelCls}>Coperture suggerite (Lottomatica→Sisal, rating)</span>
                 <button className={btnGhost} onClick={() => void loadLdlOdds()} disabled={ldlLoading}>
                   {ldlLoading ? 'Carico…' : 'Aggiorna quote LDL'}
                 </button>
@@ -439,6 +456,9 @@ export const CyclesDashboard: React.FC = () => {
                 <div className="text-[10px] font-mono text-amber-400 mb-1">
                   dati mock (edge non raggiungibile o LDL_BEARER_TOKEN non impostato)
                 </div>
+              )}
+              {ldlError && (
+                <div className="text-[10px] font-mono text-red-400 mb-1">{ldlError}</div>
               )}
               {ldlRows.length === 0 ? (
                 <div className="text-[11px] font-mono text-[#64748B]">Nessuna quota caricata.</div>
@@ -449,7 +469,11 @@ export const CyclesDashboard: React.FC = () => {
                     const o = bestCoverSide(row, 'over');
                     return (
                       <div key={row.eventId} className="flex items-center justify-between gap-2 text-[11px] font-mono text-white">
-                        <span className="truncate">{row.home} - {row.away}</span>
+                        <span className="truncate">
+                          {row.rating != null && <span className="text-emerald-400">[{row.rating.toFixed(3)}] </span>}
+                          {row.home} - {row.away}
+                          {row.league && <span className="text-[#64748B]"> · {row.league}</span>}
+                        </span>
                         <div className="flex gap-1 shrink-0">
                           {u && <button className={btnGhost} onClick={() => applyLdlRow(row, 'under')}>U {u.odds.toFixed(2)}</button>}
                           {o && <button className={btnGhost} onClick={() => applyLdlRow(row, 'over')}>O {o.odds.toFixed(2)}</button>}

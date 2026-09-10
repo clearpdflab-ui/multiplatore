@@ -10,13 +10,22 @@
 //   (va rinnovato a mano quando scade — nessun login automatico in questa fase)
 //
 // GET /ldl-odds?resource=coverodds&eventIds=1,2,3 -> passthrough JSON da OddsScasser
-// resource ammesse: events | odds | coverodds | bestevents | sites
+// resource ammesse: events | odds | coverodds | bestevents | sites | puntapunta | puntabanca
 //
 // Risposta: { data: unknown, error?: string }
 // (shape RAW OddsScasser; la normalizzazione avviene lato app in coverOddsFeed.ts)
 
 const LDL_BASE = 'https://api.liberidalavoro.it/v1/oddsscasser/';
-const ALLOWED_RESOURCES = new Set(['events', 'odds', 'coverodds', 'bestevents', 'sites']);
+const ALLOWED_RESOURCES = new Set([
+  'events',
+  'odds',
+  'coverodds',
+  'bestevents',
+  'sites',
+  // ricerca coperture (GET con parametri dal form del sito, conferma 2026-09-10):
+  'puntapunta',
+  'puntabanca',
+]);
 
 type Json = Record<string, unknown>;
 

@@ -221,13 +221,46 @@ Tutte e tre le Edge Function sono deployate su `ekzjsltnamndtydodkhx` e verifica
   Corretto in `supabase/functions/ldl-odds/index.ts`, riddeployato, secret `LDL_BEARER_TOKEN`
   aggiornato con un access token Cognito valido, verificato end-to-end (200 con dati reali su
   `resource=events` e `resource=sites` passando dalla Edge Function, non solo diretto su LDL).
-  La shape esatta di `coverodds` resta da confermare contro l'API reale (non ancora testata,
-  solo `events`/`sites`). Il token va **rinnovato a mano** quando scade (nessun refresh
+  La shape di `coverodds` e' stata nel frattempo confermata e cablata (vedi F5c). Il token va **rinnovato a mano** quando scade (nessun refresh
   automatico) — riprendere la procedura DevTools se torna 401.
 - `odds` (odds-api.io): **bloccato indefinitamente** — le registrazioni free-tier di odds-api.io
   sono sospese a tempo indeterminato (dichiarato dall'utente 2026-09-09). Nessuna azione
   possibile finché non si sblocca la registrazione o si trova un'alternativa; il fallback mock
   lato client resta attivo.
+
+### F5c — Shape coverodds/odds CONFERMATA + pipeline feed riscritta (2026-09-10)
+
+**Verifica reali** (via Edge Function deployata, token server-side — dump utente + curl):
+- `GET /coverodds` **senza** `eventId` → 400; **con** `eventId&selection="Over 3.5"` →
+  lista PIATTA di offerte (alternative di copertura per quel lato). La shape
+  `{event, odds[], rating}` (dump utente) arriva da **`/bestevents`**, i cui parametri
+  completi NON sono ancora stati replicati (calleda senza date → 200 vuoto; con date
+  ISO `toISOString()` → ancora 0 items: mancano campi del form di ricerca, vedi bundle
+  `main.dc841c5e.js`: sports/sites1/leaguesIds/eventsIds/size/page/dateFrom/dateTo ISO).
+- `GET /odds?eventId=X` → 200, ~660 offerte piatte ALL markets × ~45 siti (U/O 3.5 inclusi).
+- `GET /sites` → 95 siti con `id→name` + `type`: `bookmaker` (attivi), `bookmaker_removed`,
+  `bookmaker_hidden`, `exchange` (Betfair id 6, Betflag id 9, "Broker" id 7). 57/95 INATTIVI.
+- `GET /events` → 917 eventi con metadati veri (datetime/league/status/score), `sites:null`.
+
+**Feed del Calendario adesso è**: `/events` (metadati) + `/sites` (nomi+flag) +
+`/odds?eventId` sugli eventi prossimi (cap `ODDS_FETCH_LIMIT=40`, concurrency 4) →
+`normalizeEventsFeed` in `src/engine/coverOddsFeed.ts`. Nomi book risolti via index;
+siti non-`bookmaker` esclusi (`collectInactiveSiteIds`). `RawLdlEvent` campi chiave ora
+nullable (l'API reale manda null). Mock aggiornati alla shape vera (`MOCK_LDL_COVERODDS`,
+`MOCK_LDL_SITES`, `MOCK_LDL_COVER_EVENTS`). Verifica end-to-end dal vivo: Fenerbahce-Roma
+U:Bet365@1.57 O:Bwin@2.5, 34-36 book attivi/evento. Test **83/83**, tsc pulito, build OK.
+
+**Aperto (aggiornato ore 14:35)**: L'endpoint giusto era **`/puntapunta`** (query reale
+dell'utente: sites1=madre, sites2PuntaPunta=coperture, selections=Under+Over 3.5,
+oddsMin/Max, dateTo ISO, order=rating). Confermato via Edge Function **rideployata** con
+`puntapunta|puntabanca` in whitelist: stessi item del dump, rating server-side. Aggiunti:
+`CoverOddsRow.rating`, `fetchCoverSuggestions()` in `ldlOddsApi.ts` (merge sites+events,
+sort rating desc — smoke dal vivo: 15 righe, es. Montpellier-Pau U:Lottomatica@1.25
+O:Sisal@3.75 [0.9167]). `bestevents` non serve piu`. Test **84/84**, tsc pulito, build OK.
+**Deciso con l'utente**: il pannello "Coperture suggerite" di CyclesDashboard usa
+`fetchCoverSuggestions` (siti 16→23 e fascia 1.25–1.49 come costanti in cima al
+componente, migrazione alla sezione Book rimandata); il Calendario resta su
+`fetchCoverOdds` (/odds per-event). UI mostra badge rating + lega/kickoff.
 
 ### F5b — CalendarOddsMonitor ricollegato a dati reali (2026-09-10)
 Bug segnalato dall'utente: la vista "Calendario" mostrava partite inventate che non si
