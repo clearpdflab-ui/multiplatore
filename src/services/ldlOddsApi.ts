@@ -27,7 +27,7 @@ import {
 // (concurrency limitata) e gli altri restano senza/books (non selezionabili).
 
 const FN_PATH = '/functions/v1/ldl-odds';
-const ODDS_FETCH_LIMIT = 40;
+const ODDS_FETCH_LIMIT = 24;
 const ODDS_CONCURRENCY = 4;
 
 export interface CoverOddsFetchResult {
@@ -99,16 +99,29 @@ async function fetchEdge(timeoutMs: number): Promise<CoverOddsFetchResult> {
     const targets = pickUpcoming(events, ODDS_FETCH_LIMIT);
     const errors: string[] = [];
     const oddsByEventId = new Map<string, RawLdlCoverOddsEntry[]>();
+    // Budget morbido: se scade, si tornano comunque le righe con le quote
+    // gia' caricate (parziali) invece di collassare sul mock.
+    const softDeadline = Date.now() + Math.max(5000, timeoutMs - 7000);
+    let skipped = 0;
     await mapWithConcurrency(targets, ODDS_CONCURRENCY, async (ev) => {
+      if (Date.now() > softDeadline) {
+        skipped++;
+        return;
+      }
       try {
-        const entries = await fetchResource<RawLdlCoverOddsEntry[]>('odds', ctrl.signal, {
-          eventId: String(ev.id),
-        });
+        let entries: RawLdlCoverOddsEntry[];
+        try {
+          entries = await fetchResource<RawLdlCoverOddsEntry[]>('odds', ctrl.signal, { eventId: String(ev.id) });
+        } catch {
+          // instabilita' transitoria LDL su singoli eventi: un retry
+          entries = await fetchResource<RawLdlCoverOddsEntry[]>('odds', ctrl.signal, { eventId: String(ev.id) });
+        }
         oddsByEventId.set(String(ev.id), entries.filter((x) => x && x.type));
       } catch (e) {
         errors.push(`odds ${ev.id}: ${e instanceof Error ? e.message : String(e)}`);
       }
     });
+    if (skipped > 0) errors.push(`quote solo per ${oddsByEventId.size}/${targets.length} eventi (budget tempo)`);
     return {
       matches: normalizeEventsFeed(events, {
         line: 3.5,

@@ -103,6 +103,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [activeLeagueFilter, setActiveLeagueFilter] = useState<string>('all');
   const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'scheduled' | 'live' | 'finished'>('all');
   const [importNotification, setImportNotification] = useState<string | null>(null);
+  const [ldlErrors, setLdlErrors] = useState<string[]>([]);
 
   async function loadRows() {
     setLoading(true);
@@ -110,6 +111,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       const r = await fetchCoverOdds();
       setRows(r.matches);
       setSource(r.source);
+      setLdlErrors(r.source === 'edge' ? r.errors : []);
     } finally {
       setLoading(false);
     }
@@ -251,6 +253,13 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         <div className="bg-amber-950/40 border border-amber-500/40 p-3 rounded-xs text-amber-300 font-mono text-xs flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-amber-400" />
           <span>Dati mock: Edge Function non raggiungibile o LDL_BEARER_TOKEN non impostato/scaduto.</span>
+        </div>
+      )}
+
+      {/* Partial-data notice (quote caricate solo per alcuni eventi) */}
+      {source === 'edge' && ldlErrors.length > 0 && (
+        <div className="bg-sky-950/40 border border-sky-500/40 p-3 rounded-xs text-sky-300 font-mono text-xs">
+          <span>{ldlErrors.slice(0, 2).join(' · ')}{ldlErrors.length > 2 ? ` (+${ldlErrors.length - 2} altri)` : ''}</span>
         </div>
       )}
 
