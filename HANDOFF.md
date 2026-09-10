@@ -260,9 +260,33 @@ O:Sisal@3.75 [0.9167]). `bestevents` non serve piu`. Test **84/84**, tsc pulito,
 **Deciso con l'utente**: il pannello "Coperture suggerite" di CyclesDashboard usa
 `fetchCoverSuggestions` (siti 16→23 e fascia 1.25–1.49 come costanti in cima al
 componente, migrazione alla sezione Book rimandata); il Calendario resta su
-`fetchCoverOdds` (/odds per-event). UI mostra badge rating + lega/kickoff.
+`fetchCoverOdds` (/odds per-event) — **poi sostituito in F5d**. UI mostra badge rating + lega/kickoff.
+
+### F5d — Auto-refresh Cognito + Calendario su /puntapunta (2026-09-10, post-15:00)
+
+- **Causa "poche partite"**: LDL_BEARER_TOKEN (access token Cognito) scaduto ~1h → 401
+  su tutto → fallback mock (4 eventi). L'utente ha incollato in chat un nuovo access
+  token (valido 24h, exp ~2026-11? no: 24h) — impostato come `LDL_BEARER_TOKEN`.
+  **Va comunque sostituito con il VERO refresh token** (localStorage LDL, chiave
+  `CognitoIdentityServiceProvider.7tbdal5hjeth0oq9nlifs5m8e0.<user>.refreshToken`) →
+  `supabase secrets set LDL_COGNITO_REFRESH_TOKEN=<valore>`: la nuova edge function
+  (`supabase/functions/ldl-odds/index.ts`) fa `InitiateAuth REFRESH_TOKEN_AUTH` da sola
+  (pool produzione `eu-central-1_Gaq47fVqf`, client `7tbdal5hjeth0oq9nlifs5m8e0`,
+  sovrascrivibili via secret) + retry automatico su 401 + cache JWT exp. Rideployata.
+- **Calendario ora su /puntapunta** (1 chiamata, `fetchCoverFeed` in `ldlOddsApi.ts`):
+  eventi con U+O appaiati + rating server, `size=100`/`page` supportati (verificato:
+  100 righe complete U+O in ~1.1s, prima erano ~15 via /odds per-evento). Selettori
+  UI "Madre"/"Copertura" popolati da `fetchLdlBookmakers()` (siti type=bookmaker, 38 attivi).
+  Rimosso il vecchio path per-evento (`fetchCoverOdds`/`ODDS_FETCH_LIMIT`); `fetchCoverOdds`
+  non più esportato. Badge rating ★ anche nel Calendario; messaggio mock ora mostra
+  l'errore reale. Vecchi test `normalizeEventsFeed` ancora verdi (funzione tenuta nell'engine).
+- Test **84/84**, tsc pulito, build OK, smoke dal vivo OK (Guingamp-Annecy 0.918 in testa).
+- **Aperto**: refresh token vero nel secret (vedi sopra, quando l'utente lo pesca dal
+  DevTools — l'attuale è un access token che scade ~13/09); paginazione "carica più partite";
+  coppia book madre/copertura configurabile per ciclo (oggi default globali 16→23).
 
 ### F5b — CalendarOddsMonitor ricollegato a dati reali (2026-09-10)
+
 Bug segnalato dall'utente: la vista "Calendario" mostrava partite inventate che non si
 aggiornavano mai. Causa: `CalendarOddsMonitor.tsx` + `src/services/fixturesService.ts` erano
 completamente scollegati dall'integrazione LDL (F4b/F5) — usavano un elenco hardcoded di ~26

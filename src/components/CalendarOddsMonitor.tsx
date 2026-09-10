@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserMatch } from '../types';
 import { bestCoverSide, type CoverOddsRow, type LdlMatchStatus, type LineStatus } from '../engine/coverOddsFeed';
-import { fetchCoverOdds } from '../services/ldlOddsApi';
+import { fetchCoverFeed, fetchLdlBookmakers } from '../services/ldlOddsApi';
 import { calculateBookmakerAggio } from '../utils/mathEngine';
 import {
   Calendar,
@@ -104,14 +104,24 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'scheduled' | 'live' | 'finished'>('all');
   const [importNotification, setImportNotification] = useState<string | null>(null);
   const [ldlErrors, setLdlErrors] = useState<string[]>([]);
+  // Coppia book per la ricerca /puntapunta: madre=Under 3.5 sul book siti1,
+  // copertura=Over 3.5 sul book siti2 (default Lottomatica 16 -> Sisal 23,
+  // come la ricerca standard su OddsScasser).
+  const [bookmakers, setBookmakers] = useState<Array<{ id: number; name: string }>>([]);
+  const [madreSite, setMadreSite] = useState(16);
+  const [coperturaSite, setCoperturaSite] = useState(23);
 
   async function loadRows() {
     setLoading(true);
     try {
-      const r = await fetchCoverOdds();
+      const r = await fetchCoverFeed({
+        sites1: [madreSite],
+        sites2PuntaPunta: [coperturaSite],
+        dateTo: new Date(Date.now() + 48 * 3600_000).toISOString(),
+      });
       setRows(r.matches);
       setSource(r.source);
-      setLdlErrors(r.source === 'edge' ? r.errors : []);
+      setLdlErrors(r.errors);
     } finally {
       setLoading(false);
     }
@@ -119,7 +129,10 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
 
   useEffect(() => {
     void loadRows();
-  }, []);
+    fetchLdlBookmakers()
+      .then(setBookmakers)
+      .catch(() => setBookmakers([]));
+  }, [madreSite, coperturaSite]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -127,7 +140,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       void loadRows();
     }, REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [autoRefresh]);
+    // loadRows richiudo madreSite/coperturaSite: senza deps aggiornate il
+    // timer manterrebbe la vecchia coppia di book.
+  }, [autoRefresh, madreSite, coperturaSite]);
 
   const leagues = useMemo(() => Array.from(new Set(rows.map((r) => r.league))).sort(), [rows]);
 
@@ -223,6 +238,30 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <label className="flex items-center gap-1.5 text-[10px] font-mono text-[#94A3B8]">
+              Madre
+              <select
+                value={madreSite}
+                onChange={(e) => setMadreSite(Number(e.target.value))}
+                className="bg-[#1A1D26] border border-[#2D3139] rounded-xs px-1.5 py-1 text-xs text-white font-mono"
+              >
+                {(bookmakers.length ? bookmakers : [{ id: 16, name: 'Lottomatica' }]).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-1.5 text-[10px] font-mono text-[#94A3B8]">
+              Copertura
+              <select
+                value={coperturaSite}
+                onChange={(e) => setCoperturaSite(Number(e.target.value))}
+                className="bg-[#1A1D26] border border-[#2D3139] rounded-xs px-1.5 py-1 text-xs text-white font-mono"
+              >
+                {(bookmakers.length ? bookmakers : [{ id: 23, name: 'Sisal' }]).map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </label>
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
               className={`px-3 py-1.5 text-xs font-mono rounded-xs border transition-colors flex items-center gap-1.5 ${
@@ -252,7 +291,12 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       {source === 'mock' && (
         <div className="bg-amber-950/40 border border-amber-500/40 p-3 rounded-xs text-amber-300 font-mono text-xs flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-amber-400" />
-          <span>Dati mock: Edge Function non raggiungibile o LDL_BEARER_TOKEN non impostato/scaduto.</span>
+          <span>
+            Dati mock: feed LDL non raggiungibile (edge down o token LDL scaduto —
+            vedi messaggio qui sotto). I rinnovi del token Cognito sono automatici
+            se LDL_COGNITO_REFRESH_TOKEN e' impostato.
+          </span>
+          {ldlErrors.length > 0 && <span className="text-[#FDE68A]">· {ldlErrors[0]}</span>}
         </div>
       )}
 
@@ -461,6 +505,11 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                       <span>{formatKickoff(row.kickoff)}</span>
                       <span>•</span>
                       <span>{row.league}</span>
+                      {row.rating != null && (
+                        <span className="ml-1 text-emerald-400 font-mono" title="Rating copertura OddsScasser">
+                          ★ {row.rating.toFixed(3)}
+                        </span>
+                      )}
                     </div>
                     <div className="text-white font-bold text-sm">
                       {row.home} <span className="text-[#64748B]">vs</span> {row.away}
