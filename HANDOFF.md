@@ -229,6 +229,36 @@ Tutte e tre le Edge Function sono deployate su `ekzjsltnamndtydodkhx` e verifica
   possibile finché non si sblocca la registrazione o si trova un'alternativa; il fallback mock
   lato client resta attivo.
 
+### F5b — CalendarOddsMonitor ricollegato a dati reali (2026-09-10)
+Bug segnalato dall'utente: la vista "Calendario" mostrava partite inventate che non si
+aggiornavano mai. Causa: `CalendarOddsMonitor.tsx` + `src/services/fixturesService.ts` erano
+completamente scollegati dall'integrazione LDL (F4b/F5) — usavano un elenco hardcoded di ~26
+partite fittizie (`generateRealOfficialFixtures()`), cacheato per sempre in `localStorage`,
+con quote sintetiche a 5 bookmaker fissi derivate per aritmetica e una simulazione di gol via
+`setInterval`. Nessuna fetch di rete.
+
+Fix: `CalendarOddsMonitor.tsx` riscritto per usare `fetchCoverOdds()` (stesso client di
+`CyclesDashboard.tsx`), con refresh manuale + auto-refresh reale ogni 60s. Estesa
+`src/engine/coverOddsFeed.ts` (`CoverOddsRow`) con `homeScore`/`awayScore`/`totalGoals`/
+`lineStatus` (passthrough dai punteggi reali già presenti in `RawLdlTeam.score`, prima
+scartati). Filtri lega/stato ora dinamici sui dati reali (nessun `leagueId`/round hardcoded).
+Copertura bookmaker per riga variabile (`row.books`, non più 5 fissi), aggio calcolato per
+libro reale via `calculateBookmakerAggio`. Import in Schedina Madre usa `bestCoverSide()` per
+scegliere la quota migliore osservata per lato; righe senza copertura completa non sono
+selezionabili.
+
+Eliminato `src/services/fixturesService.ts` (nessun altro importatore). Rimossi da
+`src/types.ts` i tipi morti `FixtureMatch`, `BookmakerQuote`, `BookmakerId`.
+
+Verifiche fatte: `npx tsc --noEmit` pulito, `npx vitest run` **72/72 verdi** (10 in
+`coverOddsFeed.test.ts`, inclusi i nuovi casi su score/lineStatus). Smoke test manuale in
+browser non completato in questa sessione (tool di automazione Chrome non funzionante su
+`localhost:3000`/`127.0.0.1:3000` — errore indipendente dall'app, server verificato via
+`curl` con risposta 200). **Da verificare manualmente dall'utente**: aprire il Calendario con
+`npm run dev`, confermare partite reali (non più Fiorentina-Torino/Juventus-Milan), controllare
+Network tab per confermare che il bottone "Aggiorna Ora"/auto-refresh rifanno la fetch, e
+testare import di una partita con copertura completa nella Schedina Madre.
+
 ### Fuori scope in F5 (rimandato, dipende da questo)
 Agente cron auto-copertura (F6, richiede `pg_cron`/`pg_net`, nessun precedente nel repo) e
 riempimento assistito schedina via browser automation (book-per-book, ispezione live di

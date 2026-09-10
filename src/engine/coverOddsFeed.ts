@@ -69,6 +69,8 @@ export interface CoverOddsBook {
   over: number | null;
 }
 
+export type LineStatus = 'safe' | 'warning' | 'over';
+
 export interface CoverOddsRow {
   eventId: string;
   home: string;
@@ -78,6 +80,17 @@ export interface CoverOddsRow {
   status: LdlMatchStatus;
   line: number;
   books: CoverOddsBook[];
+  homeScore: number | null;
+  awayScore: number | null;
+  totalGoals: number | null;
+  lineStatus: LineStatus | null;
+}
+
+function computeLineStatus(totalGoals: number | null, line: number): LineStatus | null {
+  if (totalGoals === null) return null;
+  if (totalGoals > line) return 'over';
+  if (totalGoals === Math.floor(line)) return 'warning';
+  return 'safe';
 }
 
 export function normalizeCoverOdds(raw: RawLdlEvent[], line = 3.5): CoverOddsRow[] {
@@ -86,6 +99,9 @@ export function normalizeCoverOdds(raw: RawLdlEvent[], line = 3.5): CoverOddsRow
       .filter((s) => s.line === undefined || s.line === null || Math.abs(Number(s.line) - line) < 0.001)
       .map((s) => ({ book: s.site, under: toNum(s.under), over: toNum(s.over) }))
       .filter((b) => b.under !== null || b.over !== null);
+    const homeScore = ev.home?.score ?? null;
+    const awayScore = ev.away?.score ?? null;
+    const totalGoals = homeScore !== null && awayScore !== null ? homeScore + awayScore : null;
     return {
       eventId: String(ev.id),
       home: ev.home?.name ?? '',
@@ -95,6 +111,10 @@ export function normalizeCoverOdds(raw: RawLdlEvent[], line = 3.5): CoverOddsRow
       status: normalizeLdlStatus(ev.status),
       line,
       books,
+      homeScore,
+      awayScore,
+      totalGoals,
+      lineStatus: computeLineStatus(totalGoals, line),
     };
   });
 }

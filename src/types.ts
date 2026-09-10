@@ -159,42 +159,6 @@ export interface ImprovementModel {
   advantage: string;
 }
 
-export type BookmakerId = 'snai' | 'bet365' | 'eurobet' | 'goldbet' | 'sisal';
-
-export interface BookmakerQuote {
-  bookmakerId: BookmakerId;
-  bookmakerName: string;
-  under35: number;
-  over35: number;
-  aggioPercent: number;
-  payoutPercent: number;
-  isBestUnder?: boolean;
-  isBestOver?: boolean;
-  isLowestAggio?: boolean;
-}
-
-export interface FixtureMatch {
-  id: string;
-  leagueId: 'serie_a' | 'premier_league' | 'la_liga' | 'champions_league';
-  leagueName: string;
-  round: string;
-  homeTeam: string;
-  awayTeam: string;
-  startTime: string; // ISO date string
-  formattedDate: string; // e.g. "Sab 05 Set"
-  formattedTime: string; // e.g. "15:00"
-  status: 'SCHEDULED' | 'LIVE' | 'FINISHED';
-  liveMinute?: number;
-  homeScore?: number;
-  awayScore?: number;
-  totalGoals?: number;
-  under35Status?: 'SAFE' | 'WARNING_3_GOALS' | 'OVER_BUSTED';
-  quotes: Record<BookmakerId, BookmakerQuote>;
-  defaultUnder35: number;
-  defaultOver35: number;
-  suggestedBookmaker: BookmakerId;
-}
-
 // Registry book per bonus multipla (sezione Book gestionale, tabelle versionate su Supabase).
 export interface Book {
   id: string;

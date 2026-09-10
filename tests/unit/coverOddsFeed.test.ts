@@ -49,7 +49,45 @@ describe('normalizeCoverOdds + bestCoverSide', () => {
     expect(mockCoverOddsForEventIds([166923]).map((e) => e.id)).toEqual([166923]);
     expect(mockCoverOddsForEventIds([]).length).toBe(3);
   });
+
+  it('should passthrough real scores and derive totalGoals/lineStatus for finished matches', () => {
+    const finished = rows.find((r) => r.status === 'finished')!;
+    expect(finished.homeScore).toBe(1);
+    expect(finished.awayScore).toBe(1);
+    expect(finished.totalGoals).toBe(2);
+    expect(finished.lineStatus).toBe('safe');
+  });
+
+  it('should leave score fields null for matches not yet played', () => {
+    const inter = rows[0];
+    expect(inter.homeScore).toBeNull();
+    expect(inter.awayScore).toBeNull();
+    expect(inter.totalGoals).toBeNull();
+    expect(inter.lineStatus).toBeNull();
+  });
+
+  it('should flag totalGoals above the line as over and at the line floor as warning', () => {
+    expect(computeLineStatusFor(4, 3.5)).toBe('over');
+    expect(computeLineStatusFor(3, 3.5)).toBe('warning');
+    expect(computeLineStatusFor(2, 3.5)).toBe('safe');
+  });
 });
+
+function computeLineStatusFor(totalGoals: number, line: number) {
+  const events = [
+    {
+      id: 999,
+      datetime: '2026-09-07T14:00:00',
+      league: { id: 1, name: 'Test' },
+      home: { id: 1, name: 'A', score: totalGoals },
+      away: { id: 2, name: 'B', score: 0 },
+      status: 'Finale',
+      sites: null,
+      urls: null,
+    },
+  ];
+  return normalizeCoverOdds(events, line)[0].lineStatus;
+}
 
 describe('findRegistryBook reuse for LDL site names', () => {
   const books: Book[] = [
