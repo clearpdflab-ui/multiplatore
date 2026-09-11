@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserMatch } from '../types';
 import { bestCoverSide, type CoverOddsRow, type LdlMatchStatus, type LineStatus } from '../engine/coverOddsFeed';
-import { fetchCoverFeed, fetchLdlBookmakers } from '../services/ldlOddsApi';
+import { fetchCoverFeed, fetchCoverSuggestions, fetchLdlBookmakers } from '../services/ldlOddsApi';
+import { findRegistryBook } from '../engine/oddsFeed';
+import { useBooks } from '../hooks/useBooks';
 import { calculateBookmakerAggio } from '../utils/mathEngine';
 import {
   Calendar,
@@ -16,6 +18,8 @@ import {
   Award,
   CheckSquare,
   Square,
+  ChevronDown,
+  Sparkles,
 } from 'lucide-react';
 
 interface CalendarOddsMonitorProps {
@@ -24,6 +28,109 @@ interface CalendarOddsMonitorProps {
 }
 
 const REFRESH_INTERVAL_MS = 60000;
+const CALENDAR_WINDOW_DAYS = 7;
+const MAX_AUTO_PAGES = 3;
+const STORE_MADRE = 'multiscale_cal_madre_sites_v1';
+const STORE_COPERTURA = 'multiscale_cal_copertura_sites_v1';
+
+function loadStoredSites(key: string): number[] | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const arr = JSON.parse(raw);
+    const ids = Array.isArray(arr) ? arr.map(Number).filter((n) => Number.isFinite(n)) : [];
+    return ids.length > 0 ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
+interface LdlBookmaker {
+  id: number;
+  name: string;
+}
+
+function BookMultiSelect({
+  label, options, selected, onChange, registeredIds, daysLimits,
+}: {
+  label: string;
+  options: LdlBookmaker[];
+  selected: number[];
+  onChange: (ids: number[]) => void;
+  registeredIds: Set<number>;
+  daysLimits: Map<number, number>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const toggle = (id: number) =>
+    onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]);
+  const visible = options.filter((o) => o.name.toLowerCase().includes(q.toLowerCase()));
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="px-2 py-1.5 text-xs font-mono bg-[#1A1D26] border border-[#2D3139] text-white rounded-xs flex items-center gap-1.5 hover:border-[#3B82F6]"
+        title={`Book selezionati per: ${label}`}
+      >
+        <span className="text-[#94A3B8]">{label}:</span>
+        <span className="font-bold">{selected.length > 0 ? `${selected.length} book` : 'nessuno'}</span>
+        <ChevronDown className="w-3.5 h-3.5 text-[#64748B]" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-40 mt-1 w-72 bg-[#0F1117] border border-[#2D3139] rounded-sm shadow-xl">
+            <div className="p-2 border-b border-[#2D3139]">
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Cerca bookmaker…"
+                className="w-full bg-[#0A0B10] border border-[#2D3139] rounded-xs px-2 py-1 text-xs font-mono text-white outline-none focus:border-[#3B82F6]"
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto divide-y divide-[#20242C]">
+              {visible.map((o) => {
+                const limit = daysLimits.get(o.id);
+                return (
+                  <label
+                    key={o.id}
+                    className="flex items-center gap-2 px-2.5 py-1.5 text-xs hover:bg-[#1A1D26] cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(o.id)}
+                      onChange={() => toggle(o.id)}
+                      className="accent-[#3B82F6]"
+                    />
+                    <span className="text-white font-mono flex-1 truncate">{o.name}</span>
+                    {registeredIds.has(o.id) && (
+                      <span className="text-[9px] px-1 rounded-xs bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 font-mono">reg</span>
+                    )}
+                    {limit != null && (
+                      <span className="text-[9px] text-amber-300 font-mono" title={`Multipla: gambe entro ${limit} giorni`}>≤{limit}gg</span>
+                    )}
+                  </label>
+                );
+              })}
+              {visible.length === 0 && (
+                <div className="p-3 text-[11px] font-mono text-[#64748B]">Nessun bookmaker.</div>
+              )}
+            </div>
+            <div className="p-2 border-t border-[#2D3139] flex items-center justify-between">
+              <button onClick={() => onChange([])} className="text-[10px] font-mono text-[#64748B] hover:text-white uppercase">
+                Azzera
+              </button>
+              <button onClick={() => setOpen(false)} className="text-[10px] font-mono text-[#3B82F6] hover:text-white uppercase font-bold">
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 function formatKickoff(iso: string): string {
   try {
@@ -104,20 +211,75 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'scheduled' | 'live' | 'finished'>('all');
   const [importNotification, setImportNotification] = useState<string | null>(null);
   const [ldlErrors, setLdlErrors] = useState<string[]>([]);
-  // Coppia book per la ricerca /puntapunta: madre=Under 3.5 sul book siti1,
-  // copertura=Over 3.5 sul book siti2 (default Lottomatica 16 -> Sisal 23,
-  // come la ricerca standard su OddsScasser).
-  const [bookmakers, setBookmakers] = useState<Array<{ id: number; name: string }>>([]);
-  const [madreSite, setMadreSite] = useState(16);
-  const [coperturaSite, setCoperturaSite] = useState(23);
+  // Coppia book per la ricerca /puntapunta: madre=book con Under 3.5 (sites1),
+  // copertura=book con Over 3.5 (sites2PuntaPunta). Multi-selezione libera:
+  // default = book registrati nel gestionale (match per nome), altrimenti
+  // Lottomatica[16] -> Sisal[23] (ricerca standard OddsScasser).
+  const [bookmakers, setBookmakers] = useState<LdlBookmaker[]>([]);
+  const { books: registryBooks } = useBooks();
+  const [madreSites, setMadreSites] = useState<number[]>(() => loadStoredSites(STORE_MADRE) ?? []);
+  const [coperturaSites, setCoperturaSites] = useState<number[]>(() => loadStoredSites(STORE_COPERTURA) ?? []);
+  const [oddsMin, setOddsMin] = useState('1,25');
+  const [targetCount, setTargetCount] = useState('30');
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [autoMsg, setAutoMsg] = useState<string | null>(null);
+
+  const parsedOddsMin = useMemo(() => {
+    const v = parseFloat(oddsMin.replace(',', '.'));
+    return Number.isFinite(v) && v > 1 ? v : 1.25;
+  }, [oddsMin]);
+
+  const parsedTarget = useMemo(
+    () => Math.min(30, Math.max(3, parseInt(targetCount, 10) || 30)),
+    [targetCount],
+  );
+
+  // Book LDL -> book gestionale: id dei registrati + limiti giorni multipla.
+  const registeredLdlIds = useMemo(() => {
+    const active = registryBooks.filter((b) => b.isActive);
+    const set = new Set<number>();
+    if (!active.length) return set;
+    for (const b of bookmakers) if (findRegistryBook(active, b.name)) set.add(b.id);
+    return set;
+  }, [bookmakers, registryBooks]);
+
+  const daysLimitsByLdlId = useMemo(() => {
+    const active = registryBooks.filter((b) => b.isActive);
+    const map = new Map<number, number>();
+    if (!active.length) return map;
+    for (const b of bookmakers) {
+      const limit = findRegistryBook(active, b.name)?.multiDaysLimit ?? null;
+      if (limit != null && limit >= 1) map.set(b.id, limit);
+    }
+    return map;
+  }, [bookmakers, registryBooks]);
+
+  // Default di selezione: book registrati (pre-spuntati), fallback 16/23.
+  useEffect(() => {
+    if (!bookmakers.length) return;
+    const registered = [...registeredLdlIds];
+    setMadreSites((prev) => (prev.length ? prev : registered.length ? registered : [16]));
+    setCoperturaSites((prev) => (prev.length ? prev : registered.length ? registered : [23]));
+  }, [bookmakers, registeredLdlIds]);
+
+  useEffect(() => {
+    if (madreSites.length) localStorage.setItem(STORE_MADRE, JSON.stringify(madreSites));
+  }, [madreSites]);
+  useEffect(() => {
+    if (coperturaSites.length) localStorage.setItem(STORE_COPERTURA, JSON.stringify(coperturaSites));
+  }, [coperturaSites]);
+
+  const madreKey = madreSites.join(',');
+  const coperturaKey = coperturaSites.join(',');
 
   async function loadRows() {
+    if (!madreSites.length || !coperturaSites.length) return;
     setLoading(true);
     try {
       const r = await fetchCoverFeed({
-        sites1: [madreSite],
-        sites2PuntaPunta: [coperturaSite],
-        dateTo: new Date(Date.now() + 48 * 3600_000).toISOString(),
+        sites1: madreSites,
+        sites2PuntaPunta: coperturaSites,
+        dateTo: new Date(Date.now() + CALENDAR_WINDOW_DAYS * 24 * 3600_000).toISOString(),
       });
       setRows(r.matches);
       setSource(r.source);
@@ -130,9 +292,10 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   useEffect(() => {
     void loadRows();
     fetchLdlBookmakers()
-      .then(setBookmakers)
-      .catch(() => setBookmakers([]));
-  }, [madreSite, coperturaSite]);
+      .then((list) => setBookmakers(list.length ? list : [{ id: 16, name: 'Lottomatica' }, { id: 23, name: 'Sisal' }]))
+      .catch(() => setBookmakers([{ id: 16, name: 'Lottomatica' }, { id: 23, name: 'Sisal' }]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [madreKey, coperturaKey]);
 
   useEffect(() => {
     if (!autoRefresh) return;
@@ -140,11 +303,15 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       void loadRows();
     }, REFRESH_INTERVAL_MS);
     return () => clearInterval(interval);
-    // loadRows richiudo madreSite/coperturaSite: senza deps aggiornate il
+    // loadRows richiama madreSites/coperturaSites: senza deps aggiornate il
     // timer manterrebbe la vecchia coppia di book.
-  }, [autoRefresh, madreSite, coperturaSite]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRefresh, madreKey, coperturaKey]);
 
   const leagues = useMemo(() => Array.from(new Set(rows.map((r) => r.league))).sort(), [rows]);
+
+  // Errori auth LDL: la edge function marca i problemi token con prefisso "TOKEN:".
+  const tokenIssue = useMemo(() => ldlErrors.find((e) => e.includes('TOKEN:')) ?? null, [ldlErrors]);
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
@@ -160,15 +327,85 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     );
   };
 
-  const selectFirst8Matches = () => {
-    const ids = filteredRows
-      .filter((r) => bestCoverSide(r, 'under') && bestCoverSide(r, 'over'))
-      .slice(0, 8)
-      .map((r) => r.eventId);
-    setSelectedEventIds(ids);
-  };
-
   const deselectAll = () => setSelectedEventIds([]);
+
+  // Finestra effettiva: min(7gg, limite giorni multipla piu' restrittivo tra
+  // i book madre selezionati (dal gestionale).
+  const motherWindowDays = useMemo(() => {
+    let days = CALENDAR_WINDOW_DAYS;
+    for (const idStr of madreKey.split(',').filter(Boolean)) {
+      const limit = daysLimitsByLdlId.get(Number(idStr));
+      if (limit != null) days = Math.min(days, limit);
+    }
+    return days;
+  }, [madreKey, daysLimitsByLdlId]);
+
+  async function autoFindMatches() {
+    if (!madreSites.length || !coperturaSites.length) {
+      setAutoMsg('⚠ Seleziona almeno un book madre e uno di copertura.');
+      return;
+    }
+    setAutoLoading(true);
+    setAutoMsg(null);
+    try {
+      const now = Date.now();
+      const dateTo = new Date(now + motherWindowDays * 24 * 3600_000).toISOString();
+      const seen = new Map<string, CoverOddsRow>();
+      for (let page = 0; page < MAX_AUTO_PAGES; page++) {
+        const r = await fetchCoverSuggestions({
+          sites1: madreSites,
+          sites2PuntaPunta: coperturaSites,
+          oddsMin: parsedOddsMin,
+          dateFrom: new Date(now).toISOString(),
+          dateTo,
+          size: 100,
+          page,
+        });
+        let fresh = 0;
+        for (const m of r.matches) {
+          if (!seen.has(m.eventId)) { seen.set(m.eventId, m); fresh++; }
+        }
+        const candidates = [...seen.values()].filter((row) => {
+          if (row.status !== 'scheduled') return false;
+          const under = bestCoverSide(row, 'under');
+          const over = bestCoverSide(row, 'over');
+          return Boolean(under && over && under.odds >= parsedOddsMin);
+        });
+        // Risposta breve o nessuna riga nuova = altre pagine inutili.
+        if (r.matches.length < 100 || fresh === 0 || candidates.length >= parsedTarget) break;
+      }
+      // seen e' gia' ordinato per rating (sort server-side del feed).
+      const candidates = [...seen.values()]
+        .filter((row) => {
+          if (row.status !== 'scheduled') return false;
+          const under = bestCoverSide(row, 'under');
+          const over = bestCoverSide(row, 'over');
+          return Boolean(under && over && under.odds >= parsedOddsMin);
+        })
+        .slice(0, parsedTarget);
+      setSelectedEventIds(candidates.map((r) => r.eventId));
+
+      let msg = `Selezionate ${candidates.length}/${parsedTarget} partite (Under ≥ ${parsedOddsMin.toFixed(2)}, finestra ${motherWindowDays}gg, ordine rating)`;
+      if (candidates.length < parsedTarget) {
+        msg += ' · nel calendario non ci sono altre partite idonee con questi filtri';
+      }
+      const times = candidates
+        .map((r) => new Date(r.kickoff).getTime())
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+      if (times.length > 1) {
+        const spreadDays = Math.ceil((times[times.length - 1] - times[0]) / (24 * 3600_000));
+        if (spreadDays > motherWindowDays) {
+          msg += ` · ⚠ spread ${spreadDays}gg: supera il limite ${motherWindowDays}gg dei book madre`;
+        }
+      }
+      setAutoMsg(msg);
+    } catch (e) {
+      setAutoMsg(`⚠ Ricerca non riuscita: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAutoLoading(false);
+    }
+  }
 
   const handleImportSelected = () => {
     const matchesToImport = rows.filter((r) => selectedEventIds.includes(r.eventId));
@@ -196,6 +433,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         overOdds: over.odds,
         outcome,
         resultScore: row.totalGoals !== null ? `${row.homeScore} - ${row.awayScore}` : undefined,
+        kickoff: row.kickoff || undefined,
         note: `${row.league} (U:${under.book} / O:${over.book})`,
       });
     });
@@ -230,38 +468,66 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               Calendario Partite &amp; Monitoraggio Bookmaker Live
             </h2>
             <p className="text-xs sm:text-sm text-[#94A3B8] mt-1 max-w-3xl leading-relaxed">
-              Partite ed quote under/over 3.5 recuperate in tempo reale dal feed OddsScasser, con
-              copertura dinamica per bookmaker (nessuna quota inventata). Seleziona le partite per
-              generare la <strong className="text-emerald-400">Schedina Madre</strong>.
+              Partite ed quote under/over 3.5 recuperate in tempo reale dal feed OddsScasser su
+              finestra di <strong className="text-white">{CALENDAR_WINDOW_DAYS} giorni</strong>. Usa{' '}
+              <strong className="text-blue-300">Trova Partite</strong> per selezionare in automatico
+              fino a 30 eventi con copertura completa e quota Under sopra la soglia, sui book in cui
+              sei registrato. Seleziona le partite per generare la{' '}
+              <strong className="text-emerald-400">Schedina Madre</strong>.
             </p>
           </div>
 
           {/* Quick Actions */}
           <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <BookMultiSelect
+              label="Madre (Under)"
+              options={bookmakers}
+              selected={madreSites}
+              onChange={setMadreSites}
+              registeredIds={registeredLdlIds}
+              daysLimits={daysLimitsByLdlId}
+            />
+            <BookMultiSelect
+              label="Copertura (Over)"
+              options={bookmakers}
+              selected={coperturaSites}
+              onChange={setCoperturaSites}
+              registeredIds={registeredLdlIds}
+              daysLimits={daysLimitsByLdlId}
+            />
             <label className="flex items-center gap-1.5 text-[10px] font-mono text-[#94A3B8]">
-              Madre
-              <select
-                value={madreSite}
-                onChange={(e) => setMadreSite(Number(e.target.value))}
-                className="bg-[#1A1D26] border border-[#2D3139] rounded-xs px-1.5 py-1 text-xs text-white font-mono"
-              >
-                {(bookmakers.length ? bookmakers : [{ id: 16, name: 'Lottomatica' }]).map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+              Quota min
+              <input
+                type="number"
+                step="0.05"
+                min="1.05"
+                value={oddsMin}
+                onChange={(e) => setOddsMin(e.target.value)}
+                className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-xs text-white font-mono"
+                title="Quota Under minima della madre (filtro server-side /puntapunta)"
+              />
             </label>
             <label className="flex items-center gap-1.5 text-[10px] font-mono text-[#94A3B8]">
-              Copertura
-              <select
-                value={coperturaSite}
-                onChange={(e) => setCoperturaSite(Number(e.target.value))}
-                className="bg-[#1A1D26] border border-[#2D3139] rounded-xs px-1.5 py-1 text-xs text-white font-mono"
-              >
-                {(bookmakers.length ? bookmakers : [{ id: 23, name: 'Sisal' }]).map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+              N
+              <input
+                type="number"
+                min="3"
+                max="30"
+                value={targetCount}
+                onChange={(e) => setTargetCount(e.target.value)}
+                className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-xs text-white font-mono"
+                title="Numero di partite da selezionare automaticamente"
+              />
             </label>
+            <button
+              onClick={() => void autoFindMatches()}
+              disabled={autoLoading || loading || !madreSites.length || !coperturaSites.length}
+              className="px-3 py-1.5 text-xs font-mono font-bold rounded-xs border flex items-center gap-1.5 transition-colors bg-[#3B82F6]/10 hover:bg-[#3B82F6]/25 text-blue-300 border-blue-500/40 disabled:opacity-50"
+              title={`Cerca nel calendario dei prossimi ${motherWindowDays} giorni le partite con copertura completa e quota Under >= soglia, e seleziona le ${parsedTarget} migliori per rating`}
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${autoLoading ? 'animate-pulse' : ''}`} />
+              <span>{autoLoading ? 'Ricerca…' : `Trova ${parsedTarget} Partite (${motherWindowDays}gg)`}</span>
+            </button>
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
               className={`px-3 py-1.5 text-xs font-mono rounded-xs border transition-colors flex items-center gap-1.5 ${
@@ -287,8 +553,35 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         </div>
       </div>
 
+      {/* Token LDL problematico: procedura di rinnovo (non e' un guasto di rete) */}
+      {tokenIssue && (
+        <div className="bg-amber-950/40 border border-amber-500/40 p-4 rounded-xs text-amber-200 font-mono text-xs space-y-2">
+          <div className="flex items-center gap-2 font-bold text-amber-300">
+            <AlertCircle className="w-4 h-4" />
+            Autenticazione LDL scaduta — la sincronizzazione quote non funziona finche' non rinnovi il refresh token
+          </div>
+          <p className="text-[#FDE68A]">{tokenIssue}</p>
+          <div className="bg-[#0F1117] border border-amber-500/30 rounded-xs p-3 leading-relaxed">
+            <div className="font-bold text-amber-300 mb-1.5 uppercase tracking-wider text-[10px]">
+              Procedura di rinnovo (serve ogni ~30 giorni, dopo il login su liberidalavoro.it)
+            </div>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>
+                Browser loggato su liberidalavoro.it → F12 → Application → Local Storage → copia il valore della chiave{' '}
+                <span className="text-white">CognitoIdentityServiceProvider.…&lt;utente&gt;.refreshToken</span>
+              </li>
+              <li>
+                Dashboard Supabase → Settings → API Keys → <span className="text-white">Edge Secrets</span> → aggiorna{' '}
+                <span className="text-white">LDL_COGNITO_REFRESH_TOKEN</span>
+              </li>
+              <li>Ricarica questa pagina (verifica rapida: aggiungi ?resource=tokencheck all&apos;edge function)</li>
+            </ol>
+          </div>
+        </div>
+      )}
+
       {/* Mock data warning */}
-      {source === 'mock' && (
+      {source === 'mock' && !tokenIssue && (
         <div className="bg-amber-950/40 border border-amber-500/40 p-3 rounded-xs text-amber-300 font-mono text-xs flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-amber-400" />
           <span>
@@ -304,6 +597,24 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       {source === 'edge' && ldlErrors.length > 0 && (
         <div className="bg-sky-950/40 border border-sky-500/40 p-3 rounded-xs text-sky-300 font-mono text-xs">
           <span>{ldlErrors.slice(0, 2).join(' · ')}{ldlErrors.length > 2 ? ` (+${ldlErrors.length - 2} altri)` : ''}</span>
+        </div>
+      )}
+
+      {/* Esito ricerca automatica partite */}
+      {autoMsg && (
+        <div
+          className={`border p-3 rounded-xs font-mono text-xs flex items-center gap-2 ${
+            autoMsg.startsWith('⚠')
+              ? 'bg-amber-950/40 border-amber-500/40 text-amber-300'
+              : 'bg-blue-950/40 border-blue-500/40 text-blue-300'
+          }`}
+        >
+          {autoMsg.startsWith('⚠') ? (
+            <AlertCircle className="w-4 h-4 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          )}
+          <span>{autoMsg}</span>
         </div>
       )}
 
@@ -395,15 +706,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
 
         {/* Bulk Selection Helpers */}
         <div className="flex flex-wrap items-center gap-2 text-xs font-mono shrink-0">
-          <button
-            onClick={selectFirst8Matches}
-            className="px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-xs flex items-center gap-1.5 transition-colors font-bold"
-            title="Seleziona le prime 8 partite con copertura completa per la Schedina Madre"
-          >
-            <CheckSquare className="w-3.5 h-3.5 text-blue-400" />
-            <span>Seleziona 8 con Copertura</span>
-          </button>
-
+          <span className="text-[10px] text-[#64748B]">
+            Usa <strong className="text-blue-300">Trova Partite</strong> in alto per la selezione automatica
+          </span>
           <button onClick={deselectAll} className="px-2 py-1 text-[#64748B] hover:text-white">
             Deseleziona
           </button>

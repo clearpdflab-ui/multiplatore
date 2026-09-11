@@ -31,6 +31,7 @@ export interface UserMatch {
   outcome: 'PENDING' | 'UNDER' | 'OVER';
   resultScore?: string;
   note?: string;
+  kickoff?: string; // ISO kickoff (import LDL); per controllo spread limite giorni
 }
 
 export interface GeneratedSlipItem {
@@ -168,6 +169,7 @@ export interface Book {
   minStake: number; // default 1
   maxPayout: number | null; // null = illimitato
   maxLegs: number; // default 30
+  multiDaysLimit?: number | null; // tutte le gambe devono chiudere entro N giorni; null/undefined = nessun limite
   overEligible: boolean; // gamba Over ammessa nel bonus
   competitions: string[]; // ['all'] = tutti i campionati
   apiBookKey?: string; // mapping nomi bookmaker odds-api.net

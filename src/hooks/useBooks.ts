@@ -13,6 +13,7 @@ interface DbBookRow {
   min_stake: number;
   max_payout: number | null;
   max_legs: number;
+  multi_days_limit: number | null;
   over_eligible: boolean;
   competitions: string[];
   api_book_key: string | null;
@@ -36,6 +37,7 @@ function rowToBook(r: DbBookRow, table: Record<number, number>): Book {
     minStake: Number(r.min_stake),
     maxPayout: r.max_payout === null ? null : Number(r.max_payout),
     maxLegs: r.max_legs,
+    multiDaysLimit: r.multi_days_limit ?? null,
     overEligible: r.over_eligible,
     competitions: r.competitions,
     apiBookKey: r.api_book_key ?? undefined,
@@ -191,6 +193,7 @@ export function useBooks(): UseBooksState {
           min_stake: input.minStake,
           max_payout: input.maxPayout,
           max_legs: input.maxLegs,
+          multi_days_limit: input.multiDaysLimit ?? null,
           over_eligible: input.overEligible,
           competitions: input.competitions,
           api_book_key: input.apiBookKey ?? null,
@@ -220,6 +223,7 @@ export function useBooks(): UseBooksState {
       if (patch.minStake !== undefined) payload.min_stake = patch.minStake;
       if (patch.maxPayout !== undefined) payload.max_payout = patch.maxPayout;
       if (patch.maxLegs !== undefined) payload.max_legs = patch.maxLegs;
+      if (patch.multiDaysLimit !== undefined) payload.multi_days_limit = patch.multiDaysLimit ?? null;
       if (patch.overEligible !== undefined) payload.over_eligible = patch.overEligible;
       if (patch.competitions !== undefined) payload.competitions = patch.competitions;
       if (patch.apiBookKey !== undefined) payload.api_book_key = patch.apiBookKey ?? null;

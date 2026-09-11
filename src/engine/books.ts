@@ -22,6 +22,7 @@ export const DEFAULT_BOOK: Book = {
   minStake: 1,
   maxPayout: null,
   maxLegs: 30,
+  multiDaysLimit: null,
   overEligible: true,
   competitions: ['all'],
   isActive: true,

@@ -16,6 +16,7 @@ interface Draft {
   minStake: string;
   maxPayout: string; // '' = illimitato
   maxLegs: string;
+  multiDaysLimit: string; // '' = nessun limite
   overEligible: boolean;
   competitions: string; // csv
   apiBookKey: string;
@@ -30,6 +31,7 @@ function draftFromBook(b: Book): Draft {
     minStake: String(b.minStake),
     maxPayout: b.maxPayout === null ? '' : String(b.maxPayout),
     maxLegs: String(b.maxLegs),
+    multiDaysLimit: b.multiDaysLimit == null ? '' : String(b.multiDaysLimit),
     overEligible: b.overEligible,
     competitions: b.competitions.join(', '),
     apiBookKey: b.apiBookKey ?? '',
@@ -41,7 +43,7 @@ function draftFromBook(b: Book): Draft {
 function newDraft(): Draft {
   return {
     name: '', bonusCap: '500', minStake: '1', maxPayout: '',
-    maxLegs: '30', overEligible: true, competitions: 'all',
+    maxLegs: '30', multiDaysLimit: '', overEligible: true, competitions: 'all',
     apiBookKey: '', isActive: true, table: emptyTable(),
   };
 }
@@ -101,6 +103,11 @@ export const BooksManager: React.FC = () => {
       if (maxPayout !== null && (!Number.isFinite(maxPayout) || maxPayout <= 0)) {
         throw new Error('Max payout non valido (vuoto = illimitato)');
       }
+      const daysTrim = draft.multiDaysLimit.trim();
+      const multiDaysLimit = daysTrim === '' ? null : Number(daysTrim);
+      if (multiDaysLimit !== null && (!Number.isInteger(multiDaysLimit) || multiDaysLimit < 1)) {
+        throw new Error('Max giorni multipla: intero >= 1 (vuoto = nessun limite)');
+      }
       if (selectedId === 'new' || !selected) {
         const created = await createBook({
           name: draft.name.trim(),
@@ -108,6 +115,7 @@ export const BooksManager: React.FC = () => {
           minStake: Number(draft.minStake) || 1,
           maxPayout,
           maxLegs: Number(draft.maxLegs) || 30,
+          multiDaysLimit,
           overEligible: draft.overEligible,
           competitions: draft.competitions.split(',').map((s) => s.trim()).filter(Boolean),
           apiBookKey: draft.apiBookKey.trim() || undefined,
@@ -123,6 +131,7 @@ export const BooksManager: React.FC = () => {
           minStake: Number(draft.minStake) || 1,
           maxPayout,
           maxLegs: Number(draft.maxLegs) || 30,
+          multiDaysLimit,
           overEligible: draft.overEligible,
           competitions: draft.competitions.split(',').map((s) => s.trim()).filter(Boolean),
           apiBookKey: draft.apiBookKey.trim() || undefined,
@@ -220,7 +229,7 @@ export const BooksManager: React.FC = () => {
                   </span>
                 </div>
                 <div className="text-[11px] text-[#64748B] mt-0.5">
-                  cap {b.bonusCap}% · min {b.minStake}€ · max {b.maxLegs} gambe · {b.overEligible ? 'Over ok' : 'no Over'} · v{(versionsByBook[b.id] ?? []).length}
+                  cap {b.bonusCap}% · min {b.minStake}€ · max {b.maxLegs} gambe · {b.multiDaysLimit == null ? 'multiple ∞ gg' : `multiple ≤ ${b.multiDaysLimit}gg`} · {b.overEligible ? 'Over ok' : 'no Over'} · v{(versionsByBook[b.id] ?? []).length}
                 </div>
               </button>
             ))}
@@ -240,6 +249,7 @@ export const BooksManager: React.FC = () => {
                 <div><span className={labelCls}>Min stake €</span><input className={inputCls} value={draft.minStake} onChange={(e) => setDraft({ ...draft, minStake: e.target.value })} /></div>
                 <div><span className={labelCls}>Max payout € (vuoto=∞)</span><input className={inputCls} value={draft.maxPayout} onChange={(e) => setDraft({ ...draft, maxPayout: e.target.value })} /></div>
                 <div><span className={labelCls}>Max gambe</span><input className={inputCls} value={draft.maxLegs} onChange={(e) => setDraft({ ...draft, maxLegs: e.target.value })} /></div>
+                <div><span className={labelCls}>Max giorni multipla (vuoto=∞)</span><input className={inputCls} value={draft.multiDaysLimit} onChange={(e) => setDraft({ ...draft, multiDaysLimit: e.target.value })} placeholder="es. 7" /></div>
                 <div><span className={labelCls}>Competizioni (csv)</span><input className={inputCls} value={draft.competitions} onChange={(e) => setDraft({ ...draft, competitions: e.target.value })} /></div>
                 <div><span className={labelCls}>API book key</span><input className={inputCls} value={draft.apiBookKey} onChange={(e) => setDraft({ ...draft, apiBookKey: e.target.value })} /></div>
                 <div className="flex items-end gap-4 pb-1">
