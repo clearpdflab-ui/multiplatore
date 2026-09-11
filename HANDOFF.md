@@ -370,5 +370,55 @@ manuale dell'utente.
   2. Dashboard Supabase → Settings → API Keys → Edge Secrets → aggiorna
      `LDL_COGNITO_REFRESH_TOKEN`
   3. Verifica: `?resource=tokencheck` → `refreshOk:true`
-- **Non committato in F8**: le modifiche alla UI Calendario di questa sessione
-  includono anche il multi-selettore book + Trova Partite (F9?).
+- **Committed in F8** (`48ffbfa`): multi-selettore book + Trova Partite nel
+  Calendario, campo multi_days_limit gestionale, edge tokencheck.
+
+## F9 — LDL sync: hardening anti-"cade sempre" (2026-09-11, pomeriggio)
+
+- **Trigger**: banner "Dati mock" riapparso a token OK. Diagnosi: lato server
+  sempre 200 (tokencheck/puntapunta 7gg 22-book/events/sites, 6 chiamate
+  ravvicinate senza rate-limit) → il problema è il **design del fallback**:
+  un solo refresh fallito (isolate cold al deploy, jitter LDL, abort 30s)
+  buttava i dati reali buona e mostrava mock.
+- **Client `ldlOddsApi.ts`**: `fetchResourceWithRetry` (2 tentativi, backoff 2s,
+  solo errori retryable — `TOKEN:` mai ritentato; timeout 30s→45s per tentativo;
+  ora anche gli errori edge non-200 includono il `body.error` nel messaggio);
+  `fetchCoverSuggestions` usa `allSettled` per sites/events (degradazione: feed
+  senza nomi/metadati invece di mock totale; solo puntapunta e' critico);
+  `fetchLdlBookmakers` passa al retry helper.
+- **UI Calendario**: `hasEdgeDataRef` + `lastUpdatedAt` — i dati mock sostituiscono
+  i reali MAI (solo se non c'e' mai stato un edge OK); header lista mostra
+  "agg. HH:MM (:ss) (ultimo riuscito)"; banner sky = "aggiornamento fallito/
+  incompleto, sotto gli ultimi dati reali" (non piu' "partial-data").
+- **Edge `ldl-odds` v11**: cache in-memory 5' per isolate su `events` e `sites`
+  (i dati lenti-a-variare; il poll 60s x3 risorse costa ora ~4x meno LDL).
+  Verifica: 10 chiamate parallele → 1 cache-hit (gli altri finiscono su isolates
+  separati cold: il traffico reale mono-utente riusa lo stesso isolate).
+  `tokencheck` e `puntapunta` NON cacheati (token live/quote live).
+- **Quirk API**: `GET /v1/projects/<ref>/functions/ldl-odds/body` restituisce
+  sorgente obsoleto (manca perfino tokencheck) mentre il runtime ha la v11:
+  per verificare il deploy usare comportamenti live (header `cache`, tokencheck),
+  non il body endpoint.
+
+## F10 — Libreria schedine salvate (2026-09-11, sera)
+
+- Richiesta: "devo poter salvare le schedine". Snapshot nominato della
+  workbench LiveSlipTracker: `UserMatch[]` + parametri Dutching
+  (`SavedSlipParams` in `src/types.ts`: baseStake, targetProfit, asymmetricMode,
+  enableBooster, boosterOdds, bookmakerModel, modelApplyScope).
+- **Tabella `saved_slips`** (`20260911150000_create_saved_slips.sql`, APPLICATA
+  al live via Management API): id/owner/name/matches jsonb/params jsonb + RLS
+  owner-scoped (modello cycles). Aggiornamento della riga senza retrigger del
+  trigger updated_at: `.update()` CLI-compatibile.
+- **Hook `useSavedSlips`**: pattern identico a useCycles — localStorage vince
+  sempre (`multiplatore:saved_slips:v1`), write-through cloud best-effort se
+  c'e' sessione; API: saveSlip / overwriteSlip / renameSlip / deleteSlip /
+  usingFallback (badge "solo locale" vs "sync cloud attiva" in UI).
+- **UI LiveSlipTracker**: pannello "Schedine Salvate" tra header e parametri:
+  input nome (placeholder auto `Schedina N eventi — data ora`), Salva ora,
+  griglia card con Carica (ristabilisce partite + tutti i parametri) /
+  Sovrascrivi / Elimina.
+- **Nota d.ts**: `src/types/lucide-react.d.ts` e' una lista MANUALE di export
+  (i tipi reali del pacchetto non vengono risolti): aggiungere qui ogni nuova
+  icona (F10: `FolderOpen`; per questo `Wand2` non compilava in F8).
+- Test 84/84, tsc pulito, build OK.
