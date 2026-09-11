@@ -578,3 +578,19 @@ manuale dell'utente.
   (10° parametro), `SavedSlipParams.layStake`. Con stake 40 @1.30:
   responsabilità 12; ramo Under = P_attiva − I − 12, ramo Over = 38 − I.
   Test +1 (stake manuale): **123/123**, tsc, lint, build OK.
+- **F14c — fix "puntate C7/C8 sballate" sui dati reali** (2026-09-11, notte 3;
+  slip utente: 8 match Under 1.33–1.95, base 40, flat, lay auto 1.95):
+  1. RIMOSSO il gonfio automatico F14 su C_{N-1}: con lay 1.95 il k-factor
+     2.0 raddoppiava lo stake (C7 34→93). Sizing STANDARD su tutta la scala.
+  2. Riferimento sizing banca a piano/partita-in-corso = scontro C_{N-1}/banca
+     (NON più la madre: payout 8 gambe → banca 912€/RESP 866 sui dati reali).
+     La madre torna riferimento SOLO a scontro realmente risolto (primi N−1
+     tutti Under risolti). Over verificato → C_k dell'ultimo Over.
+  3. `realizedNetIfWon` delle schedine Under sconta la responsabilità della
+     banca SOLO se piazzata (status ≠ PENDING): a piano C7 mostra l'atteso
+     puro del relay (+45.62 sui dati utente), non 45−RESP.
+  Numeri utente dopo fix: C1..C7 = 1.5/1.5/2/4.5/11/19/34; banca auto 84/RESP
+  79.8 (netto se vince banca −33.7: onesto, il lock pari a 1.95 pre-match
+  perde); con stake manuale 40 → RESP 38, Under +45.62 / Over −75.5.
+  Test: +2 (piano: sizing su C_{N−1} e atteso senza responsabilità) →
+  **124/124**, tsc, lint 0 error, build OK. Commit `46fa96b` + fix successivo.

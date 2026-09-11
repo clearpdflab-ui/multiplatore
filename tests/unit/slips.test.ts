@@ -185,11 +185,9 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
     expect(C8.liability).toBeCloseTo(C8.stake * 0.3, 2);
     expect(C8.commissionPct).toBe(5);
 
-    // F14: l'ultima copertura book e' sovradimensionata (k=(L-c)/(1-c)) cosi'
-    // il green-up con la banca chiude ENTRAMBI i rami al target (45), non a ~0
-    expect(C7.stake).toBeGreaterThan(50); // 43 -> 63.5/65 con sizing bancata
-    expect(C7.realizedNetIfWon).toBeCloseTo(45, -1);
-    expect(C8.realizedNetIfWon).toBeCloseTo(45, -1);
+    // F14 rivisto: sizing STANDARD su tutta la scala (niente gonfio su C7:
+    // con quote lay alte esplodeva, es. 34 -> 93 sui dati reali utente)
+    expect(C7.stake).toBe(43);
 
     // green-up: entrambi i rami finali positivi e (quasi) pari
     expect(C7.realizedNetIfWon).toBeGreaterThan(0);
@@ -212,12 +210,30 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
     expect(r.netGainRealized).toBeGreaterThan(0);
   });
 
-  it('tutti UNDER: vince la madre, la banca è dimensionata sul payout madre', () => {
+  it('tutti UNDER risolti: vince la madre, la banca è dimensionata sul payout madre', () => {
     const r = genLay([]);
     const C8 = r.coverageSlips[7];
     expect(C8.stake).toBeCloseTo(r.motherSlip.potentialGrossPayout / 1.25, 0);
     expect(r.overallStatus).toBe('WON_MOTHER');
     expect(r.netGainRealized).toBeCloseTo(r.motherSlip.realizedNetIfWon, 2);
+  });
+
+  it('PIANO (match pending): banca dimensionata sullo scontro C7/C8, NON sul lock della madre', () => {
+    // regressione "puntate sballate": a piano il riferimento era la madre
+    // (payout 8 gambe) -> banca da 912€/RESP 866 sui dati reali. Ora il
+    // riferimento e' l'ultima copertura C_{N-1} (lo scontro tipico).
+    const r = generateCustomSlips(mkMatches(8, [], false), 20, 45, 'flat', false, 1.1, 4, 'lay_exchange', 1.3, 5);
+    const C7 = r.coverageSlips[6];
+    const C8 = r.coverageSlips[7];
+    expect(C8.stake).toBeCloseTo(C7.potentialGrossPayout / 1.25, 0);
+    // NON dimensionata sulla madre ( sarebbe motherGross/1.25 ~ 186, non 136.5 )
+    expect(Math.abs(C8.stake - r.motherSlip.potentialGrossPayout / 1.25)).toBeGreaterThan(10);
+    // banca NON ancora piazzata: il netto se vince C7 non sconta la
+    // responsabilita' (e' il "atteso" puro del relay = target)
+    expect(C7.realizedNetIfWon).toBeCloseTo(C7.potentialNetProfit, 2);
+    expect(C7.realizedNetIfWon).toBeCloseTo(45, 0);
+    // la banca mostra il suo ramo: utile se Over meno puntate book
+    expect(C8.realizedNetIfWon).toBeCloseTo(C8.potentialGrossPayout - 125, 2);
   });
 
   it('default book_single: la finale resta la singola Over in bookmaker', () => {
@@ -250,11 +266,12 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
     expect(targets[0]).toBeLessThan(targets[7]);
     expect(targets[0]).toBe(15);
     expect(targets[7]).toBe(80);
-    // scenario utente (Over@7): entrambi i rami finali chiudono al target C7 (70)
-    expect(r.netGainRealized).toBeCloseTo(70, -1);
-    expect(r.coverageSlips[7].realizedNetIfWon).toBeCloseTo(70, -1);
+    // scenario utente (Over@7): green-up pari sul target pesante di C7 (~+22)
+    expect(r.netGainRealized ?? 0).toBeGreaterThan(20);
+    expect(r.coverageSlips[7].realizedNetIfWon).toBeGreaterThan(20);
+    expect(Math.abs((r.netGainRealized ?? 0) - r.coverageSlips[7].realizedNetIfWon)).toBeLessThanOrEqual(1);
     const rO = genLay([7, 8], 'back_loaded');
-    expect(rO.netGainRealized).toBeCloseTo(70, -1);
+    expect(rO.netGainRealized ?? 0).toBeGreaterThan(20);
     // Over precoce (Over@1): il green-up non puo' recuperare, l'app lo mostra onesto
     const rEarly = genLay([1], 'back_loaded');
     expect(rEarly.netGainRealized).toBeLessThan(0);

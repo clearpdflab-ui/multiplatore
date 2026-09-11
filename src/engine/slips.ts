@@ -175,36 +175,15 @@ export function generateCustomSlips(
     const bonus = getBonusPercentage(items.length);
     const finalMultiplier = Number((rawMultiplier * (1 + bonus / 100)).toFixed(2));
 
-    // F14 — sizing "bancata finale": se la chiusura e' il LAY su exchange con
-    // sizing AUTOMATICO (green-up), il payout dell'ULTIMA copertura book
-    // (C_{N-1}) deve reggere anche il taglio del lock. Il lock pari sui due
-    // rami estrae solo (1-c)/(L-c) del payout: per chiudere TUTTI E DUE i rami
-    // al target t serve
-    //   payout = k * (I + t),  k = (L-c)/(1-c),  I = puntate book totali.
-    // Il target di sizing di C_{N-1} si gonfia quindi a
-    //   t' = (k-1)*(cum+s) + k*t   (punto fisso, converge in poche iterazioni).
-    // A parita' di capitale totale (~ come la vecchia singola book) entrambi i
-    // rami finali chiudono al target invece di {negativo, +target}.
-    // Con stake MANUALE della banca (layStakeOverride) l'utente fa da se' il
-    // sizing: niente gonfio, la scala resta standard e i netti dei due rami
-    // vengono mostrati per come sono.
-    let sizingTarget = stepTarget;
-    if (!manualLayStake && finalHedgeMode === 'lay_exchange' && k === N - 1 && k >= 1) {
-      const layQuotePlan =
-        Number(layOdds) > 1 ? Number(layOdds) : Number(matches[N - 1].underOdds) || 1.3;
-      const commPlan = Math.min(0.2, Math.max(0, (layCommissionPct || 0) / 100));
-      const kFactor = (layQuotePlan - commPlan) / (1 - commPlan);
-      if (kFactor > 1 && finalMultiplier > kFactor) {
-        for (let iter = 0; iter < 8; iter++) {
-          const s = (runningCumulativeCost + sizingTarget) / (finalMultiplier - 1);
-          sizingTarget = (kFactor - 1) * (runningCumulativeCost + s) + kFactor * stepTarget;
-        }
-      }
-    }
+    // F14-revisto: niente piu' gonfio automatico su C_{N-1}. Con quote lay alte
+    // (es. 1.95) il k-factor (L-c)/(1-c) raddoppia lo stake (C7 34 -> 93 sui
+    // dati reali dell'utente) senza rendere verde lo scontro: il sizing resta
+    // STANDARD su tutta la scala, la bancata e' dimensionata a parte e i netti
+    // dei due rami sono mostrati per come sono (rossi compresi).
 
     let rawStake = 0;
     if (finalMultiplier > 1) {
-      rawStake = (runningCumulativeCost + sizingTarget) / (finalMultiplier - 1);
+      rawStake = (runningCumulativeCost + stepTarget) / (finalMultiplier - 1);
     } else {
       rawStake = 10;
     }
@@ -284,16 +263,27 @@ export function generateCustomSlips(
   let layLiability = 0;
   if (finalHedgeMode === 'lay_exchange') {
     const finalMatch = matches[N - 1];
-    // Schedina attiva alla finale: la C_j dell'ultimo Over tra i match 1..N-1,
-    // altrimenti la madre (se nessun Over: e' lei che vince se l'ultimo e' Under).
+    // Riferimento per il sizing della banca = la schedina che sarebbe ATTIMA
+    // alla finale: la C_j dell'ultimo Over gia' verificato tra i match 1..N-1;
+    // la madre SOLO se i primi N-1 sono gia' tutti risolti Under (e' lei lo
+    // scontro reale); a piano/partita in corso (match ancora pending) il
+    // riferimento e' l'ULTIMA copertura C_{N-1}: e' lo scontro tipico della
+    // bancata finale (C_{N-1} vs banca), NON il lock integrale della madre
+    // (payout enorme -> bancata da centinaia di euro, inutile come default).
     let activeOverIdx = -1;
     matches.slice(0, N - 1).forEach((m, i) => {
       if (m.outcome === 'OVER') {
         activeOverIdx = i;
       }
     });
+    const anyPendingBefore = N > 1 && matches.slice(0, N - 1).some((m) => m.outcome === 'PENDING');
+    const lastCoverage = coverageSlips[coverageSlips.length - 1];
     const activePayout =
-      activeOverIdx === -1 ? motherGross : coverageSlips[activeOverIdx].potentialGrossPayout;
+      activeOverIdx !== -1
+        ? coverageSlips[activeOverIdx].potentialGrossPayout
+        : anyPendingBefore && lastCoverage
+          ? lastCoverage.potentialGrossPayout
+          : motherGross;
 
     const layQuote =
       Number(layOdds) > 1 ? Number(layOdds) : Number(finalMatch.underOdds) || 1.3;
@@ -359,16 +349,23 @@ export function generateCustomSlips(
 
   if (finalHedgeMode === 'lay_exchange') {
     // Ramo Under (vince la schedina attiva): puntate bookmaker + responsabilita'
-    // della banca, tutta persa. Ramo Over (vince la banca): solo le puntate
-    // bookmaker, la responsabilita' viene rilasciata.
+    // della banca SE PIAZZATA (status != PENDING). Finche' la banca non e'
+    // piazzata, il "netto se vince" della scala e' quello puro del relay
+    // (payout - puntate book): la responsabilita' la sconta solo chi ce l'ha
+    // davvero a rischio. Ramo Over (vince la banca): solo le puntate bookmaker.
+    const laySlip = coverageSlips[coverageSlips.length - 1];
+    const layPlaced = Boolean(laySlip && laySlip.status !== 'PENDING');
+    const layLiabilityIfPlaced = layPlaced ? layLiability : 0;
     motherSlip.realizedNetIfWon = Number(
-      (motherSlip.potentialGrossPayout - (bookStakesTotal + layLiability)).toFixed(2),
+      (motherSlip.potentialGrossPayout - (bookStakesTotal + layLiabilityIfPlaced)).toFixed(2),
     );
     coverageSlips.forEach((s) => {
       s.realizedNetIfWon =
         s.type === 'FINAL_LAY'
           ? Number((s.potentialGrossPayout - bookStakesTotal).toFixed(2))
-          : Number((s.potentialGrossPayout - (bookStakesTotal + layLiability)).toFixed(2));
+          : Number(
+              (s.potentialGrossPayout - (bookStakesTotal + layLiabilityIfPlaced)).toFixed(2),
+            );
     });
   } else {
     motherSlip.realizedNetIfWon = Number(
