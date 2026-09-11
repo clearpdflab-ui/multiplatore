@@ -448,7 +448,10 @@ manuale dell'utente.
   + globals per ambiente, `eqeqeq {null:'ignore'}`, prettier senza plugin xml +
   endOfLine auto + `npm run format`, coverage `include: src/engine/**` + nuovi
   test slips/timeline/risk/dutching -> **lint/format/test/typecheck/build tutti
-  verdi, coverage motore 97%, 110 test**.
+  verdi, coverage motore 97%, 110 test**. (5) rimosso il job `deploy` dalla
+  workflow: usava `amondnet/vercel-action@v30` (release inesistente) ed era
+  ininfluente perche' Vercel pubblica via propria Git integration. Prima run
+  CI VERDE dal 2026-09-07.
 - **F11 UX**: LiveSlipTracker non carica piu' le 8 Serie A finte di default:
   stato vuoto con empty-state + CTA "Apri Calendario" / preset demo su richiesta.
   `DEFAULT_SERIE_A_MATCHES` resta solo come preset manuale.
