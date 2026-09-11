@@ -37,16 +37,7 @@ jobs:
           name: dist
           path: dist/
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v30
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          github-comment: false
+  # NOTE: nessun job "deploy": la pubblicazione avviene via Git integration di
+  # Vercel (push -> build automatico sul progetto rcsitalia/multiplatore).
+  # Il vecchio job usava amondnet/vercel-action@v30 (release inesistente) ed era
+  # comunque sempre rimasto bloccato sul test job rosso dal 2026-09-07.
