@@ -55,12 +55,15 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
       const saved = localStorage.getItem('multiscale_active_user_matches_v2026_sep');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       }
     } catch (e) {
       console.error(e);
     }
-    return DEFAULT_SERIE_A_MATCHES;
+    // F11: niente piu' demo di default — stato vuoto con CTA dedicata.
+    return [];
   });
 
   // Save matches on change
@@ -84,7 +87,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   const [targetProfit, setTargetProfit] = useState<number>(45);
   const [asymmetricMode, setAsymmetricMode] = useState<AsymmetricMode>('front_loaded');
   const [enableBooster, setEnableBooster] = useState<boolean>(true);
-  const [boosterOdds, setBoosterOdds] = useState<number>(1.10);
+  const [boosterOdds, setBoosterOdds] = useState<number>(1.1);
 
   // Bookmaker Aggio Model State ('132_300' | '130_315' | 'custom')
   const [selectedBookmakerModel, setSelectedBookmakerModel] = useState<BookmakerModelId>('132_300');
@@ -98,8 +101,13 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
 
   // F10 — libreria schedine salvate (locale-first + sync cloud)
   const {
-    slips, loading: slipsLoading, error: slipsError, usingFallback: slipsLocal,
-    saveSlip, overwriteSlip, deleteSlip,
+    slips,
+    loading: slipsLoading,
+    error: slipsError,
+    usingFallback: slipsLocal,
+    saveSlip,
+    overwriteSlip,
+    deleteSlip,
   } = useSavedSlips();
   const [slipName, setSlipName] = useState('');
   const [slipMsg, setSlipMsg] = useState<string | null>(null);
@@ -113,7 +121,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
       asymmetricMode,
       enableBooster,
       boosterOdds,
-      4
+      4,
     );
   }, [matches, baseStake, targetProfit, asymmetricMode, enableBooster, boosterOdds]);
 
@@ -121,9 +129,11 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   const handleUpdateMatch = (id: string, field: keyof UserMatch, value: any) => {
     setMatches((prev) =>
       prev.map((m) => {
-        if (m.id !== id) return m;
+        if (m.id !== id) {
+          return m;
+        }
         return { ...m, [field]: value };
-      })
+      }),
     );
   };
 
@@ -140,7 +150,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
           underOdds: model.underOdds,
           overOdds: model.overOdds,
         };
-      })
+      }),
     );
   };
 
@@ -176,7 +186,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   const handleMoveMatch = (index: number, direction: 'up' | 'down') => {
     setMatches((prev) => {
       const targetIdx = direction === 'up' ? index - 1 : index + 1;
-      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      if (targetIdx < 0 || targetIdx >= prev.length) {
+        return prev;
+      }
       const copy = [...prev];
       const temp = copy[index];
       copy[index] = copy[targetIdx];
@@ -186,9 +198,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   };
 
   const handleSetOutcome = (id: string, outcome: 'PENDING' | 'UNDER' | 'OVER') => {
-    setMatches((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, outcome } : m))
-    );
+    setMatches((prev) => prev.map((m) => (m.id === id ? { ...m, outcome } : m)));
   };
 
   const handleResetOutcomes = () => {
@@ -200,12 +210,66 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
       setMatches(DEFAULT_SERIE_A_MATCHES);
     } else if (preset === 'premier') {
       setMatches([
-        { id: 'pl1', order: 1, timeSlot: '13:30', homeTeam: 'Arsenal', awayTeam: 'Newcastle', underOdds: 1.33, overOdds: 3.05, outcome: 'PENDING' },
-        { id: 'pl2', order: 2, timeSlot: '16:00', homeTeam: 'Chelsea', awayTeam: 'Everton', underOdds: 1.28, overOdds: 3.35, outcome: 'PENDING' },
-        { id: 'pl3', order: 3, timeSlot: '18:30', homeTeam: 'Man City', awayTeam: 'Tottenham', underOdds: 1.40, overOdds: 2.75, outcome: 'PENDING' },
-        { id: 'pl4', order: 4, timeSlot: '+1d 15:00', homeTeam: 'Liverpool', awayTeam: 'Brighton', underOdds: 1.35, overOdds: 2.90, outcome: 'PENDING' },
-        { id: 'pl5', order: 5, timeSlot: '+1d 17:30', homeTeam: 'Aston Villa', awayTeam: 'Man United', underOdds: 1.31, overOdds: 3.15, outcome: 'PENDING' },
-        { id: 'pl6', order: 6, timeSlot: '+2d 21:00', homeTeam: 'West Ham', awayTeam: 'Brentford', underOdds: 1.27, overOdds: 3.45, outcome: 'PENDING' },
+        {
+          id: 'pl1',
+          order: 1,
+          timeSlot: '13:30',
+          homeTeam: 'Arsenal',
+          awayTeam: 'Newcastle',
+          underOdds: 1.33,
+          overOdds: 3.05,
+          outcome: 'PENDING',
+        },
+        {
+          id: 'pl2',
+          order: 2,
+          timeSlot: '16:00',
+          homeTeam: 'Chelsea',
+          awayTeam: 'Everton',
+          underOdds: 1.28,
+          overOdds: 3.35,
+          outcome: 'PENDING',
+        },
+        {
+          id: 'pl3',
+          order: 3,
+          timeSlot: '18:30',
+          homeTeam: 'Man City',
+          awayTeam: 'Tottenham',
+          underOdds: 1.4,
+          overOdds: 2.75,
+          outcome: 'PENDING',
+        },
+        {
+          id: 'pl4',
+          order: 4,
+          timeSlot: '+1d 15:00',
+          homeTeam: 'Liverpool',
+          awayTeam: 'Brighton',
+          underOdds: 1.35,
+          overOdds: 2.9,
+          outcome: 'PENDING',
+        },
+        {
+          id: 'pl5',
+          order: 5,
+          timeSlot: '+1d 17:30',
+          homeTeam: 'Aston Villa',
+          awayTeam: 'Man United',
+          underOdds: 1.31,
+          overOdds: 3.15,
+          outcome: 'PENDING',
+        },
+        {
+          id: 'pl6',
+          order: 6,
+          timeSlot: '+2d 21:00',
+          homeTeam: 'West Ham',
+          awayTeam: 'Brentford',
+          underOdds: 1.27,
+          overOdds: 3.45,
+          outcome: 'PENDING',
+        },
       ]);
     } else if (preset === 'custom_5') {
       setMatches(DEFAULT_SERIE_A_MATCHES.slice(0, 5));
@@ -234,7 +298,11 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
 
   const handleSaveSlip = async () => {
     try {
-      const s = await saveSlip({ name: slipName.trim() || defaultSlipName(), matches, params: currentSlipParams() });
+      const s = await saveSlip({
+        name: slipName.trim() || defaultSlipName(),
+        matches,
+        params: currentSlipParams(),
+      });
       setSlipName('');
       flashSlipMsg(`💾 "${s.name}" salvata (${s.matches.length} partite)`);
     } catch (e) {
@@ -252,16 +320,32 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   };
 
   const handleLoadSlip = (s: SavedSlip) => {
-    if (!s.matches.length) return;
+    if (!s.matches.length) {
+      return;
+    }
     setMatches(s.matches.map((m, idx) => ({ ...m, order: idx + 1 })));
     const p = s.params;
-    if (Number.isFinite(p.baseStake)) setBaseStake(p.baseStake);
-    if (Number.isFinite(p.targetProfit)) setTargetProfit(p.targetProfit);
-    if (p.asymmetricMode) setAsymmetricMode(p.asymmetricMode);
-    if (typeof p.enableBooster === 'boolean') setEnableBooster(p.enableBooster);
-    if (Number.isFinite(p.boosterOdds)) setBoosterOdds(p.boosterOdds);
-    if (p.bookmakerModel) setSelectedBookmakerModel(p.bookmakerModel);
-    if (p.modelApplyScope) setModelApplyScope(p.modelApplyScope);
+    if (Number.isFinite(p.baseStake)) {
+      setBaseStake(p.baseStake);
+    }
+    if (Number.isFinite(p.targetProfit)) {
+      setTargetProfit(p.targetProfit);
+    }
+    if (p.asymmetricMode) {
+      setAsymmetricMode(p.asymmetricMode);
+    }
+    if (typeof p.enableBooster === 'boolean') {
+      setEnableBooster(p.enableBooster);
+    }
+    if (Number.isFinite(p.boosterOdds)) {
+      setBoosterOdds(p.boosterOdds);
+    }
+    if (p.bookmakerModel) {
+      setSelectedBookmakerModel(p.bookmakerModel);
+    }
+    if (p.modelApplyScope) {
+      setModelApplyScope(p.modelApplyScope);
+    }
     flashSlipMsg(`📂 Caricata "${s.name}" (${s.matches.length} partite)`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -280,7 +364,8 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
       `🎯 Vincita Lorda: €${slip.potentialGrossPayout.toFixed(2)} | Utile Netto Garantito: €${slip.potentialNetProfit.toFixed(2)}`,
       `--- PRONOSTICI ---`,
       ...slip.items.map(
-        (it) => `${it.homeTeam} - ${it.awayTeam} (${it.timeSlot}) -> ${it.market} @ ${it.odds.toFixed(2)}`
+        (it) =>
+          `${it.homeTeam} - ${it.awayTeam} (${it.timeSlot}) -> ${it.market} @ ${it.odds.toFixed(2)}`,
       ),
     ];
     const text = lines.join('\n');
@@ -311,7 +396,11 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
             </h2>
             <p className="text-xs text-[#94A3B8] mt-1 max-w-3xl leading-relaxed">
               Inserisci le tue partite reali con le rispettive quote. Il sistema genera
-              automaticamente la <strong>Schedina Madre</strong> e le <strong>Coperture fino alla Singola</strong>. Man mano che le partite si giocano, clicca sull&apos;esito e <strong>modifica a mano le quote</strong> se il bookmaker le ha cambiate: tutte le puntate a 0,50€ e i moltiplicatori si aggiornano istantaneamente.
+              automaticamente la <strong>Schedina Madre</strong> e le{' '}
+              <strong>Coperture fino alla Singola</strong>. Man mano che le partite si giocano,
+              clicca sull&apos;esito e <strong>modifica a mano le quote</strong> se il bookmaker le
+              ha cambiate: tutte le puntate a 0,50€ e i moltiplicatori si aggiornano
+              istantaneamente.
             </p>
           </div>
 
@@ -357,7 +446,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
           </div>
 
           <div className="bg-[#1A1D26] border border-[#2D3139] p-3 rounded-xs">
-            <div className="text-[10px] text-[#64748B] uppercase mb-0.5">Capitale Impegnato Finora</div>
+            <div className="text-[10px] text-[#64748B] uppercase mb-0.5">
+              Capitale Impegnato Finora
+            </div>
             <div className="text-[#3B82F6] font-bold text-sm">
               €{slipsResult.totalInvestedSoFar.toFixed(2)}
             </div>
@@ -367,7 +458,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
           </div>
 
           <div className="bg-[#1A1D26] border border-[#2D3139] p-3 rounded-xs">
-            <div className="text-[10px] text-[#64748B] uppercase mb-0.5">Esposizione Massima (Worst-Case)</div>
+            <div className="text-[10px] text-[#64748B] uppercase mb-0.5">
+              Esposizione Massima (Worst-Case)
+            </div>
             <div className="text-orange-400 font-bold text-sm">
               €{slipsResult.maxPotentialExposure.toFixed(2)}
             </div>
@@ -383,18 +476,21 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 <span className="text-emerald-400">In Corso di Gioco</span>
               )}
               {slipsResult.overallStatus === 'WON_MOTHER' && (
-                <span className="text-emerald-400 font-bold">Vinta Multipla Madre! (+€{slipsResult.netGainRealized?.toFixed(2)})</span>
+                <span className="text-emerald-400 font-bold">
+                  Vinta Multipla Madre! (+€{slipsResult.netGainRealized?.toFixed(2)})
+                </span>
               )}
               {slipsResult.overallStatus === 'WON_COVERAGE' && (
-                <span className="text-emerald-400 font-bold">Vinta Copertura {slipsResult.winningSlipCode}! (+€{slipsResult.netGainRealized?.toFixed(2)})</span>
+                <span className="text-emerald-400 font-bold">
+                  Vinta Copertura {slipsResult.winningSlipCode}! (+€
+                  {slipsResult.netGainRealized?.toFixed(2)})
+                </span>
               )}
               {slipsResult.overallStatus === 'LOST_MULTIPLE_OVERS' && (
                 <span className="text-red-400 font-bold">2+ Over (Sistema Saltato)</span>
               )}
             </div>
-            <div className="text-[10px] text-[#64748B] mt-0.5">
-              Regola: 1 solo Over tollerato
-            </div>
+            <div className="text-[10px] text-[#64748B] mt-0.5">Regola: 1 solo Over tollerato</div>
           </div>
         </div>
 
@@ -403,9 +499,13 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
           <div className="mt-3 p-3 bg-amber-950/30 border border-amber-500/40 rounded-xs flex items-start gap-2.5 text-xs font-mono">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div className="text-[#E0E2E7]">
-              <strong className="text-amber-400">Evento OVER Rilevato al Match #{slipsResult.firstOverIndex + 1}!</strong>
+              <strong className="text-amber-400">
+                Evento OVER Rilevato al Match #{slipsResult.firstOverIndex + 1}!
+              </strong>
               <span className="ml-1 text-[#94A3B8]">
-                La Schedina Madre è decaduta, ma la Copertura <strong>C{slipsResult.firstOverIndex + 1}</strong> è vincente e ripaga tutti i costi sostenuti.
+                La Schedina Madre è decaduta, ma la Copertura{' '}
+                <strong>C{slipsResult.firstOverIndex + 1}</strong> è vincente e ripaga tutti i costi
+                sostenuti.
               </span>
             </div>
           </div>
@@ -417,8 +517,12 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <FolderOpen className="w-4 h-4 text-[#3B82F6]" />
-            <span className="text-xs uppercase font-mono text-white font-bold tracking-wider">Schedine Salvate</span>
-            <span className={`text-[10px] font-mono ${slipsLocal ? 'text-[#64748B]' : 'text-emerald-400'}`}>
+            <span className="text-xs uppercase font-mono text-white font-bold tracking-wider">
+              Schedine Salvate
+            </span>
+            <span
+              className={`text-[10px] font-mono ${slipsLocal ? 'text-[#64748B]' : 'text-emerald-400'}`}
+            >
               {slipsLocal ? 'solo locale (login per sync cloud)' : 'sync cloud attiva'}
             </span>
           </div>
@@ -448,16 +552,29 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
           <div className="text-[11px] font-mono text-[#64748B]">Caricamento schedine…</div>
         ) : slips.length === 0 ? (
           <div className="text-[11px] font-mono text-[#64748B]">
-            Nessuna schedina salvata: configura le partite (o importale dal Calendario) e premi <strong className="text-[#94A3B8]">Salva ora</strong>.
+            Nessuna schedina salvata: configura le partite (o importale dal Calendario) e premi{' '}
+            <strong className="text-[#94A3B8]">Salva ora</strong>.
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
             {slips.map((s) => (
-              <div key={s.id} className="border border-[#2D3139] bg-[#141824] rounded-xs p-2.5 flex flex-col gap-2">
+              <div
+                key={s.id}
+                className="border border-[#2D3139] bg-[#141824] rounded-xs p-2.5 flex flex-col gap-2"
+              >
                 <div className="min-w-0">
-                  <div className="text-white text-xs font-bold truncate" title={s.name}>{s.name}</div>
+                  <div className="text-white text-xs font-bold truncate" title={s.name}>
+                    {s.name}
+                  </div>
                   <div className="text-[10px] font-mono text-[#64748B]">
-                    {s.matches.length} partite · madre €{s.params.baseStake} · target €{s.params.targetProfit} · {new Date(s.createdAt).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {s.matches.length} partite · madre €{s.params.baseStake} · target €
+                    {s.params.targetProfit} ·{' '}
+                    {new Date(s.createdAt).toLocaleString('it-IT', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
                     {s.updatedAt !== s.createdAt && ' · aggiornata'}
                   </div>
                 </div>
@@ -567,8 +684,13 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 />
               </button>
 
-              <div className="flex items-center gap-1.5 select-none cursor-pointer" onClick={() => setEnableBooster(!enableBooster)}>
-                <Sparkles className={`w-3.5 h-3.5 ${enableBooster ? 'text-emerald-400 animate-pulse' : 'text-[#64748B]'}`} />
+              <div
+                className="flex items-center gap-1.5 select-none cursor-pointer"
+                onClick={() => setEnableBooster(!enableBooster)}
+              >
+                <Sparkles
+                  className={`w-3.5 h-3.5 ${enableBooster ? 'text-emerald-400 animate-pulse' : 'text-[#64748B]'}`}
+                />
                 <span className="font-bold text-xs text-white">Boost 1.10:</span>
                 <span
                   className={`px-1.5 py-0.2 text-[10px] font-bold uppercase rounded-xs ${
@@ -584,7 +706,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
               {enableBooster && (
                 <div className="flex items-center gap-1 pl-2 border-l border-[#2D3139]">
                   <span className="text-[10px] text-[#64748B]">Quota:</span>
-                  {[1.08, 1.10, 1.15].map((q) => (
+                  {[1.08, 1.1, 1.15].map((q) => (
                     <button
                       key={q}
                       onClick={() => setBoosterOdds(q)}
@@ -613,7 +735,8 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
               1. Partite della Multipla &amp; Aggiornamento Quote dal Vivo
             </h3>
             <p className="text-xs text-[#94A3B8] mt-0.5">
-              Inserisci squadre e orario. <strong>Modifica le quote a mano</strong> in qualsiasi momento se cambiano prima della partita.
+              Inserisci squadre e orario. <strong>Modifica le quote a mano</strong> in qualsiasi
+              momento se cambiano prima della partita.
             </p>
           </div>
 
@@ -684,7 +807,8 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-[#94A3B8] mt-0.5">
-                Seleziona il modello rilevato dal tuo bookmaker per applicare le quote a tutte le partite con un solo click:
+                Seleziona il modello rilevato dal tuo bookmaker per applicare le quote a tutte le
+                partite con un solo click:
               </p>
             </div>
 
@@ -748,8 +872,51 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
           </div>
         </div>
 
+        {/* Empty state: guida al flusso reale (F11) */}
+        {matches.length === 0 && (
+          <div className="p-8 border border-dashed border-[#2D3139] rounded-sm bg-[#0F1117]/60 text-center space-y-4">
+            <Calendar className="w-8 h-8 text-[#3B82F6] mx-auto" />
+            <div>
+              <div className="text-white font-bold text-sm font-mono">
+                Nessuna partita in schedina
+              </div>
+              <p className="text-xs text-[#94A3B8] font-mono max-w-lg mx-auto mt-1.5 leading-relaxed">
+                Apri il Calendario e usa <strong className="text-blue-300">Trova Partite</strong>{' '}
+                per importare eventi reali con copertura Under/Over 3.5 sopra la soglia, oppure
+                carica una schedina dal pannello{' '}
+                <strong className="text-blue-300">Schedine Salvate</strong> o aggiungile a mano qui
+                sotto.
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-2 font-mono text-xs flex-wrap">
+              {onOpenCalendar && (
+                <button
+                  onClick={onOpenCalendar}
+                  className="px-3 py-1.5 bg-[#3B82F6] hover:bg-blue-500 text-white rounded-xs font-bold uppercase flex items-center gap-1.5"
+                >
+                  <Calendar className="w-3.5 h-3.5" /> Apri Calendario
+                </button>
+              )}
+              <button
+                onClick={() => handleLoadPreset('serie_a')}
+                className="px-3 py-1.5 bg-[#1A1D26] hover:bg-[#252A36] text-[#E0E2E7] border border-[#2D3139] rounded-xs"
+                title="Carica 8 partite di esempio Serie A"
+              >
+                Esempio: 8 Serie A
+              </button>
+              <button
+                onClick={() => handleLoadPreset('premier')}
+                className="px-3 py-1.5 bg-[#1A1D26] hover:bg-[#252A36] text-[#E0E2E7] border border-[#2D3139] rounded-xs"
+                title="Carica 6 partite di esempio Premier League"
+              >
+                Esempio: 6 Premier
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Matches Table */}
-        <div className="overflow-x-auto">
+        <div className={`overflow-x-auto ${matches.length === 0 ? 'hidden' : ''}`}>
           <table className="w-full text-left font-mono text-xs border-collapse">
             <thead>
               <tr className="border-b border-[#2D3139] text-[#64748B] text-[10px] uppercase bg-[#141824]">
@@ -775,22 +942,20 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                   <tr
                     key={match.id}
                     className={`hover:bg-[#1A1D26]/40 transition-colors ${
-                      isOver
-                        ? 'bg-amber-950/20'
-                        : isUnder
-                        ? 'bg-emerald-950/10'
-                        : ''
+                      isOver ? 'bg-amber-950/20' : isUnder ? 'bg-emerald-950/10' : ''
                     }`}
                   >
                     {/* Order Number */}
                     <td className="p-2.5 text-center">
-                      <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                        isOver
-                          ? 'bg-amber-500 text-black'
-                          : isUnder
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                          : 'bg-[#2A2F3D] text-white'
-                      }`}>
+                      <span
+                        className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                          isOver
+                            ? 'bg-amber-500 text-black'
+                            : isUnder
+                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                              : 'bg-[#2A2F3D] text-white'
+                        }`}
+                      >
                         {match.order}
                       </span>
                     </td>
@@ -836,7 +1001,13 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           min="1.05"
                           max="10.0"
                           value={match.underOdds}
-                          onChange={(e) => handleUpdateMatch(match.id, 'underOdds', parseFloat(e.target.value) || 1.30)}
+                          onChange={(e) =>
+                            handleUpdateMatch(
+                              match.id,
+                              'underOdds',
+                              parseFloat(e.target.value) || 1.3,
+                            )
+                          }
                           className="w-20 text-center bg-[#1A1D26] border border-emerald-500/40 text-emerald-400 font-bold py-1 px-1.5 rounded-xs focus:border-emerald-400 focus:outline-hidden"
                         />
                       </div>
@@ -851,7 +1022,13 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           min="1.10"
                           max="25.0"
                           value={match.overOdds}
-                          onChange={(e) => handleUpdateMatch(match.id, 'overOdds', parseFloat(e.target.value) || 3.0)}
+                          onChange={(e) =>
+                            handleUpdateMatch(
+                              match.id,
+                              'overOdds',
+                              parseFloat(e.target.value) || 3.0,
+                            )
+                          }
                           className="w-20 text-center bg-[#1A1D26] border border-amber-500/40 text-amber-300 font-bold py-1 px-1.5 rounded-xs focus:border-amber-400 focus:outline-hidden"
                         />
                       </div>
@@ -865,8 +1042,8 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                             aggio.aggioPercent <= 8.8
                               ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/30'
                               : aggio.aggioPercent <= 9.3
-                              ? 'bg-blue-950/40 text-blue-300 border border-blue-500/30'
-                              : 'bg-amber-950/40 text-amber-300 border border-amber-500/30'
+                                ? 'bg-blue-950/40 text-blue-300 border border-blue-500/30'
+                                : 'bg-amber-950/40 text-amber-300 border border-amber-500/30'
                           }`}
                           title={`Overround: ${(aggio.overround * 100).toFixed(1)}% | Payout Bookmaker: ${aggio.payoutPercent}% | Fair Under: ${aggio.fairUnderProb}% | Fair Over: ${aggio.fairOverProb}%`}
                         >
@@ -966,7 +1143,8 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
               2. Schedine Generate (Schedina Madre + Coperture a Scalare)
             </h3>
             <p className="text-xs text-[#94A3B8] mt-0.5">
-              Piazzamento sequenziale: gioca ogni copertura solo 15 minuti prima del rispettivo match.
+              Piazzamento sequenziale: gioca ogni copertura solo 15 minuti prima del rispettivo
+              match.
             </p>
           </div>
 
@@ -1009,8 +1187,12 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {allSlips
             .filter((slip) => {
-              if (filterType === 'mother') return slip.type === 'MOTHER';
-              if (filterType === 'active_only') return slip.status === 'ACTIVE' || slip.status === 'WON';
+              if (filterType === 'mother') {
+                return slip.type === 'MOTHER';
+              }
+              if (filterType === 'active_only') {
+                return slip.status === 'ACTIVE' || slip.status === 'WON';
+              }
               return true;
             })
             .map((slip) => {
@@ -1027,36 +1209,36 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                     isWon
                       ? 'bg-emerald-950/20 border-emerald-500 shadow-sm shadow-emerald-500/10'
                       : isActive
-                      ? 'bg-[#141824] border-[#3B82F6] ring-1 ring-[#3B82F6]/50'
-                      : isLost
-                      ? 'bg-[#0F1117] border-[#20242C] opacity-60'
-                      : isMother
-                      ? 'bg-[#11141E] border-[#3B82F6]/40'
-                      : 'bg-[#0F1117] border-[#2D3139]'
+                        ? 'bg-[#141824] border-[#3B82F6] ring-1 ring-[#3B82F6]/50'
+                        : isLost
+                          ? 'bg-[#0F1117] border-[#20242C] opacity-60'
+                          : isMother
+                            ? 'bg-[#11141E] border-[#3B82F6]/40'
+                            : 'bg-[#0F1117] border-[#2D3139]'
                   }`}
                 >
                   {/* Card Header */}
                   <div className="flex items-start justify-between gap-2 mb-3 pb-2.5 border-b border-[#2D3139]">
                     <div className="flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-xs font-mono font-bold text-xs uppercase ${
-                        isWon
-                          ? 'bg-emerald-500 text-black'
-                          : isActive
-                          ? 'bg-[#3B82F6] text-white animate-pulse'
-                          : isLost
-                          ? 'bg-zinc-800 text-[#64748B]'
-                          : isMother
-                          ? 'bg-purple-900/60 text-purple-200 border border-purple-500/40'
-                          : isFinal
-                          ? 'bg-amber-900/60 text-amber-200 border border-amber-500/40'
-                          : 'bg-[#1A1D26] text-[#94A3B8] border border-[#2D3139]'
-                      }`}>
+                      <span
+                        className={`px-2 py-0.5 rounded-xs font-mono font-bold text-xs uppercase ${
+                          isWon
+                            ? 'bg-emerald-500 text-black'
+                            : isActive
+                              ? 'bg-[#3B82F6] text-white animate-pulse'
+                              : isLost
+                                ? 'bg-zinc-800 text-[#64748B]'
+                                : isMother
+                                  ? 'bg-purple-900/60 text-purple-200 border border-purple-500/40'
+                                  : isFinal
+                                    ? 'bg-amber-900/60 text-amber-200 border border-amber-500/40'
+                                    : 'bg-[#1A1D26] text-[#94A3B8] border border-[#2D3139]'
+                        }`}
+                      >
                         {slip.code}
                       </span>
                       <div>
-                        <h4 className="text-white font-bold text-xs font-mono">
-                          {slip.title}
-                        </h4>
+                        <h4 className="text-white font-bold text-xs font-mono">{slip.title}</h4>
                         <div className="text-[10px] text-[#64748B] font-mono flex items-center gap-1">
                           <Clock className="w-3 h-3 text-[#64748B]" />
                           {slip.timing}
@@ -1065,16 +1247,24 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-xs font-bold uppercase ${
-                        isWon
-                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-xs font-bold uppercase ${
+                          isWon
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'
+                            : isActive
+                              ? 'bg-blue-950 text-blue-300 border border-blue-500/40'
+                              : isLost
+                                ? 'bg-zinc-900 text-zinc-500'
+                                : 'bg-[#1A1D26] text-[#64748B]'
+                        }`}
+                      >
+                        {isWon
+                          ? 'VINTA'
                           : isActive
-                          ? 'bg-blue-950 text-blue-300 border border-blue-500/40'
-                          : isLost
-                          ? 'bg-zinc-900 text-zinc-500'
-                          : 'bg-[#1A1D26] text-[#64748B]'
-                      }`}>
-                        {isWon ? 'VINTA' : isActive ? 'DA PIAZZARE' : isLost ? 'SUPERATA' : 'IN ATTESA'}
+                            ? 'DA PIAZZARE'
+                            : isLost
+                              ? 'SUPERATA'
+                              : 'IN ATTESA'}
                       </span>
 
                       <button
@@ -1104,8 +1294,8 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           item.market === 'OVER 3.5'
                             ? 'bg-amber-500/10 border border-amber-500/30 text-amber-200'
                             : item.market === 'BOOSTER 1X/12'
-                            ? 'bg-blue-500/10 border border-blue-500/30 text-blue-200'
-                            : 'bg-[#141824] border border-[#20242C] text-[#E0E2E7]'
+                              ? 'bg-blue-500/10 border border-blue-500/30 text-blue-200'
+                              : 'bg-[#141824] border border-[#20242C] text-[#E0E2E7]'
                         }`}
                       >
                         <div className="flex items-center gap-1.5 truncate">
@@ -1113,19 +1303,19 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           <span className="font-medium truncate">
                             {item.homeTeam} - {item.awayTeam}
                           </span>
-                          <span className={`text-[10px] px-1 py-0.2 rounded-xs font-bold ${
-                            item.market === 'OVER 3.5'
-                              ? 'bg-amber-500/20 text-amber-300'
-                              : item.market === 'BOOSTER 1X/12'
-                              ? 'bg-blue-500/20 text-blue-300'
-                              : 'bg-emerald-500/10 text-emerald-400'
-                          }`}>
+                          <span
+                            className={`text-[10px] px-1 py-0.2 rounded-xs font-bold ${
+                              item.market === 'OVER 3.5'
+                                ? 'bg-amber-500/20 text-amber-300'
+                                : item.market === 'BOOSTER 1X/12'
+                                  ? 'bg-blue-500/20 text-blue-300'
+                                  : 'bg-emerald-500/10 text-emerald-400'
+                            }`}
+                          >
                             {item.market}
                           </span>
                         </div>
-                        <span className="font-bold shrink-0 ml-2">
-                          {item.odds.toFixed(2)}
-                        </span>
+                        <span className="font-bold shrink-0 ml-2">{item.odds.toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -1133,7 +1323,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                   {/* Financial Metrics Strip */}
                   <div className="bg-[#141824] border border-[#20242C] p-2.5 rounded-xs grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
                     <div>
-                      <span className="text-[9px] text-[#64748B] uppercase block">Quota Finale</span>
+                      <span className="text-[9px] text-[#64748B] uppercase block">
+                        Quota Finale
+                      </span>
                       <span className="text-white font-bold">
                         {slip.finalMultiplier.toFixed(2)}
                       </span>
@@ -1145,14 +1337,18 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                     </div>
 
                     <div>
-                      <span className="text-[9px] text-[#64748B] uppercase block">Puntata (€0.50)</span>
+                      <span className="text-[9px] text-[#64748B] uppercase block">
+                        Puntata (€0.50)
+                      </span>
                       <span className="text-[#3B82F6] font-bold text-sm">
                         €{slip.stake.toFixed(2)}
                       </span>
                     </div>
 
                     <div>
-                      <span className="text-[9px] text-[#64748B] uppercase block">Vincita Lorda</span>
+                      <span className="text-[9px] text-[#64748B] uppercase block">
+                        Vincita Lorda
+                      </span>
                       <span className="text-white font-bold">
                         €{slip.potentialGrossPayout.toFixed(2)}
                       </span>
