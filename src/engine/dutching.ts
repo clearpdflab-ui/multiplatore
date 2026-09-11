@@ -10,7 +10,7 @@ export function getStepTargetProfit(
   step: number,
   totalEvents: number,
   baseTarget: number,
-  mode: 'flat' | 'front_loaded' | 'capital_preservation' = 'flat',
+  mode: 'flat' | 'front_loaded' | 'capital_preservation' | 'back_loaded' = 'flat',
 ): number {
   if (mode === 'flat' || !mode) {
     return baseTarget;
@@ -19,6 +19,15 @@ export function getStepTargetProfit(
   if (mode === 'front_loaded') {
     const ratio = (step - 1) / Math.max(1, totalEvents - 1);
     const factor = Math.max(0.12, 1.8 - 1.68 * ratio);
+    return Math.max(5, Math.round((baseTarget * factor) / 5) * 5);
+  }
+
+  // back_loaded: puntate iniziali leggere (assicurazione a basso costo), il
+  // recupero del capitale e' caricato sulle coperture finali e sulla banca
+  // exchange di chiusura (specchio di front_loaded: 0.3x -> 1.8x).
+  if (mode === 'back_loaded') {
+    const ratio = (step - 1) / Math.max(1, totalEvents - 1);
+    const factor = Math.min(1.8, 0.3 + 1.5 * ratio);
     return Math.max(5, Math.round((baseTarget * factor) / 5) * 5);
   }
 

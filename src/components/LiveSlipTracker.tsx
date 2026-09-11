@@ -1,5 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { UserMatch, AsymmetricMode, GeneratedSlip, BookmakerModelId, SavedSlip } from '../types';
+import {
+  UserMatch,
+  AsymmetricMode,
+  FinalHedgeMode,
+  GeneratedSlip,
+  BookmakerModelId,
+  SavedSlip,
+} from '../types';
 import { useSavedSlips } from '../hooks/useSavedSlips';
 import {
   DEFAULT_SERIE_A_MATCHES,
@@ -89,6 +96,12 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   const [enableBooster, setEnableBooster] = useState<boolean>(true);
   const [boosterOdds, setBoosterOdds] = useState<number>(1.1);
 
+  // F13 — finale in banca: LAY Under 3.5 su exchange (Betfair) con green-up
+  const [finalHedgeMode, setFinalHedgeMode] = useState<FinalHedgeMode>('lay_exchange');
+  const [layOdds, setLayOdds] = useState<number | null>(null); // null = auto (Under ultimo match)
+  const [layCommissionPct, setLayCommissionPct] = useState<number>(5);
+  const [layStake, setLayStake] = useState<number | null>(null); // null = sizing green-up automatico
+
   // Bookmaker Aggio Model State ('132_300' | '130_315' | 'custom')
   const [selectedBookmakerModel, setSelectedBookmakerModel] = useState<BookmakerModelId>('132_300');
   const [modelApplyScope, setModelApplyScope] = useState<'pending' | 'all'>('all');
@@ -122,8 +135,23 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
       enableBooster,
       boosterOdds,
       4,
+      finalHedgeMode,
+      layOdds ?? undefined,
+      layCommissionPct,
+      layStake ?? undefined,
     );
-  }, [matches, baseStake, targetProfit, asymmetricMode, enableBooster, boosterOdds]);
+  }, [
+    matches,
+    baseStake,
+    targetProfit,
+    asymmetricMode,
+    enableBooster,
+    boosterOdds,
+    finalHedgeMode,
+    layOdds,
+    layCommissionPct,
+    layStake,
+  ]);
 
   // Match management functions
   const handleUpdateMatch = (id: string, field: keyof UserMatch, value: any) => {
@@ -284,6 +312,10 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     boosterOdds,
     bookmakerModel: selectedBookmakerModel,
     modelApplyScope,
+    finalHedgeMode,
+    layOdds: layOdds ?? undefined,
+    layCommissionPct,
+    layStake: layStake ?? undefined,
   });
 
   const defaultSlipName = () => {
@@ -340,6 +372,14 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     if (Number.isFinite(p.boosterOdds)) {
       setBoosterOdds(p.boosterOdds);
     }
+    if (p.finalHedgeMode) {
+      setFinalHedgeMode(p.finalHedgeMode);
+    }
+    setLayOdds(Number.isFinite(p.layOdds) ? (p.layOdds as number) : null);
+    if (Number.isFinite(p.layCommissionPct)) {
+      setLayCommissionPct(p.layCommissionPct as number);
+    }
+    setLayStake(Number.isFinite(p.layStake) ? (p.layStake as number) : null);
     if (p.bookmakerModel) {
       setSelectedBookmakerModel(p.bookmakerModel);
     }
@@ -356,12 +396,17 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   };
 
   const copySlipToClipboard = (slip: GeneratedSlip) => {
+    const isLay = slip.type === 'FINAL_LAY';
     const lines = [
       `📋 ${slip.title} [Codice: ${slip.code}]`,
       `🕒 Tempistica: ${slip.timing}`,
-      `💰 Puntata da effettuare: €${slip.stake.toFixed(2)} (arrotondata)`,
+      isLay
+        ? `🏦 BANCA su Betfair: stake puntatore €${slip.stake.toFixed(2)} | responsabilità €${(slip.liability ?? 0).toFixed(2)} | quota lay ${slip.finalMultiplier.toFixed(2)} | commissioni ${(slip.commissionPct ?? 0).toFixed(1)}%`
+        : `💰 Puntata da effettuare: €${slip.stake.toFixed(2)} (arrotondata)`,
       `📈 Quota Totale (+Bonus): ${slip.finalMultiplier.toFixed(2)} (${slip.bonusPercentage > 0 ? `+${slip.bonusPercentage}% bonus` : 'nessun bonus'})`,
-      `🎯 Vincita Lorda: €${slip.potentialGrossPayout.toFixed(2)} | Utile Netto Garantito: €${slip.potentialNetProfit.toFixed(2)}`,
+      isLay
+        ? `🎯 Utile se esce Over (netto commissioni): €${slip.potentialGrossPayout.toFixed(2)} | Netto finale se vince la banca: €${slip.realizedNetIfWon.toFixed(2)}`
+        : `🎯 Vincita Lorda: €${slip.potentialGrossPayout.toFixed(2)} | Netto finale se vince (incl. coperture successive perse): €${slip.realizedNetIfWon.toFixed(2)}`,
       `--- PRONOSTICI ---`,
       ...slip.items.map(
         (it) =>
@@ -375,6 +420,10 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   };
 
   const allSlips = [slipsResult.motherSlip, ...slipsResult.coverageSlips];
+
+  const fmtGain = (v: number | null): string =>
+    v === null ? '—' : `${v >= 0 ? '+' : '-'}€${Math.abs(v).toFixed(2)}`;
+  const netGain = slipsResult.netGainRealized;
 
   return (
     <div className="space-y-6">
@@ -453,7 +502,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
               €{slipsResult.totalInvestedSoFar.toFixed(2)}
             </div>
             <div className="text-[10px] text-[#64748B] mt-0.5">
-              Piazzato su schedine giocate/attive
+              {finalHedgeMode === 'lay_exchange'
+                ? 'Puntate book + responsabilità banca a rischio'
+                : 'Piazzato su schedine giocate/attive'}
             </div>
           </div>
 
@@ -465,7 +516,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
               €{slipsResult.maxPotentialExposure.toFixed(2)}
             </div>
             <div className="text-[10px] text-[#64748B] mt-0.5">
-              Se si arriva alla singola finale
+              {finalHedgeMode === 'lay_exchange'
+                ? 'Puntate book + responsabilità banca'
+                : 'Se si arriva alla singola finale'}
             </div>
           </div>
 
@@ -476,21 +529,31 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 <span className="text-emerald-400">In Corso di Gioco</span>
               )}
               {slipsResult.overallStatus === 'WON_MOTHER' && (
-                <span className="text-emerald-400 font-bold">
-                  Vinta Multipla Madre! (+€{slipsResult.netGainRealized?.toFixed(2)})
+                <span
+                  className={`font-bold ${
+                    (netGain ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  Vinta Multipla Madre! ({fmtGain(netGain)})
                 </span>
               )}
               {slipsResult.overallStatus === 'WON_COVERAGE' && (
-                <span className="text-emerald-400 font-bold">
-                  Vinta Copertura {slipsResult.winningSlipCode}! (+€
-                  {slipsResult.netGainRealized?.toFixed(2)})
+                <span
+                  className={`font-bold ${
+                    (netGain ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  {slipsResult.winningSlipCode === `C${matches.length}` &&
+                  finalHedgeMode === 'lay_exchange'
+                    ? 'Vinta Banca Finale!'
+                    : `Vinta Copertura ${slipsResult.winningSlipCode}!`}{' '}
+                  ({fmtGain(netGain)})
                 </span>
               )}
-              {slipsResult.overallStatus === 'LOST_MULTIPLE_OVERS' && (
-                <span className="text-red-400 font-bold">2+ Over (Sistema Saltato)</span>
-              )}
             </div>
-            <div className="text-[10px] text-[#64748B] mt-0.5">Regola: 1 solo Over tollerato</div>
+            <div className="text-[10px] text-[#64748B] mt-0.5">
+              Relay a scalare: vince sempre la copertura dell'ultimo Over
+            </div>
           </div>
         </div>
 
@@ -503,9 +566,19 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 Evento OVER Rilevato al Match #{slipsResult.firstOverIndex + 1}!
               </strong>
               <span className="ml-1 text-[#94A3B8]">
-                La Schedina Madre è decaduta, ma la Copertura{' '}
-                <strong>C{slipsResult.firstOverIndex + 1}</strong> è vincente e ripaga tutti i costi
-                sostenuti.
+                {slipsResult.overallStatus === 'WON_COVERAGE' ? (
+                  <>
+                    La Schedina Madre è decaduta, la Copertura{' '}
+                    <strong>{slipsResult.winningSlipCode}</strong> è vincente: netto finale{' '}
+                    <strong>{fmtGain(netGain)}</strong> (payout meno tutte le puntate piazzate,
+                    incluse le coperture successive perse).
+                  </>
+                ) : (
+                  <>
+                    La Schedina Madre è decaduta: la Copertura di quel match diventa la nuova madre
+                    e continua a essere protetta round dopo round.
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -660,6 +733,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
               >
                 <option value="front_loaded">Sbilanciata (Consigliata)</option>
                 <option value="capital_preservation">Salva Capitale (0€ Finale)</option>
+                <option value="back_loaded">Recupero in Finale (leggere iniziali)</option>
                 <option value="flat">Simmetrica (Flat)</option>
               </select>
             </div>
@@ -719,6 +793,109 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                       @{q.toFixed(2)}
                     </button>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* F13 — Finale in Banca: LAY Under 3.5 su exchange (Betfair) */}
+            <div className="flex flex-wrap items-center gap-2.5 px-2.5 py-1.5 bg-[#141824] border border-[#2D3139] rounded-xs">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={finalHedgeMode === 'lay_exchange'}
+                onClick={() =>
+                  setFinalHedgeMode(finalHedgeMode === 'lay_exchange' ? 'book_single' : 'lay_exchange')
+                }
+                className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
+                  finalHedgeMode === 'lay_exchange' ? 'bg-violet-500' : 'bg-zinc-700'
+                }`}
+                title={
+                  finalHedgeMode === 'lay_exchange'
+                    ? 'Torna alla singola Over in bookmaker'
+                    : 'Chiudi in banca: LAY Under 3.5 su Betfair'
+                }
+              >
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    finalHedgeMode === 'lay_exchange' ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+
+              <div
+                className="flex items-center gap-1.5 select-none cursor-pointer"
+                onClick={() =>
+                  setFinalHedgeMode(
+                    finalHedgeMode === 'lay_exchange' ? 'book_single' : 'lay_exchange',
+                  )
+                }
+              >
+                <span className="font-bold text-xs text-white">Finale in Banca (Betfair):</span>
+                <span
+                  className={`px-1.5 py-0.2 text-[10px] font-bold uppercase rounded-xs ${
+                    finalHedgeMode === 'lay_exchange'
+                      ? 'bg-violet-500/20 text-violet-300 border border-violet-500/40'
+                      : 'bg-zinc-800 text-[#64748B] border border-zinc-700'
+                  }`}
+                >
+                  {finalHedgeMode === 'lay_exchange' ? 'LAY UNDER' : 'SINGOLA BOOK'}
+                </span>
+              </div>
+
+              {finalHedgeMode === 'lay_exchange' && (
+                <div className="flex flex-wrap items-center gap-2 pl-2 border-l border-[#2D3139]">
+                  <span className="text-[10px] text-[#64748B]">Quota Lay:</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="1.01"
+                    max="10"
+                    value={layOdds ?? ''}
+                    placeholder={
+                      matches.length
+                        ? `auto @${(Number(matches[matches.length - 1].underOdds) || 1.3).toFixed(2)}`
+                        : 'auto'
+                    }
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      setLayOdds(Number.isFinite(v) && v > 1 ? v : null);
+                    }}
+                    className="w-20 bg-[#1A1D26] border border-[#2D3139] px-2 py-0.5 text-violet-300 text-right rounded-xs font-bold font-mono text-xs"
+                  />
+                  <span className="text-[10px] text-[#64748B]">Stake:</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={layStake ?? ''}
+                    placeholder={`auto €${(slipsResult.coverageSlips[slipsResult.coverageSlips.length - 1]?.stake ?? 0).toFixed(2)}`}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      setLayStake(Number.isFinite(v) && v > 0 ? v : null);
+                    }}
+                    className="w-20 bg-[#1A1D26] border border-[#2D3139] px-2 py-0.5 text-violet-300 text-right rounded-xs font-bold font-mono text-xs"
+                    title="Lascia vuoto per il sizing green-up automatico, oppure fissa tu lo stake della banca"
+                  />
+                  <span className="text-[10px] text-[#64748B]">Comm.%:</span>
+                  {[2, 5].map((cVal) => (
+                    <button
+                      key={cVal}
+                      onClick={() => setLayCommissionPct(cVal)}
+                      className={`px-1.5 py-0.5 text-[10px] font-mono rounded-xs border transition-colors ${
+                        layCommissionPct === cVal
+                          ? 'bg-violet-500 text-white border-violet-500 font-bold'
+                          : 'bg-[#1A1D26] text-[#94A3B8] border-[#2D3139] hover:text-white'
+                      }`}
+                    >
+                      {cVal}%
+                    </button>
+                  ))}
+                  <span className="text-[10px] text-[#64748B]">
+                    {layStake
+                      ? 'stake manuale: netti dei due rami per come sono'
+                      : 'sizing green-up: entrambi i rami finali pari'}
+                  </span>
                 </div>
               )}
             </div>
@@ -1295,7 +1472,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                             ? 'bg-amber-500/10 border border-amber-500/30 text-amber-200'
                             : item.market === 'BOOSTER 1X/12'
                               ? 'bg-blue-500/10 border border-blue-500/30 text-blue-200'
-                              : 'bg-[#141824] border border-[#20242C] text-[#E0E2E7]'
+                              : item.market === 'LAY UNDER 3.5'
+                                ? 'bg-violet-500/10 border border-violet-500/30 text-violet-200'
+                                : 'bg-[#141824] border border-[#20242C] text-[#E0E2E7]'
                         }`}
                       >
                         <div className="flex items-center gap-1.5 truncate">
@@ -1309,7 +1488,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                                 ? 'bg-amber-500/20 text-amber-300'
                                 : item.market === 'BOOSTER 1X/12'
                                   ? 'bg-blue-500/20 text-blue-300'
-                                  : 'bg-emerald-500/10 text-emerald-400'
+                                  : item.market === 'LAY UNDER 3.5'
+                                    ? 'bg-violet-500/20 text-violet-300'
+                                    : 'bg-emerald-500/10 text-emerald-400'
                             }`}
                           >
                             {item.market}
@@ -1338,26 +1519,50 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
 
                     <div>
                       <span className="text-[9px] text-[#64748B] uppercase block">
-                        Puntata (€0.50)
+                        {slip.type === 'FINAL_LAY' ? 'Banca (Stake Puntatore)' : 'Puntata (€0.50)'}
                       </span>
-                      <span className="text-[#3B82F6] font-bold text-sm">
+                      <span
+                        className={`font-bold text-sm ${
+                          slip.type === 'FINAL_LAY' ? 'text-violet-300' : 'text-[#3B82F6]'
+                        }`}
+                      >
                         €{slip.stake.toFixed(2)}
                       </span>
+                      {slip.type === 'FINAL_LAY' && (
+                        <span className="text-[9px] text-orange-400 block">
+                          responsabilità €{(slip.liability ?? 0).toFixed(2)}
+                        </span>
+                      )}
                     </div>
 
                     <div>
                       <span className="text-[9px] text-[#64748B] uppercase block">
-                        Vincita Lorda
+                        {slip.type === 'FINAL_LAY' ? 'Utile se Over (netto comm.)' : 'Vincita Lorda'}
                       </span>
                       <span className="text-white font-bold">
                         €{slip.potentialGrossPayout.toFixed(2)}
                       </span>
+                      {slip.type === 'FINAL_LAY' && (
+                        <span className="text-[9px] text-[#64748B] block">
+                          commissioni {(slip.commissionPct ?? 0).toFixed(1)}% già detratte
+                        </span>
+                      )}
                     </div>
 
                     <div>
-                      <span className="text-[9px] text-[#64748B] uppercase block">Utile Netto</span>
-                      <span className="text-emerald-400 font-bold text-sm">
-                        +€{slip.potentialNetProfit.toFixed(2)}
+                      <span className="text-[9px] text-[#64748B] uppercase block">
+                        Netto Finale se Vince
+                      </span>
+                      <span
+                        className={`font-bold text-sm ${
+                          slip.realizedNetIfWon >= 0 ? 'text-emerald-400' : 'text-red-400'
+                        }`}
+                      >
+                        {slip.realizedNetIfWon >= 0 ? '+' : '-'}€
+                        {Math.abs(slip.realizedNetIfWon).toFixed(2)}
+                      </span>
+                      <span className="text-[9px] text-[#64748B] block">
+                        incl. tutte le puntate (target {fmtGain(slip.targetProfit)})
                       </span>
                     </div>
                   </div>

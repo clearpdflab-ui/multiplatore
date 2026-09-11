@@ -452,6 +452,129 @@ manuale dell'utente.
   workflow: usava `amondnet/vercel-action@v30` (release inesistente) ed era
   ininfluente perche' Vercel pubblica via propria Git integration. Prima run
   CI VERDE dal 2026-09-07.
+## F11 UX — vedi sopra (stato vuoto LiveSlipTracker)
+
 - **F11 UX**: LiveSlipTracker non carica piu' le 8 Serie A finte di default:
   stato vuoto con empty-state + CTA "Apri Calendario" / preset demo su richiesta.
   `DEFAULT_SERIE_A_MATCHES` resta solo come preset manuale.
+
+## F12 — Bug GRAVE calcolo netto relay nel workbench schedine (2026-09-11, sera)
+
+- **Segnalazione utente**: schedina salvata "multipla prova" (8 partite) — nello
+  scontro finale C7 vs C8 (Over al match 7, match 8 decisivo), se vince C7 la
+  perdita reale è ~100€, ma l'app mostrava un utile "garantito".
+- **Causa radice** (`src/engine/slips.ts`): nel ramo `WON_COVERAGE`,
+  `netGainRealized = winningSlip.potentialNetProfit`, che sottrae solo i costi
+  fino alla copertura vincente. Ma nel relay "Live Relay a Scalare" le
+  coperture SUCCESSIVE alla vincente vengono comunque piazzate e perse: se vince
+  C7, la singola finale C8 (piazzata prima del match 8) è persa e il suo stake
+  resta scoperto. Idem per Over intermedi (vince C5 su 8 → scoperti C6+C7+C8).
+  `timeline.ts` (PracticalSimulator) e `pyengine build_chain` (`true_netto`)
+  e `harmony.ts` (`trueNetto` con `laterStakes`) calcolavano già correttamente:
+  slips.ts era l'outlier.
+- **Fix**:
+  - `netGainRealized` (WON_COVERAGE) = `payout vincente − totaleInvestito`
+    (= `maxPotentialExposure` a esito risolto, S0 + tutte le puntate).
+  - Nuovo campo `GeneratedSlip.realizedNetIfWon` (secondo passaggio in
+    `generateCustomSlips`): netto finale proiettato se quella schedina vince la
+    corsa = `payout − esposizione massima`. È il numero mostrato sulle card
+    ("Netto Finale se Vince", rosso se negativo, con target step secondario) e
+    nella clipboard; banner "Vinta Copertura Cx!" ora con segno reale.
+  - Test regressione in `tests/unit/slips.test.ts`: Over@7/Under@8 (netto
+    sconta stake C8), Over@7+8 (C8 → target), Over@5 su 8 (sconta C6..C8),
+    madre WON invariata. 117/117 verdi, tsc pulito, lint 0 error (fixati anche
+    2 `curly` pre-esistenti in slips.ts/timeline.ts), build OK.
+- **Nota strategica (aperto, decisione utente)**: la formula di sizing dello
+  step (`(cumulato+target)/(quota−1)`) non garantisce per costruzione
+  `realizedNetIfWon ≥ 0` per le coperture non-finali: con quote/aggio reali la
+  coda di puntate può eccedere il target (caso C7). Il no-loss vero richiede
+  o sizing su payout comune (dutching, se Σ1/quota < 1) o il motore harmony con
+  T/B/terminazione/lock. L'app ora almeno mostra il numero VERo.
+- NOTA: nel working tree c'erano già modifiche non committate a
+  `timeline.ts`/`timeline.test.ts` (sessione precedente, non F12).
+
+## F13 — Finale in BANCA (LAY Under 3.5 su Betfair) + curva back_loaded (2026-09-11, notte)
+
+- **Richiesta utente**: "la finale dovrebbe essere una bancata Lay su Betfair,
+  deve essere rivisto" + "sbilanciare un po' le puntate iniziali per recuperare
+  più capitale nelle puntate finali".
+- **Motore `src/engine/slips.ts`**: nuovo parametro `finalHedgeMode`
+  ('book_single' default retrocompatibile | 'lay_exchange') + `layOdds`
+  (default = quota Under dell'ultimo match) + `layCommissionPct` (default 5).
+  Con 'lay_exchange' l'ultimo step C_N non è più la singola Over in bookmaker
+  ma una BANCA (LAY Under 3.5) su exchange, tipo `FINAL_LAY`, dimensionata a
+  GREEN-UP sullo scontro finale: `B = P/(L−c)` dove P = payout della schedina
+  attiva alla finale (madre se nessun Over, altrimenti C_k dell'ultimo Over),
+  L = quota lay, c = commissione. I due rami finali chiudono entrambi a
+  `P(1−c)/(L−c) − I` (pari, ≥0 se la scala lo consente). La responsabilità
+  `B(L−1)` NON è una puntata: contabilità separata (`bookInvestedSoFar` vs
+  `layAtRisk`); ramo Over (vince la banca) sottrae solo le puntate book, ramo
+  Under (vince la attiva) sottrae anche la responsabilità persa.
+  `maxPotentialExposure` = puntate book + responsabilità.
+- **Curva `back_loaded`** (`dutching.ts` + tipo `AsymmetricMode`): specchio di
+  front_loaded (target 0.3x all'inizio → 1.8x in finale, arrotondi a 5€):
+  puntate iniziali leggere, recupero caricato su coperture finali + banca.
+- **UI `LiveSlipTracker`**: toggle "Finale in Banca (Betfair)" (default ON per
+  direttiva utente), input quota lay (auto = Under ultimo match) + commissione
+  (2%/5%), opzione Curva "Recupero in Finale", card C_N con chip viola
+  "LAY UNDER 3.5", "Banca (Stake Puntatore)" + responsabilità, "Utile se Over
+  (netto comm.)", clipboard con istruzione Bancа completa, banner "Vinta
+  Banca Finale!", caption esposizione dinamica. Parametri persistiti in
+  `SavedSlipParams` (finalHedgeMode/layOdds/layCommissionPct) → le schedine
+  salvate (es. "multipla prova") ricaricano tutto.
+- **Numeri** (8 partite 1.32/3.0, S0=20, target=45, lay@1.30 c.5%):
+  - flat+lay: Over@7 → **+4.33/+4.67** su TUTTI E DUE i rami finali (prima
+    con book: −39.72/+45); madre +51.65.
+  - back_loaded+lay: Over@7 → **+22.36/+22.9**, madre +45.65, scala stake
+    1.5→51, banca resp. 48.60.
+  - **TRADE-OFF ONESTO (mostrato in rosso dall'app)**: con Over PRECOCE
+    (match 1–3) il green-up non può recuperare tutta la scala: flat −64/−63,
+    back_loaded −101/−80, front_loaded −37/−40. Nessun profilo di target
+    rende verdi TUTTE le posizioni con quote 1.32/3.0 (richiederebbe payout
+    early ≥ 1.32× scala totale → dutching completo o motore harmony con T/B).
+    Scelta profilo lasciata all'utente (selettore Curva).
+- Test: +5 in `tests/unit/slips.test.ts` (green-up pari, ramo Over senza
+  responsabilità, sizing su madre, default book_single invariato, back_loaded
+  + Over precoce onesto). **122/122**, tsc pulito, lint 0 error, build OK.
+- Da valutare (prossimo passo se richiesto): sizing "tutte le posizioni verdi"
+  (solver iterativo sui target o dutching a payout comune), portare la banca
+  anche in `timeline.ts`/PracticalSimulator e in harmony/pyengine (task parità
+  TS/Python già aperto in §F-nota 3f85c91).
+
+## F14 — Fix bancata finale: il green-up a quota pre-match comprimeva tutto a ~0 (2026-09-11, notte bis)
+
+- **Segnalazione utente**: "la bancata finale è proprio in errore". Confermato
+  dal dump: con la bancata green-up a quota lay = quota Under pre-match
+  (1.32), il lock estrae solo (1−c)/(L−c) ≈ 74.8% del payout → lo scontro
+  C7/banca chiudeva a **+2.2/+2.8** su 168€ investiti (operazione da 8 partite
+  ridotta a zero). Il sizing delle coperture non considerava il taglio del
+  lock: payout C7 (cum+45) non basta a reggere lock E target.
+- **Fix sizing (`src/engine/slips.ts`)**: quando `finalHedgeMode='lay_exchange'`,
+  l'ULTIMA copertura book C_{N−1} viene sovradimensionata al punto fisso
+  `t' = (k−1)(cum+s) + k·t` con `k = (L−c)/(1−c)`, così il suo payout regge
+  `P = k·(I+t)` e il green-up con la banca chiude **ENTRAMBI i rami al target
+  della curva** (il `targetProfit` mostrato resta quello di curva; il gonfio
+  è solo nel sizing). Guard: `mult > k` altrimenti niente gonfio (quotes non
+  reggono il lock, mostrato onesto).
+- **Numeri** (8 partite 1.32/3.0, S0=20, t=45, lay@1.32 c.5%, flat no-booster):
+  - C7 stake 43→65, payout 170.28→257.40; banca B=203, resp 64.96.
+  - Scontro: **Under +45.44 / Over +45.85** (prima del fix: +2.24/+2.77; con
+    la vecchia singola book: −39.72/+45.00).
+  - Esposizione 211.96 ≈ identica alla vecchia singola book (210): stessa
+    capitale, ma ora PERDITA ZERO su entrambi i rami + target pieno.
+  - back_loaded: scontro chiude a **~+70/+70** (target curva C7), madre ~+17.
+  - front_loaded (default UI): scontro ~+16/+16 (target curva), madre ~+54.
+  - Lay IN-PLAY a quota scesa (es. @1.10) → il lock costa meno: stesso target
+    con meno capitale (il campo quota lay è editabile, ricalcola tutto).
+  - Trade-off onesto invariato: Over precoci (match 1–5) restano rossi (nessun
+    sizing a scala li copre senza dutching completo; arrotondato in rosso).
+- Test aggiornati: C7.realized ≈ target e C8.realized ≈ target su flat (45) e
+  back_loaded (70), stake C7 > 50. **122/122**, tsc pulito, lint 0 error,
+  build OK.
+- **F14b — stake bancata MANUALE** (richiesta utente: "stake 40"): nuovo campo
+  "Stake" nel pannello Finale in Banca (vuoto = green-up automatico con gonfio
+  su C_{N-1}; compilato = sizing dell'utente: scala standard, nessun gonfio,
+  netti dei due rami mostrati per come sono). Engine: `layStakeOverride`
+  (10° parametro), `SavedSlipParams.layStake`. Con stake 40 @1.30:
+  responsabilità 12; ramo Under = P_attiva − I − 12, ramo Over = 38 − I.
+  Test +1 (stake manuale): **123/123**, tsc, lint, build OK.

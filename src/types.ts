@@ -2,7 +2,15 @@ export type ViewMode = 'live_slips' | 'calendar_odds' | 'practical' | 'math' | '
 
 export type CalculationModel = 'original_sum' | 'real_product' | 'optimized_sequential';
 
-export type AsymmetricMode = 'flat' | 'front_loaded' | 'capital_preservation';
+export type AsymmetricMode =
+  | 'flat'
+  | 'front_loaded'
+  | 'capital_preservation'
+  | 'back_loaded';
+
+// Come viene chiuso l'ultimo evento della scala: singola Over in bookmaker
+// oppure banca (LAY Under 3.5) su exchange tipo Betfair.
+export type FinalHedgeMode = 'book_single' | 'lay_exchange';
 
 export type BookmakerModelId = '132_300' | '130_315' | 'custom';
 
@@ -40,14 +48,14 @@ export interface GeneratedSlipItem {
   homeTeam: string;
   awayTeam: string;
   timeSlot: string;
-  market: 'UNDER 3.5' | 'OVER 3.5' | 'BOOSTER 1X/12';
+  market: 'UNDER 3.5' | 'OVER 3.5' | 'BOOSTER 1X/12' | 'LAY UNDER 3.5';
   odds: number;
 }
 
 export interface GeneratedSlip {
   id: string;
   step: number; // 0 for Schedina Madre S0, 1..N for Copertura Ck
-  type: 'MOTHER' | 'COVERAGE' | 'FINAL_SINGLE';
+  type: 'MOTHER' | 'COVERAGE' | 'FINAL_SINGLE' | 'FINAL_LAY';
   title: string;
   code: string; // e.g. "S0", "C1", "C2", ...
   timing: string;
@@ -61,6 +69,16 @@ export interface GeneratedSlip {
   cumulativeCost: number;
   potentialGrossPayout: number;
   potentialNetProfit: number;
+  // Netto finale REALE se questa schedina vince la corsa: payout meno TUTTE le
+  // puntate della scala (anche le coperture successive, che in quel caso vengono
+  // comunque piazzate e perse). potentialNetProfit considera solo i costi fino
+  // a questa schedina (target di progetto dello step), quindi per le coperture
+  // non-finali NON e' il netto realmente incassato.
+  realizedNetIfWon: number;
+  // Solo schedine FINAL_LAY (banca su exchange): responsabilità a rischio
+  // (stake puntatore x (quota lay - 1)) e commissioni exchange applicate.
+  liability?: number;
+  commissionPct?: number;
   status: 'PENDING' | 'ACTIVE' | 'WON' | 'LOST';
 }
 
@@ -245,6 +263,11 @@ export interface SavedSlipParams {
   boosterOdds: number;
   bookmakerModel?: BookmakerModelId;
   modelApplyScope?: 'pending' | 'all';
+  finalHedgeMode?: FinalHedgeMode;
+  layOdds?: number;
+  layCommissionPct?: number;
+  // Stake della bancata scelto a mano dall'utente (se assente: sizing green-up)
+  layStake?: number;
 }
 
 export interface SavedSlip {
