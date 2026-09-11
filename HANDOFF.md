@@ -281,8 +281,8 @@ componente, migrazione alla sezione Book rimandata); il Calendario resta su
   non più esportato. Badge rating ★ anche nel Calendario; messaggio mock ora mostra
   l'errore reale. Vecchi test `normalizeEventsFeed` ancora verdi (funzione tenuta nell'engine).
 - Test **84/84**, tsc pulito, build OK, smoke dal vivo OK (Guingamp-Annecy 0.918 in testa).
-- **Aperto**: refresh token vero nel secret (vedi sopra, quando l'utente lo pesca dal
-  DevTools — l'attuale è un access token che scade ~13/09); paginazione "carica più partite";
+- **Aperto**: ~~refresh token vero nel secret~~ → **RISOLTO in F8** (2026-09-11);
+  paginazione "carica più partite";
   coppia book madre/copertura configurabile per ciclo (oggi default globali 16→23).
 
 ### F5b — CalendarOddsMonitor ricollegato a dati reali (2026-09-10)
@@ -316,8 +316,59 @@ browser non completato in questa sessione (tool di automazione Chrome non funzio
 Network tab per confermare che il bottone "Aggiorna Ora"/auto-refresh rifanno la fetch, e
 testare import di una partita con copertura completa nella Schedina Madre.
 
+## F6 — Login Supabase sistemato (2026-09-10)
+
+- Causa login rotto: **zero utenti in auth** + `mailer_autoconfirm=false` senza SMTP
+  (nessuno avrebbe mai potuto confermare l'email). Fix: autoconfirm **ON** via
+  Management API (`PATCH /v1/projects/ekzjsltnamndtydodkhx/config/auth`), nessuna UI
+  aggiunta (scelta utente: pochi account fidati, niente signup/reset/magic link).
+- `scripts/create-auth-user.mjs`: crea utenti con admin API (`/auth/v1/admin/users`,
+  service_role presa da `.env:SUPABASE_TOKEN_ACCESS` via api-keys, mai stampata;
+  password chiesta nel terminale con input nascosto). Uso:
+  `node scripts/create-auth-user.mjs tua@email.it`.
+- Verificato end-to-end con utente usa-e-getta: create 200, **signInWithPassword 200 con
+  sessione**, pulizia fatta via SQL (`api.supabase.com/v1/projects/<ref>/database/query`
+  — il DELETE di GoTrue risponde 405, usare la via SQL per rimozioni manuali).
+- Aperto F7: `site_url` resta `http://localhost:3000` → aggiornare all'URL Vercel al deploy.
+
 ### Fuori scope in F5 (rimandato, dipende da questo)
+
 Agente cron auto-copertura (F6, richiede `pg_cron`/`pg_net`, nessun precedente nel repo) e
 riempimento assistito schedina via browser automation (book-per-book, ispezione live di
 Snai/Eurobet/BetFlag — non fattibile "alla cieca"). Piazzamento resta sempre a conferma
 manuale dell'utente.
+
+## F8 — LDL sync: causa "cade sempre" risolta + refresh token vero (2026-09-11)
+
+- **Causa radice**: il secret `LDL_COGNITO_REFRESH_TOKEN` **non era mai stato
+  impostato** (`supabase secrets list` → solo `LDL_BEARER_TOKEN`). L'auto-refresh
+  della edge non partiva mai; la sync viveva dell'access token statico incollato a
+  mano in F5d (scadenza ~13/09) → 401 → fallback mock. Ora l'utente ha impostato il
+  **vero refresh token** dal dashboard (Edge Secrets).
+- **Perche' dashboard e non CLI**: `supabase secrets set` da CLI fallisce con
+  "insufficient privileges" perche' la CLI **non e' loggata** (`~/.supabase/
+  access_token` assente); il `SUPABASE_TOKEN_ACCESS` in `.env` invece i permessi
+  secrets li ha (GET /v1/projects/<ref>/secrets → 200). Per i secrets: o CLI con
+  `supabase login`, o dashboard, o Management API.
+- **Refresh verificato end-to-end**: nuova resource edge **`tokencheck`**
+  (`GET /functions/v1/ldl-odds?resource=tokencheck`) risponde
+  `{ refreshOk, accessTokenExp, fallbackPresent, working }` — mai token. Esito:
+  `refreshOk:true`, accessToken exp 24h (il pool LDL emette access token da ~24h,
+  non 1h come ipotizzato).
+- **Edge `ldl-odds` v10 (deployata via Management API
+  `POST /v1/projects/<ref>/functions/deploy?slug=ldl-odds`, multipart,
+  verify_jwt=true come in produzione)**: errori Cognito tipizzati con prefisso
+  `TOKEN:` nei messaggi verso la UI (`TOKEN_NOT_AUTHORIZED` = rinnovo 30gg,
+  `COGNITO_RESOURCE_NOT_FOUND` = clientId/pool, `COGNITO_NETWORK` = transitorio),
+  1 retry su 5xx/rete.
+- **UI Calendario**: banner ambra dedicato quando `ldlErrors` contiene `TOKEN:`
+  con la procedura di rinnovo in 3 passi (distincto dal banner mock/rete).
+- **PROCEDURA RINNOVO OGNI ~30 GIORNI** (il refresh token Cognito ha validita'
+  propria e il pool e' static, nessuna rotazione):
+  1. Login su liberidalavoro.it → DevTools → Local Storage → chiave
+     `CognitoIdentityServiceProvider.7tbdal5hjeth0oq9nlifs5m8e0.<utente>.refreshToken`
+  2. Dashboard Supabase → Settings → API Keys → Edge Secrets → aggiorna
+     `LDL_COGNITO_REFRESH_TOKEN`
+  3. Verifica: `?resource=tokencheck` → `refreshOk:true`
+- **Non committato in F8**: le modifiche alla UI Calendario di questa sessione
+  includono anche il multi-selettore book + Trova Partite (F9?).
