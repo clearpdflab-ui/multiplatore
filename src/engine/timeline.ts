@@ -31,8 +31,6 @@ export function buildSequentialTimeline(
   let activeTicketType: 'MAIN' | 'REPLACEMENT' = 'MAIN';
   let activeTicketDesc = `Multipla Madre (Tutti gli ${totalEvents} Under 3.5)`;
   let currentActiveTicketDesc = activeTicketDesc;
-  const isBroken = false;
-  let winningAmount = 0;
 
   const baseBonus = getBonusPercentage(totalEvents);
   const baseRawOdds = Math.pow(underOdds, totalEvents);
@@ -86,22 +84,15 @@ export function buildSequentialTimeline(
         : `Copertura: Match ${k} OVER + ${remainingUnderAfterThis} restanti UNDER${hasBooster ? ` + Booster (${boosterOdds.toFixed(2)})` : ''} (${effectiveEventsInCoverage} ev.)`;
 
     let status: SequentialStepState['status'] = 'WAITING';
-    if (isBroken) {
-      status = 'FINISHED';
-    } else if (outcome === 'PENDING') {
+    if (outcome === 'PENDING') {
       status = 'ACTIVE';
     } else if (outcome === 'UNDER') {
       status = 'RESOLVED_UNDER';
       cumulativeCost += stake;
-      if (k === totalEvents) {
-        winningAmount = baseGrossWin;
-      }
     } else if (outcome === 'OVER') {
       status = 'RESOLVED_OVER_SWAP';
       cumulativeCost += stake;
-      if (k === totalEvents) {
-        winningAmount = Number((stake * finalOdds).toFixed(2));
-      } else {
+      if (k !== totalEvents) {
         activeTicketType = 'REPLACEMENT';
         activeTicketDesc = `Schedina Sostitutiva (Preso Over ${k} + restanti ${remainingUnderAfterThis} Under${hasBooster ? ' + Booster' : ''})`;
         currentActiveTicketDesc = activeTicketDesc;
@@ -139,8 +130,24 @@ export function buildSequentialTimeline(
   let finalPayout = 0;
   let finalNet = 0;
   if (allResolved) {
-    simulationStatus = 'WON';
-    finalPayout = winningAmount > 0 ? winningAmount : baseGrossWin;
+    // Logica "Live Relay a Scalare": ogni Over brucia la schedina attiva ma la
+    // copertura piazzata su quello stesso step (Over@k + Under su TUTTI i
+    // restanti) diventa la nuova schedina madre. Quindi conta solo l'ULTIMO
+    // Over della sequenza: la sua copertura, per costruzione, richiedeva Under
+    // su tutti i match successivi, che essendo l'ultimo Over sono infatti Under.
+    let lastOverStepIdx = -1;
+    matchOutcomes.forEach((o, i) => {
+      if (o === 'OVER') {lastOverStepIdx = i;}
+    });
+    if (lastOverStepIdx === -1) {
+      // Nessun Over: la multipla madre (tutti Under) è arrivata intatta a fine corsa.
+      simulationStatus = 'WON';
+      finalPayout = baseGrossWin;
+    } else {
+      // Vince la copertura piazzata sull'ultimo Over, qualunque cosa sia successo prima.
+      simulationStatus = 'WON';
+      finalPayout = timeline[lastOverStepIdx].potentialGrossWin;
+    }
     finalNet = Number((finalPayout - cumulativeCost).toFixed(2));
   }
 

@@ -66,6 +66,35 @@ describe('buildSequentialTimeline', () => {
     expect(r.totalSpentSoFar).toBeCloseTo(r.timeline[3].cumulativeCostSoFar, 2);
   });
 
+  it('2+ Over (relay a scalare) -> WON con payout della copertura sullULTIMO Over', () => {
+    // Over al match 2 e al match 4 (ultimo): la copertura del match 2 viene
+    // "bruciata" dal secondo Over, ma la copertura del match 4 (Over qui +
+    // nessun match restante da coprire) e' per costruzione vincente.
+    const r = buildSequentialTimeline(base, ['UNDER', 'OVER', 'UNDER', 'OVER']);
+    expect(r.simulationStatus).toBe('WON');
+    expect(r.finalPayout).toBeCloseTo(r.timeline[3].potentialGrossWin, 2);
+  });
+
+  it('due Over consecutivi seguiti da Under -> vince la copertura del secondo Over', () => {
+    // Over al match 1 e 2, poi Under su 3 e 4: la copertura del match 2
+    // (Over@2 + Under su 3,4) e' l'ultima Over-coverage e i restanti sono
+    // tutti Under, quindi vince quella.
+    const r = buildSequentialTimeline(base, ['OVER', 'OVER', 'UNDER', 'UNDER']);
+    expect(r.simulationStatus).toBe('WON');
+    expect(r.finalPayout).toBeCloseTo(r.timeline[1].potentialGrossWin, 2);
+    // Le coperture continuano a essere piazzate normalmente, nessuno step e' FINISHED/stake 0.
+    expect(r.timeline[2].stake).toBeGreaterThan(0);
+    expect(r.timeline[3].stake).toBeGreaterThan(0);
+  });
+
+  it('un solo Over non finale -> WON con payout della copertura, non della madre', () => {
+    const r = buildSequentialTimeline(base, ['UNDER', 'OVER', 'UNDER', 'UNDER']);
+    expect(r.simulationStatus).toBe('WON');
+    expect(r.finalPayout).toBeCloseTo(r.timeline[1].potentialGrossWin, 2);
+    const madreGross = Number((10 * Math.pow(1.32, 4)).toFixed(2));
+    expect(r.finalPayout).not.toBeCloseTo(madreGross, 2);
+  });
+
   it('capitale_preservation e front_loaded cambiano i target', () => {
     const flat = buildSequentialTimeline(base, ['PENDING', 'PENDING', 'PENDING', 'PENDING']);
     const cap = buildSequentialTimeline(
