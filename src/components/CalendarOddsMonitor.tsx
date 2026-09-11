@@ -1,6 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserMatch } from '../types';
-import { bestCoverSide, type CoverOddsRow, type LdlMatchStatus, type LineStatus } from '../engine/coverOddsFeed';
+import {
+  bestCoverSide,
+  type CoverOddsRow,
+  type LdlMatchStatus,
+  type LineStatus,
+} from '../engine/coverOddsFeed';
 import { fetchCoverFeed, fetchCoverSuggestions, fetchLdlBookmakers } from '../services/ldlOddsApi';
 import { findRegistryBook } from '../engine/oddsFeed';
 import { useBooks } from '../hooks/useBooks';
@@ -36,7 +41,9 @@ const STORE_COPERTURA = 'multiscale_cal_copertura_sites_v1';
 function loadStoredSites(key: string): number[] | null {
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return null;
+    if (!raw) {
+      return null;
+    }
     const arr = JSON.parse(raw);
     const ids = Array.isArray(arr) ? arr.map(Number).filter((n) => Number.isFinite(n)) : [];
     return ids.length > 0 ? ids : null;
@@ -51,7 +58,12 @@ interface LdlBookmaker {
 }
 
 function BookMultiSelect({
-  label, options, selected, onChange, registeredIds, daysLimits,
+  label,
+  options,
+  selected,
+  onChange,
+  registeredIds,
+  daysLimits,
 }: {
   label: string;
   options: LdlBookmaker[];
@@ -73,7 +85,9 @@ function BookMultiSelect({
         title={`Book selezionati per: ${label}`}
       >
         <span className="text-[#94A3B8]">{label}:</span>
-        <span className="font-bold">{selected.length > 0 ? `${selected.length} book` : 'nessuno'}</span>
+        <span className="font-bold">
+          {selected.length > 0 ? `${selected.length} book` : 'nessuno'}
+        </span>
         <ChevronDown className="w-3.5 h-3.5 text-[#64748B]" />
       </button>
       {open && (
@@ -105,10 +119,17 @@ function BookMultiSelect({
                     />
                     <span className="text-white font-mono flex-1 truncate">{o.name}</span>
                     {registeredIds.has(o.id) && (
-                      <span className="text-[9px] px-1 rounded-xs bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 font-mono">reg</span>
+                      <span className="text-[9px] px-1 rounded-xs bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 font-mono">
+                        reg
+                      </span>
                     )}
                     {limit != null && (
-                      <span className="text-[9px] text-amber-300 font-mono" title={`Multipla: gambe entro ${limit} giorni`}>≤{limit}gg</span>
+                      <span
+                        className="text-[9px] text-amber-300 font-mono"
+                        title={`Multipla: gambe entro ${limit} giorni`}
+                      >
+                        ≤{limit}gg
+                      </span>
                     )}
                   </label>
                 );
@@ -118,10 +139,16 @@ function BookMultiSelect({
               )}
             </div>
             <div className="p-2 border-t border-[#2D3139] flex items-center justify-between">
-              <button onClick={() => onChange([])} className="text-[10px] font-mono text-[#64748B] hover:text-white uppercase">
+              <button
+                onClick={() => onChange([])}
+                className="text-[10px] font-mono text-[#64748B] hover:text-white uppercase"
+              >
                 Azzera
               </button>
-              <button onClick={() => setOpen(false)} className="text-[10px] font-mono text-[#3B82F6] hover:text-white uppercase font-bold">
+              <button
+                onClick={() => setOpen(false)}
+                className="text-[10px] font-mono text-[#3B82F6] hover:text-white uppercase font-bold"
+              >
                 Chiudi
               </button>
             </div>
@@ -156,7 +183,9 @@ function StatusBadge({ status }: { status: LdlMatchStatus }) {
       );
     case 'finished':
       return (
-        <span className="px-1.5 py-0.5 rounded-xs bg-zinc-800 text-[#94A3B8] text-[10px]">FINALE</span>
+        <span className="px-1.5 py-0.5 rounded-xs bg-zinc-800 text-[#94A3B8] text-[10px]">
+          FINALE
+        </span>
       );
     case 'scheduled':
       return (
@@ -171,12 +200,18 @@ function StatusBadge({ status }: { status: LdlMatchStatus }) {
         </span>
       );
     default:
-      return <span className="px-1.5 py-0.5 rounded-xs bg-zinc-800 text-[#64748B] text-[10px]">ALTRO</span>;
+      return (
+        <span className="px-1.5 py-0.5 rounded-xs bg-zinc-800 text-[#64748B] text-[10px]">
+          ALTRO
+        </span>
+      );
   }
 }
 
 function LineStatusBadge({ lineStatus, line }: { lineStatus: LineStatus | null; line: number }) {
-  if (!lineStatus) return null;
+  if (!lineStatus) {
+    return null;
+  }
   if (lineStatus === 'over') {
     return (
       <span className="text-[10px] px-1.5 py-0.5 rounded-xs font-bold bg-amber-950/60 text-amber-300 border border-amber-500/40">
@@ -208,7 +243,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
   const [activeLeagueFilter, setActiveLeagueFilter] = useState<string>('all');
-  const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'scheduled' | 'live' | 'finished'>('all');
+  const [activeStatusFilter, setActiveStatusFilter] = useState<
+    'all' | 'scheduled' | 'live' | 'finished'
+  >('all');
   const [importNotification, setImportNotification] = useState<string | null>(null);
   const [ldlErrors, setLdlErrors] = useState<string[]>([]);
   // Coppia book per la ricerca /puntapunta: madre=book con Under 3.5 (sites1),
@@ -218,7 +255,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [bookmakers, setBookmakers] = useState<LdlBookmaker[]>([]);
   const { books: registryBooks } = useBooks();
   const [madreSites, setMadreSites] = useState<number[]>(() => loadStoredSites(STORE_MADRE) ?? []);
-  const [coperturaSites, setCoperturaSites] = useState<number[]>(() => loadStoredSites(STORE_COPERTURA) ?? []);
+  const [coperturaSites, setCoperturaSites] = useState<number[]>(
+    () => loadStoredSites(STORE_COPERTURA) ?? [],
+  );
   const [oddsMin, setOddsMin] = useState('1,25');
   const [targetCount, setTargetCount] = useState('30');
   const [autoLoading, setAutoLoading] = useState(false);
@@ -238,35 +277,51 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const registeredLdlIds = useMemo(() => {
     const active = registryBooks.filter((b) => b.isActive);
     const set = new Set<number>();
-    if (!active.length) return set;
-    for (const b of bookmakers) if (findRegistryBook(active, b.name)) set.add(b.id);
+    if (!active.length) {
+      return set;
+    }
+    for (const b of bookmakers) {
+      if (findRegistryBook(active, b.name)) {
+        set.add(b.id);
+      }
+    }
     return set;
   }, [bookmakers, registryBooks]);
 
   const daysLimitsByLdlId = useMemo(() => {
     const active = registryBooks.filter((b) => b.isActive);
     const map = new Map<number, number>();
-    if (!active.length) return map;
+    if (!active.length) {
+      return map;
+    }
     for (const b of bookmakers) {
       const limit = findRegistryBook(active, b.name)?.multiDaysLimit ?? null;
-      if (limit != null && limit >= 1) map.set(b.id, limit);
+      if (limit != null && limit >= 1) {
+        map.set(b.id, limit);
+      }
     }
     return map;
   }, [bookmakers, registryBooks]);
 
   // Default di selezione: book registrati (pre-spuntati), fallback 16/23.
   useEffect(() => {
-    if (!bookmakers.length) return;
+    if (!bookmakers.length) {
+      return;
+    }
     const registered = [...registeredLdlIds];
     setMadreSites((prev) => (prev.length ? prev : registered.length ? registered : [16]));
     setCoperturaSites((prev) => (prev.length ? prev : registered.length ? registered : [23]));
   }, [bookmakers, registeredLdlIds]);
 
   useEffect(() => {
-    if (madreSites.length) localStorage.setItem(STORE_MADRE, JSON.stringify(madreSites));
+    if (madreSites.length) {
+      localStorage.setItem(STORE_MADRE, JSON.stringify(madreSites));
+    }
   }, [madreSites]);
   useEffect(() => {
-    if (coperturaSites.length) localStorage.setItem(STORE_COPERTURA, JSON.stringify(coperturaSites));
+    if (coperturaSites.length) {
+      localStorage.setItem(STORE_COPERTURA, JSON.stringify(coperturaSites));
+    }
   }, [coperturaSites]);
 
   const madreKey = madreSites.join(',');
@@ -278,7 +333,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
   async function loadRows() {
-    if (!madreSites.length || !coperturaSites.length) return;
+    if (!madreSites.length || !coperturaSites.length) {
+      return;
+    }
     setLoading(true);
     try {
       const r = await fetchCoverFeed({
@@ -307,13 +364,29 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   useEffect(() => {
     void loadRows();
     fetchLdlBookmakers()
-      .then((list) => setBookmakers(list.length ? list : [{ id: 16, name: 'Lottomatica' }, { id: 23, name: 'Sisal' }]))
-      .catch(() => setBookmakers([{ id: 16, name: 'Lottomatica' }, { id: 23, name: 'Sisal' }]));
+      .then((list) =>
+        setBookmakers(
+          list.length
+            ? list
+            : [
+                { id: 16, name: 'Lottomatica' },
+                { id: 23, name: 'Sisal' },
+              ],
+        ),
+      )
+      .catch(() =>
+        setBookmakers([
+          { id: 16, name: 'Lottomatica' },
+          { id: 23, name: 'Sisal' },
+        ]),
+      );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [madreKey, coperturaKey]);
 
   useEffect(() => {
-    if (!autoRefresh) return;
+    if (!autoRefresh) {
+      return;
+    }
     const interval = setInterval(() => {
       void loadRows();
     }, REFRESH_INTERVAL_MS);
@@ -326,19 +399,26 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const leagues = useMemo(() => Array.from(new Set(rows.map((r) => r.league))).sort(), [rows]);
 
   // Errori auth LDL: la edge function marca i problemi token con prefisso "TOKEN:".
-  const tokenIssue = useMemo(() => ldlErrors.find((e) => e.includes('TOKEN:')) ?? null, [ldlErrors]);
+  const tokenIssue = useMemo(
+    () => ldlErrors.find((e) => e.includes('TOKEN:')) ?? null,
+    [ldlErrors],
+  );
 
   const filteredRows = useMemo(() => {
     return rows.filter((r) => {
-      if (activeLeagueFilter !== 'all' && r.league !== activeLeagueFilter) return false;
-      if (activeStatusFilter !== 'all' && r.status !== activeStatusFilter) return false;
+      if (activeLeagueFilter !== 'all' && r.league !== activeLeagueFilter) {
+        return false;
+      }
+      if (activeStatusFilter !== 'all' && r.status !== activeStatusFilter) {
+        return false;
+      }
       return true;
     });
   }, [rows, activeLeagueFilter, activeStatusFilter]);
 
   const toggleMatchSelection = (eventId: string) => {
     setSelectedEventIds((prev) =>
-      prev.includes(eventId) ? prev.filter((id) => id !== eventId) : [...prev, eventId]
+      prev.includes(eventId) ? prev.filter((id) => id !== eventId) : [...prev, eventId],
     );
   };
 
@@ -350,7 +430,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     let days = CALENDAR_WINDOW_DAYS;
     for (const idStr of madreKey.split(',').filter(Boolean)) {
       const limit = daysLimitsByLdlId.get(Number(idStr));
-      if (limit != null) days = Math.min(days, limit);
+      if (limit != null) {
+        days = Math.min(days, limit);
+      }
     }
     return days;
   }, [madreKey, daysLimitsByLdlId]);
@@ -378,21 +460,30 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         });
         let fresh = 0;
         for (const m of r.matches) {
-          if (!seen.has(m.eventId)) { seen.set(m.eventId, m); fresh++; }
+          if (!seen.has(m.eventId)) {
+            seen.set(m.eventId, m);
+            fresh++;
+          }
         }
         const candidates = [...seen.values()].filter((row) => {
-          if (row.status !== 'scheduled') return false;
+          if (row.status !== 'scheduled') {
+            return false;
+          }
           const under = bestCoverSide(row, 'under');
           const over = bestCoverSide(row, 'over');
           return Boolean(under && over && under.odds >= parsedOddsMin);
         });
         // Risposta breve o nessuna riga nuova = altre pagine inutili.
-        if (r.matches.length < 100 || fresh === 0 || candidates.length >= parsedTarget) break;
+        if (r.matches.length < 100 || fresh === 0 || candidates.length >= parsedTarget) {
+          break;
+        }
       }
       // seen e' gia' ordinato per rating (sort server-side del feed).
       const candidates = [...seen.values()]
         .filter((row) => {
-          if (row.status !== 'scheduled') return false;
+          if (row.status !== 'scheduled') {
+            return false;
+          }
           const under = bestCoverSide(row, 'under');
           const over = bestCoverSide(row, 'over');
           return Boolean(under && over && under.odds >= parsedOddsMin);
@@ -425,18 +516,23 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const handleImportSelected = () => {
     const matchesToImport = rows.filter((r) => selectedEventIds.includes(r.eventId));
     const sorted = [...matchesToImport].sort(
-      (a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime()
+      (a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime(),
     );
 
     const userMatches: UserMatch[] = [];
     sorted.forEach((row, idx) => {
       const under = bestCoverSide(row, 'under');
       const over = bestCoverSide(row, 'over');
-      if (!under || !over) return;
+      if (!under || !over) {
+        return;
+      }
 
       let outcome: 'PENDING' | 'UNDER' | 'OVER' = 'PENDING';
-      if (row.lineStatus === 'over') outcome = 'OVER';
-      else if (row.status === 'finished' && row.lineStatus === 'safe') outcome = 'UNDER';
+      if (row.lineStatus === 'over') {
+        outcome = 'OVER';
+      } else if (row.status === 'finished' && row.lineStatus === 'safe') {
+        outcome = 'UNDER';
+      }
 
       userMatches.push({
         id: `m_ldl_${row.eventId}_${Date.now()}_${idx}`,
@@ -453,11 +549,13 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       });
     });
 
-    if (userMatches.length === 0) return;
+    if (userMatches.length === 0) {
+      return;
+    }
 
     onImportToTracker(userMatches);
     setImportNotification(
-      `✅ ${userMatches.length} partite importate con quote reali liberidalavoro.it! Reindirizzamento in corso...`
+      `✅ ${userMatches.length} partite importate con quote reali liberidalavoro.it! Reindirizzamento in corso...`,
     );
     setTimeout(() => {
       setImportNotification(null);
@@ -541,7 +639,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               title={`Cerca nel calendario dei prossimi ${motherWindowDays} giorni le partite con copertura completa e quota Under >= soglia, e seleziona le ${parsedTarget} migliori per rating`}
             >
               <Sparkles className={`w-3.5 h-3.5 ${autoLoading ? 'animate-pulse' : ''}`} />
-              <span>{autoLoading ? 'Ricerca…' : `Trova ${parsedTarget} Partite (${motherWindowDays}gg)`}</span>
+              <span>
+                {autoLoading ? 'Ricerca…' : `Trova ${parsedTarget} Partite (${motherWindowDays}gg)`}
+              </span>
             </button>
             <button
               onClick={() => setAutoRefresh(!autoRefresh)}
@@ -573,7 +673,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         <div className="bg-amber-950/40 border border-amber-500/40 p-4 rounded-xs text-amber-200 font-mono text-xs space-y-2">
           <div className="flex items-center gap-2 font-bold text-amber-300">
             <AlertCircle className="w-4 h-4" />
-            Autenticazione LDL scaduta — la sincronizzazione quote non funziona finche' non rinnovi il refresh token
+            Autenticazione LDL scaduta — la sincronizzazione quote non funziona finche' non rinnovi
+            il refresh token
           </div>
           <p className="text-[#FDE68A]">{tokenIssue}</p>
           <div className="bg-[#0F1117] border border-amber-500/30 rounded-xs p-3 leading-relaxed">
@@ -582,14 +683,21 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
             </div>
             <ol className="list-decimal list-inside space-y-1">
               <li>
-                Browser loggato su liberidalavoro.it → F12 → Application → Local Storage → copia il valore della chiave{' '}
-                <span className="text-white">CognitoIdentityServiceProvider.…&lt;utente&gt;.refreshToken</span>
+                Browser loggato su liberidalavoro.it → F12 → Application → Local Storage → copia il
+                valore della chiave{' '}
+                <span className="text-white">
+                  CognitoIdentityServiceProvider.…&lt;utente&gt;.refreshToken
+                </span>
               </li>
               <li>
-                Dashboard Supabase → Settings → API Keys → <span className="text-white">Edge Secrets</span> → aggiorna{' '}
+                Dashboard Supabase → Settings → API Keys →{' '}
+                <span className="text-white">Edge Secrets</span> → aggiorna{' '}
                 <span className="text-white">LDL_COGNITO_REFRESH_TOKEN</span>
               </li>
-              <li>Ricarica questa pagina (verifica rapida: aggiungi ?resource=tokencheck all&apos;edge function)</li>
+              <li>
+                Ricarica questa pagina (verifica rapida: aggiungi ?resource=tokencheck all&apos;edge
+                function)
+              </li>
             </ol>
           </div>
         </div>
@@ -600,9 +708,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         <div className="bg-amber-950/40 border border-amber-500/40 p-3 rounded-xs text-amber-300 font-mono text-xs flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-amber-400" />
           <span>
-            Dati mock: feed LDL non raggiungibile (edge down o token LDL scaduto —
-            vedi messaggio qui sotto). I rinnovi del token Cognito sono automatici
-            se LDL_COGNITO_REFRESH_TOKEN e' impostato.
+            Dati mock: feed LDL non raggiungibile (edge down o token LDL scaduto — vedi messaggio
+            qui sotto). I rinnovi del token Cognito sono automatici se LDL_COGNITO_REFRESH_TOKEN e'
+            impostato.
           </span>
           {ldlErrors.length > 0 && <span className="text-[#FDE68A]">· {ldlErrors[0]}</span>}
         </div>
@@ -611,7 +719,11 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       {/* Aggiornamento fallito/incompleto: i dati mostrati restano gli ultimi buoni */}
       {source === 'edge' && ldlErrors.length > 0 && (
         <div className="bg-sky-950/40 border border-sky-500/40 p-3 rounded-xs text-sky-300 font-mono text-xs">
-          <span>⚠ Ultimo aggiornamento: {ldlErrors.slice(0, 2).join(' · ')}{ldlErrors.length > 2 ? ` (+${ldlErrors.length - 2} altri)` : ''} — sotto ci sono gli ultimi dati reali riusciti.</span>
+          <span>
+            ⚠ Ultimo aggiornamento: {ldlErrors.slice(0, 2).join(' · ')}
+            {ldlErrors.length > 2 ? ` (+${ldlErrors.length - 2} altri)` : ''} — sotto ci sono gli
+            ultimi dati reali riusciti.
+          </span>
         </div>
       )}
 
@@ -722,7 +834,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         {/* Bulk Selection Helpers */}
         <div className="flex flex-wrap items-center gap-2 text-xs font-mono shrink-0">
           <span className="text-[10px] text-[#64748B]">
-            Usa <strong className="text-blue-300">Trova Partite</strong> in alto per la selezione automatica
+            Usa <strong className="text-blue-300">Trova Partite</strong> in alto per la selezione
+            automatica
           </span>
           <button onClick={deselectAll} className="px-2 py-1 text-[#64748B] hover:text-white">
             Deseleziona
@@ -787,7 +900,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
 
         {filteredRows.length === 0 ? (
           <div className="p-6 text-center text-xs font-mono text-[#64748B]">
-            {loading ? 'Caricamento partite in corso…' : 'Nessuna partita disponibile per questo filtro.'}
+            {loading
+              ? 'Caricamento partite in corso…'
+              : 'Nessuna partita disponibile per questo filtro.'}
           </div>
         ) : (
           <div className="divide-y divide-[#20242C]">
@@ -813,8 +928,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                       !canSelect
                         ? 'Copertura incompleta: manca la quota su un lato'
                         : isSelected
-                        ? 'Deseleziona'
-                        : 'Seleziona per la multipla'
+                          ? 'Deseleziona'
+                          : 'Seleziona per la multipla'
                     }
                   >
                     {isSelected ? (
@@ -832,7 +947,10 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                       <span>•</span>
                       <span>{row.league}</span>
                       {row.rating != null && (
-                        <span className="ml-1 text-emerald-400 font-mono" title="Rating copertura OddsScasser">
+                        <span
+                          className="ml-1 text-emerald-400 font-mono"
+                          title="Rating copertura OddsScasser"
+                        >
                           ★ {row.rating.toFixed(3)}
                         </span>
                       )}
@@ -879,14 +997,18 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                               <div className="flex gap-2">
                                 {b.under !== null && (
                                   <span
-                                    className={isBestUnder ? 'text-emerald-400 font-bold' : 'text-[#94A3B8]'}
+                                    className={
+                                      isBestUnder ? 'text-emerald-400 font-bold' : 'text-[#94A3B8]'
+                                    }
                                   >
                                     U {b.under.toFixed(2)}
                                   </span>
                                 )}
                                 {b.over !== null && (
                                   <span
-                                    className={isBestOver ? 'text-amber-400 font-bold' : 'text-[#94A3B8]'}
+                                    className={
+                                      isBestOver ? 'text-amber-400 font-bold' : 'text-[#94A3B8]'
+                                    }
                                   >
                                     O {b.over.toFixed(2)}
                                   </span>
@@ -936,7 +1058,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
             </div>
             <p>
               L&apos;aggio mostrato per ogni libro deriva dalle quote under/over effettive di quel
-              bookmaker: più basso è l&apos;aggio, meno capitale serve per coprire un eventuale errore.
+              bookmaker: più basso è l&apos;aggio, meno capitale serve per coprire un eventuale
+              errore.
             </p>
           </div>
 
@@ -946,8 +1069,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               3. Aggiornamento ogni 60s
             </div>
             <p>
-              Con Auto-Refresh attivo la lista viene ricaricata dal feed OddsScasser ogni minuto, cosí
-              punteggi e quote restano allineati alla realtà delle partite in corso.
+              Con Auto-Refresh attivo la lista viene ricaricata dal feed OddsScasser ogni minuto,
+              cosí punteggi e quote restano allineati alla realtà delle partite in corso.
             </p>
           </div>
         </div>

@@ -7,13 +7,25 @@ export { getBonusPercentage } from './bonus';
 export { getBonusForBook, selectBestBook, DEFAULT_BOOK, DEFAULT_BONUS_TABLE } from './books';
 export type { BookSelection } from './books';
 export {
-  sizeTicket, targetForDepth, bankrollTargets, maxConcurrentCycles,
-  spendLimitForLock, recomputeAfterVoid, phaseOfTicket, buildReferenceChain,
-  resolveWithFallback, portfolioExposure, canOpenCycle, expectedBleed,
+  sizeTicket,
+  targetForDepth,
+  bankrollTargets,
+  maxConcurrentCycles,
+  spendLimitForLock,
+  recomputeAfterVoid,
+  phaseOfTicket,
+  buildReferenceChain,
+  resolveWithFallback,
+  portfolioExposure,
+  canOpenCycle,
+  expectedBleed,
 } from './harmony';
 export type { TicketPhase, SizedTicket, ChainRow, CycleLedger } from './harmony';
 export {
-  refillToThirty, normalizeLegKey, findSharedLegs, exposureSummary,
+  refillToThirty,
+  normalizeLegKey,
+  findSharedLegs,
+  exposureSummary,
   buildTerminationLegs,
 } from './cycles';
 export type { LabeledLeg, CycleLegSet, SharedLegConflict, ExposureSummary } from './cycles';

@@ -7,7 +7,14 @@ export const MOCK_LDL_EVENTS: RawLdlEvent[] = [
   {
     id: 166922,
     datetime: '2026-09-12T14:00:00',
-    league: { id: 24, ref: 'xbpjAGxq', country: 'Italia', name: 'Serie A', oddsscasser: true, top: true },
+    league: {
+      id: 24,
+      ref: 'xbpjAGxq',
+      country: 'Italia',
+      name: 'Serie A',
+      oddsscasser: true,
+      top: true,
+    },
     home: { id: 16556, name: 'Inter', code: 'INT', score: null },
     away: { id: 1516, name: 'Genoa', code: 'GEN', score: null },
     status: 'Prematch',
@@ -20,7 +27,14 @@ export const MOCK_LDL_EVENTS: RawLdlEvent[] = [
   {
     id: 166923,
     datetime: '2026-09-13T16:00:00',
-    league: { id: 24, ref: 'xbpjAGxq', country: 'Italia', name: 'Serie A', oddsscasser: true, top: false },
+    league: {
+      id: 24,
+      ref: 'xbpjAGxq',
+      country: 'Italia',
+      name: 'Serie A',
+      oddsscasser: true,
+      top: false,
+    },
     home: { id: 1600, name: 'Milan', code: 'MIL', score: null },
     away: { id: 1601, name: 'Torino', code: 'TOR', score: null },
     status: 'Prematch',
@@ -33,7 +47,14 @@ export const MOCK_LDL_EVENTS: RawLdlEvent[] = [
   {
     id: 166924,
     datetime: '2026-09-07T14:00:00',
-    league: { id: 40, ref: 'abcd1234', country: 'Egitto', name: 'Premier League', oddsscasser: true, top: false },
+    league: {
+      id: 40,
+      ref: 'abcd1234',
+      country: 'Egitto',
+      name: 'Premier League',
+      oddsscasser: true,
+      top: false,
+    },
     home: { id: 16600, name: 'Al Qanah', code: 'QAN', score: 1 },
     away: { id: 1517, name: 'El Gaish', code: 'GEI', score: 1 },
     status: 'Finale',
@@ -43,7 +64,9 @@ export const MOCK_LDL_EVENTS: RawLdlEvent[] = [
 ];
 
 export function mockCoverOddsForEventIds(eventIds: Array<number | string>): RawLdlEvent[] {
-  if (eventIds.length === 0) return MOCK_LDL_EVENTS;
+  if (eventIds.length === 0) {
+    return MOCK_LDL_EVENTS;
+  }
   const set = new Set(eventIds.map(String));
   return MOCK_LDL_EVENTS.filter((e) => set.has(String(e.id)));
 }
@@ -51,7 +74,12 @@ export function mockCoverOddsForEventIds(eventIds: Array<number | string>): RawL
 // ---- Mock per la shape coverodds reale (dump autenticato 2026-09-10) ----
 
 export const MOCK_LDL_SITES: RawLdlSite[] = [
-  { id: 16, name: 'Lottomatica', url: 'https://www.lottomatica.it/scommesse/sport', type: 'bookmaker' },
+  {
+    id: 16,
+    name: 'Lottomatica',
+    url: 'https://www.lottomatica.it/scommesse/sport',
+    type: 'bookmaker',
+  },
   { id: 23, name: 'Sisal', url: 'https://www.sisal.it/scommesse-matchpoint', type: 'bookmaker' },
 ];
 
@@ -80,7 +108,13 @@ export const MOCK_LDL_COVER_EVENTS: RawLdlEvent[] = [
   {
     id: 167167,
     datetime: '2026-09-10T18:45:00',
-    league: { id: 52, country: 'Internazionali di Club', name: 'Champions League', oddsscasser: true, top: true },
+    league: {
+      id: 52,
+      country: 'Internazionali di Club',
+      name: 'Champions League',
+      oddsscasser: true,
+      top: true,
+    },
     home: { id: 1256, name: 'Fenerbahce', score: null },
     away: { id: 1102, name: 'Roma', score: null },
     status: 'Prematch',
@@ -107,7 +141,15 @@ export const MOCK_LDL_COVERODDS: RawLdlCoverOddsItem[] = [
     event: {
       id: 167178,
       datetime: null,
-      league: { id: null, ref: null, sport: { id: 1, name: null }, country: null, name: null, oddsscasser: null, top: null },
+      league: {
+        id: null,
+        ref: null,
+        sport: { id: 1, name: null },
+        country: null,
+        name: null,
+        oddsscasser: null,
+        top: null,
+      },
       home: { id: 910, name: 'Östersund', code: null, score: null },
       away: { id: 908, name: 'Brage', code: null, score: null },
       status: null,
@@ -115,8 +157,22 @@ export const MOCK_LDL_COVERODDS: RawLdlCoverOddsItem[] = [
       urls: null,
     },
     odds: [
-      { id: 281039368, site: { id: 16, name: null, url: 'https://www.lottomatica.it/scommesse/sport' }, type: 'Under 3.5', typeId: 13, bet: true, odds: 1.3 },
-      { id: 280180428, site: { id: 23, name: null, url: 'https://www.sisal.it/scommesse-matchpoint' }, type: 'Over 3.5', typeId: 14, bet: true, odds: 3.2 },
+      {
+        id: 281039368,
+        site: { id: 16, name: null, url: 'https://www.lottomatica.it/scommesse/sport' },
+        type: 'Under 3.5',
+        typeId: 13,
+        bet: true,
+        odds: 1.3,
+      },
+      {
+        id: 280180428,
+        site: { id: 23, name: null, url: 'https://www.sisal.it/scommesse-matchpoint' },
+        type: 'Over 3.5',
+        typeId: 14,
+        bet: true,
+        odds: 3.2,
+      },
     ],
     rating: 0.8938,
   },
@@ -125,7 +181,15 @@ export const MOCK_LDL_COVERODDS: RawLdlCoverOddsItem[] = [
     event: {
       id: 167179,
       datetime: null,
-      league: { id: null, ref: null, sport: { id: 1, name: null }, country: null, name: null, oddsscasser: null, top: null },
+      league: {
+        id: null,
+        ref: null,
+        sport: { id: 1, name: null },
+        country: null,
+        name: null,
+        oddsscasser: null,
+        top: null,
+      },
       home: { id: 1252, name: 'Sundsvall', code: null, score: null },
       away: { id: 1254, name: 'Örebro', code: null, score: null },
       status: null,
@@ -133,8 +197,22 @@ export const MOCK_LDL_COVERODDS: RawLdlCoverOddsItem[] = [
       urls: null,
     },
     odds: [
-      { id: 281039366, site: { id: 16, name: null, url: 'https://www.lottomatica.it/scommesse/sport' }, type: 'Under 3.5', typeId: 13, bet: true, odds: 1.3 },
-      { id: 280180442, site: { id: 23, name: null, url: 'https://www.sisal.it/scommesse-matchpoint' }, type: 'Over 3.5', typeId: 14, bet: true, odds: 3.0 },
+      {
+        id: 281039366,
+        site: { id: 16, name: null, url: 'https://www.lottomatica.it/scommesse/sport' },
+        type: 'Under 3.5',
+        typeId: 13,
+        bet: true,
+        odds: 1.3,
+      },
+      {
+        id: 280180442,
+        site: { id: 23, name: null, url: 'https://www.sisal.it/scommesse-matchpoint' },
+        type: 'Over 3.5',
+        typeId: 14,
+        bet: true,
+        odds: 3.0,
+      },
     ],
     rating: 0.8667,
   },
@@ -143,7 +221,15 @@ export const MOCK_LDL_COVERODDS: RawLdlCoverOddsItem[] = [
     event: {
       id: 167167,
       datetime: null,
-      league: { id: null, ref: null, sport: { id: 1, name: null }, country: null, name: null, oddsscasser: null, top: null },
+      league: {
+        id: null,
+        ref: null,
+        sport: { id: 1, name: null },
+        country: null,
+        name: null,
+        oddsscasser: null,
+        top: null,
+      },
       home: { id: 1256, name: 'Fenerbahce', code: null, score: null },
       away: { id: 1102, name: 'Roma', code: null, score: null },
       status: null,
@@ -151,8 +237,22 @@ export const MOCK_LDL_COVERODDS: RawLdlCoverOddsItem[] = [
       urls: null,
     },
     odds: [
-      { id: 257128981, site: { id: 16, name: null, url: 'https://www.lottomatica.it/scommesse/sport' }, type: 'Under 3.5', typeId: 13, bet: true, odds: 1.45 },
-      { id: 257130366, site: { id: 23, name: null, url: 'https://www.sisal.it/scommesse-matchpoint' }, type: 'Over 3.5', typeId: 14, bet: true, odds: 2.4 },
+      {
+        id: 257128981,
+        site: { id: 16, name: null, url: 'https://www.lottomatica.it/scommesse/sport' },
+        type: 'Under 3.5',
+        typeId: 13,
+        bet: true,
+        odds: 1.45,
+      },
+      {
+        id: 257130366,
+        site: { id: 23, name: null, url: 'https://www.sisal.it/scommesse-matchpoint' },
+        type: 'Over 3.5',
+        typeId: 14,
+        bet: true,
+        odds: 2.4,
+      },
     ],
     rating: 0.8458,
   },
@@ -161,7 +261,15 @@ export const MOCK_LDL_COVERODDS: RawLdlCoverOddsItem[] = [
     event: {
       id: 167180,
       datetime: null,
-      league: { id: null, ref: null, sport: { id: 1, name: null }, country: null, name: null, oddsscasser: null, top: null },
+      league: {
+        id: null,
+        ref: null,
+        sport: { id: 1, name: null },
+        country: null,
+        name: null,
+        oddsscasser: null,
+        top: null,
+      },
       home: { id: 903, name: 'Varberg', code: null, score: null },
       away: { id: 167, name: 'Norrkoping', code: null, score: null },
       status: null,
@@ -169,8 +277,22 @@ export const MOCK_LDL_COVERODDS: RawLdlCoverOddsItem[] = [
       urls: null,
     },
     odds: [
-      { id: 273375232, site: { id: 16, name: null, url: 'https://www.lottomatica.it/scommesse/sport' }, type: 'Under 3.5', typeId: 13, bet: true, odds: 1.43 },
-      { id: 273688278, site: { id: 23, name: null, url: 'https://www.sisal.it/scommesse-matchpoint' }, type: 'Over 3.5', typeId: 14, bet: true, odds: 2.4 },
+      {
+        id: 273375232,
+        site: { id: 16, name: null, url: 'https://www.lottomatica.it/scommesse/sport' },
+        type: 'Under 3.5',
+        typeId: 13,
+        bet: true,
+        odds: 1.43,
+      },
+      {
+        id: 273688278,
+        site: { id: 23, name: null, url: 'https://www.sisal.it/scommesse-matchpoint' },
+        type: 'Over 3.5',
+        typeId: 14,
+        bet: true,
+        odds: 2.4,
+      },
     ],
     rating: 0.8342,
   },

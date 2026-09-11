@@ -17,7 +17,9 @@ const STORAGE_KEY = 'multiplatore:cycles:v1';
 
 function uid(): string {
   try {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID();
+    }
   } catch {
     /* fallback sotto */
   }
@@ -34,9 +36,13 @@ interface Persisted {
 function loadLocal(): Persisted {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { cycles: [], tickets: [] };
+    if (!raw) {
+      return { cycles: [], tickets: [] };
+    }
     const p = JSON.parse(raw) as Persisted;
-    if (!Array.isArray(p.cycles) || !Array.isArray(p.tickets)) return { cycles: [], tickets: [] };
+    if (!Array.isArray(p.cycles) || !Array.isArray(p.tickets)) {
+      return { cycles: [], tickets: [] };
+    }
     return p;
   } catch {
     return { cycles: [], tickets: [] };
@@ -121,8 +127,12 @@ function rowToTicket(r: DbTicketRow): CycleTicket {
 export function spentByCycle(tickets: CycleTicket[], cycleId: string): number {
   let s = 0;
   for (const t of tickets) {
-    if (t.cycleId !== cycleId) continue;
-    if (t.status === 'void') continue;
+    if (t.cycleId !== cycleId) {
+      continue;
+    }
+    if (t.status === 'void') {
+      continue;
+    }
     s += t.stake;
   }
   return Number(s.toFixed(2));
@@ -132,9 +142,13 @@ export function spentByCycle(tickets: CycleTicket[], cycleId: string): number {
 export function pendingLegKeys(tickets: CycleTicket[], cycleId: string): string[] {
   const out: string[] = [];
   for (const t of tickets) {
-    if (t.cycleId !== cycleId || t.status !== 'pending') continue;
+    if (t.cycleId !== cycleId || t.status !== 'pending') {
+      continue;
+    }
     for (const l of t.legs) {
-      if (l.label && l.label.trim()) out.push(l.label);
+      if (l.label && l.label.trim()) {
+        out.push(l.label);
+      }
     }
   }
   return out;
@@ -211,8 +225,12 @@ export function useCycles(): UseCyclesState {
         sb.from('cycles').select('*').order('created_at'),
         sb.from('tickets').select('*').order('idx'),
       ]);
-      if (cErr) throw new Error(cErr.message);
-      if (tErr) throw new Error(tErr.message);
+      if (cErr) {
+        throw new Error(cErr.message);
+      }
+      if (tErr) {
+        throw new Error(tErr.message);
+      }
       const c = ((cRows ?? []) as DbCycleRow[]).map(rowToCycle);
       const t = ((tRows ?? []) as DbTicketRow[]).map(rowToTicket);
       persist(c, t);
@@ -231,23 +249,42 @@ export function useCycles(): UseCyclesState {
   }, [refresh]);
 
   // Write-through best-effort: il locale vince sempre, il cloud segue.
-  const cloud = useCallback(async (fn: (sb: NonNullable<ReturnType<typeof getSupabase>>) => Promise<{ error?: { message: string } | null } | void>) => {
-    const sb = getSupabase();
-    if (!sb) return;
-    try {
-      const { data: sessionData } = await sb.auth.getSession();
-      if (!sessionData.session) return;
-      const res = await fn(sb);
-      if (res && res.error) throw new Error(res.error.message);
-    } catch (e) {
-      setError(e instanceof Error ? `Sync cloud non riuscita (dati locali salvi): ${e.message}` : 'Sync cloud non riuscita');
-    }
-  }, []);
+  const cloud = useCallback(
+    async (
+      fn: (
+        sb: NonNullable<ReturnType<typeof getSupabase>>,
+      ) => Promise<{ error?: { message: string } | null } | void>,
+    ) => {
+      const sb = getSupabase();
+      if (!sb) {
+        return;
+      }
+      try {
+        const { data: sessionData } = await sb.auth.getSession();
+        if (!sessionData.session) {
+          return;
+        }
+        const res = await fn(sb);
+        if (res && res.error) {
+          throw new Error(res.error.message);
+        }
+      } catch (e) {
+        setError(
+          e instanceof Error
+            ? `Sync cloud non riuscita (dati locali salvi): ${e.message}`
+            : 'Sync cloud non riuscita',
+        );
+      }
+    },
+    [],
+  );
 
   const createCycle = useCallback(
     async (input: CreateCycleInput): Promise<Cycle> => {
       const name = input.name.trim();
-      if (!name) throw new Error('Nome ciclo obbligatorio');
+      if (!name) {
+        throw new Error('Nome ciclo obbligatorio');
+      }
       const c: Cycle = {
         id: uid(),
         name,
@@ -282,10 +319,15 @@ export function useCycles(): UseCyclesState {
 
   const closeCycle = useCallback(
     async (id: string) => {
-      const nc = cycles.map((c) => (c.id === id ? { ...c, status: 'closed' as const, closedAt: nowIso() } : c));
+      const nc = cycles.map((c) =>
+        c.id === id ? { ...c, status: 'closed' as const, closedAt: nowIso() } : c,
+      );
       persist(nc, tickets);
       await cloud(async (sb) => {
-        const { error: upErr } = await sb.from('cycles').update({ status: 'closed', closed_at: nowIso() }).eq('id', id);
+        const { error: upErr } = await sb
+          .from('cycles')
+          .update({ status: 'closed', closed_at: nowIso() })
+          .eq('id', id);
         return { error: upErr };
       });
     },
@@ -294,7 +336,10 @@ export function useCycles(): UseCyclesState {
 
   const deleteCycle = useCallback(
     async (id: string) => {
-      persist(cycles.filter((c) => c.id !== id), tickets.filter((t) => t.cycleId !== id));
+      persist(
+        cycles.filter((c) => c.id !== id),
+        tickets.filter((t) => t.cycleId !== id),
+      );
       await cloud(async (sb) => {
         const { error: delErr } = await sb.from('cycles').delete().eq('id', id);
         return { error: delErr };
@@ -307,14 +352,19 @@ export function useCycles(): UseCyclesState {
   // di sizing del singolo ticket: aggiorna solo i tetti bankroll/T/U).
   const topUpCycle = useCallback(
     async (id: string, amount: number) => {
-      if (!Number.isFinite(amount) || amount <= 0) throw new Error('Importo top-up non valido');
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error('Importo top-up non valido');
+      }
       const nc = cycles.map((c) =>
         c.id === id ? { ...c, bankrollStart: Number((c.bankrollStart + amount).toFixed(2)) } : c,
       );
       persist(nc, tickets);
       const next = nc.find((c) => c.id === id);
       await cloud(async (sb) => {
-        const { error: upErr } = await sb.from('cycles').update({ bankroll_start: next?.bankrollStart }).eq('id', id);
+        const { error: upErr } = await sb
+          .from('cycles')
+          .update({ bankroll_start: next?.bankrollStart })
+          .eq('id', id);
         return { error: upErr };
       });
     },
@@ -325,12 +375,17 @@ export function useCycles(): UseCyclesState {
   const refillMother = useCallback(
     async (id: string, pool: CycleMotherEvent[]): Promise<number> => {
       const c = cycles.find((x) => x.id === id);
-      if (!c) throw new Error('Ciclo non trovato');
+      if (!c) {
+        throw new Error('Ciclo non trovato');
+      }
       const refilled = refillToThirty(c.motherEvents, pool, 30);
       const nc = cycles.map((x) => (x.id === id ? { ...x, motherEvents: refilled } : x));
       persist(nc, tickets);
       await cloud(async (sb) => {
-        const { error: upErr } = await sb.from('cycles').update({ mother_events: refilled }).eq('id', id);
+        const { error: upErr } = await sb
+          .from('cycles')
+          .update({ mother_events: refilled })
+          .eq('id', id);
         return { error: upErr };
       });
       return refilled.length;
@@ -341,10 +396,18 @@ export function useCycles(): UseCyclesState {
   const addTicket = useCallback(
     async (cycleId: string, input: AddTicketInput): Promise<CycleTicket> => {
       const c = cycles.find((x) => x.id === cycleId);
-      if (!c) throw new Error('Ciclo non trovato');
-      if (c.status !== 'active') throw new Error('Ciclo chiuso: nessun ticket piazzabile');
-      if (input.legs.length < 1 || input.legs.length > 30) throw new Error('N gambe 1–30');
-      if (!(input.stake > 0) || !(input.finale > 1)) throw new Error('Stake/finale non validi');
+      if (!c) {
+        throw new Error('Ciclo non trovato');
+      }
+      if (c.status !== 'active') {
+        throw new Error('Ciclo chiuso: nessun ticket piazzabile');
+      }
+      if (input.legs.length < 1 || input.legs.length > 30) {
+        throw new Error('N gambe 1–30');
+      }
+      if (!(input.stake > 0) || !(input.finale > 1)) {
+        throw new Error('Stake/finale non validi');
+      }
       const existing = tickets.filter((t) => t.cycleId === cycleId);
       // 1 ticket attivo per path decisionale: un solo pending alla volta.
       if (existing.some((t) => t.status === 'pending')) {
@@ -415,9 +478,15 @@ export function useCycles(): UseCyclesState {
   const voidTicketLeg = useCallback(
     async (id: string, legIndex: number, book: Book = DEFAULT_BOOK) => {
       const t = tickets.find((x) => x.id === id);
-      if (!t) throw new Error('Ticket non trovato');
-      if (t.status !== 'pending') throw new Error('Solo i ticket pending ammettono void di gamba');
-      if (legIndex < 0 || legIndex >= t.legs.length) throw new Error('Indice gamba non valido');
+      if (!t) {
+        throw new Error('Ticket non trovato');
+      }
+      if (t.status !== 'pending') {
+        throw new Error('Solo i ticket pending ammettono void di gamba');
+      }
+      if (legIndex < 0 || legIndex >= t.legs.length) {
+        throw new Error('Indice gamba non valido');
+      }
       if (t.legs.length === 1) {
         // Ultima gamba void => ticket void (rimborso, fuori dal computo).
         await settleTicket(id, 'void');
@@ -427,7 +496,10 @@ export function useCycles(): UseCyclesState {
       const nt = tickets.map((x) => (x.id === id ? { ...x, legs: r.legs, finale: r.finale } : x));
       persist(cycles, nt);
       await cloud(async (sb) => {
-        const { error: upErr } = await sb.from('tickets').update({ legs: r.legs, finale: r.finale }).eq('id', id);
+        const { error: upErr } = await sb
+          .from('tickets')
+          .update({ legs: r.legs, finale: r.finale })
+          .eq('id', id);
         return { error: upErr };
       });
     },
@@ -443,12 +515,41 @@ export function useCycles(): UseCyclesState {
 
   const state = useMemo<UseCyclesState>(
     () => ({
-      cycles, tickets, loading, error, usingFallback,
-      refresh, createCycle, closeCycle, deleteCycle, topUpCycle,
-      refillMother, addTicket, settleTicket, voidTicketLeg,
-      ticketsByCycle, spentOf,
+      cycles,
+      tickets,
+      loading,
+      error,
+      usingFallback,
+      refresh,
+      createCycle,
+      closeCycle,
+      deleteCycle,
+      topUpCycle,
+      refillMother,
+      addTicket,
+      settleTicket,
+      voidTicketLeg,
+      ticketsByCycle,
+      spentOf,
     }),
-    [cycles, tickets, loading, error, usingFallback, refresh, createCycle, closeCycle, deleteCycle, topUpCycle, refillMother, addTicket, settleTicket, voidTicketLeg, ticketsByCycle, spentOf],
+    [
+      cycles,
+      tickets,
+      loading,
+      error,
+      usingFallback,
+      refresh,
+      createCycle,
+      closeCycle,
+      deleteCycle,
+      topUpCycle,
+      refillMother,
+      addTicket,
+      settleTicket,
+      voidTicketLeg,
+      ticketsByCycle,
+      spentOf,
+    ],
   );
   return state;
 }

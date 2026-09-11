@@ -18,7 +18,9 @@ export const AuthBar: React.FC = () => {
     );
   }
 
-  if (loading) return <div className="text-[11px] font-mono text-[#64748B]">…</div>;
+  if (loading) {
+    return <div className="text-[11px] font-mono text-[#64748B]">…</div>;
+  }
 
   if (email) {
     return (
@@ -93,7 +95,11 @@ export const AuthBar: React.FC = () => {
           </button>
         </form>
       )}
-      {error && <span className="text-[10px] font-mono text-red-400 max-w-48 truncate" title={error}>{error}</span>}
+      {error && (
+        <span className="text-[10px] font-mono text-red-400 max-w-48 truncate" title={error}>
+          {error}
+        </span>
+      )}
     </div>
   );
 };

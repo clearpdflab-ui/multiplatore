@@ -115,7 +115,7 @@ async function refreshFromCognito(): Promise<RefreshResult> {
         const body = await res.text();
         console.error('cognito refresh failed', res.status, body);
         // 5xx Cognito: transitorio, un retry.
-        if (res.status >= 500 && attempt === 0) continue;
+        if (res.status >= 500 && attempt === 0) {continue;}
         return cognitoErrorKind(res.status, body);
       }
       const parsed = await res.json();
@@ -129,7 +129,7 @@ async function refreshFromCognito(): Promise<RefreshResult> {
       return { ok: true, token: access };
     } catch (e) {
       console.error('cognito refresh network error', e);
-      if (attempt === 0) continue;
+      if (attempt === 0) {continue;}
       return { ok: false, code: 'COGNITO_NETWORK', detail: 'refresh Cognito non raggiungibile (transitorio, riprovare)' };
     }
   }
@@ -137,9 +137,9 @@ async function refreshFromCognito(): Promise<RefreshResult> {
 }
 
 async function getLdlToken(force = false): Promise<{ token: string | null; refreshIssue: string | null }> {
-  if (!force && cached && Date.now() < cached.expiresAt - 60_000) return { token: cached.token, refreshIssue: null };
+  if (!force && cached && Date.now() < cached.expiresAt - 60_000) {return { token: cached.token, refreshIssue: null };}
   const fresh = await refreshFromCognito();
-  if (fresh.ok) return { token: fresh.token, refreshIssue: null };
+  if (fresh.ok) {return { token: fresh.token, refreshIssue: null };}
   const fallback = Deno.env.get('LDL_BEARER_TOKEN') || null;
   return { token: fallback, refreshIssue: fresh.detail };
 }
@@ -179,14 +179,14 @@ async function handle(req: Request): Promise<Response> {
 
   const upstream = new URL(resource, LDL_BASE);
   for (const [k, v] of url.searchParams) {
-    if (k === 'resource') continue;
+    if (k === 'resource') {continue;}
     upstream.searchParams.set(k, v);
   }
 
   const cacheKey = CACHEABLE_RESOURCES.has(resource) ? resource : null;
   if (cacheKey) {
     const hit = upstreamCache.get(cacheKey);
-    if (hit && Date.now() < hit.expiresAt) return json({ data: hit.body, cache: 'hit' });
+    if (hit && Date.now() < hit.expiresAt) {return json({ data: hit.body, cache: 'hit' });}
   }
 
   try {
@@ -211,9 +211,9 @@ async function handle(req: Request): Promise<Response> {
         return json({ error: `TOKEN: LDL token scaduto/invalido e refresh non riuscito — ${second.refreshIssue ?? 'motivo sconosciuto'}`, data: null }, 401);
       }
     }
-    if (!res.ok) return json({ error: `HTTP ${res.status}`, data: null }, 502);
+    if (!res.ok) {return json({ error: `HTTP ${res.status}`, data: null }, 502);}
     const data = await res.json();
-    if (cacheKey) upstreamCache.set(cacheKey, { body: data, expiresAt: Date.now() + CACHE_TTL_MS });
+    if (cacheKey) {upstreamCache.set(cacheKey, { body: data, expiresAt: Date.now() + CACHE_TTL_MS });}
     return json({ data });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e), data: null }, 502);
@@ -221,6 +221,6 @@ async function handle(req: Request): Promise<Response> {
 }
 
 Deno.serve((req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
+  if (req.method === 'OPTIONS') {return new Response(null, { headers: CORS });}
   return handle(req).catch((e) => json({ error: e instanceof Error ? e.message : String(e), data: null }, 500));
 });

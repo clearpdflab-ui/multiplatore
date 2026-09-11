@@ -1,33 +1,14 @@
 // Backward compatibility re-exports
 // Tutti i moduli sono stati spostati in src/engine/
 // Questo file mantiene la compatibilità con gli imports esistenti
-export {
-  calculateBookmakerAggio,
-  BOOKMAKER_MODELS,
-} from '../engine/odds';
-export {
-  getBonusPercentage,
-} from '../engine/bonus';
-export {
-  roundToFiftyCents,
-  getStepTargetProfit,
-} from '../engine/dutching';
-export {
-  calculateSteps,
-} from '../engine/calculations';
-export {
-  buildSequentialTimeline,
-} from '../engine/timeline';
-export {
-  generateCustomSlips,
-} from '../engine/slips';
-export {
-  calculateBinomialRisk,
-  evaluateScenario,
-} from '../engine/risk';
-export type {
-  CustomSlipsResult,
-} from '../engine/slips';
+export { calculateBookmakerAggio, BOOKMAKER_MODELS } from '../engine/odds';
+export { getBonusPercentage } from '../engine/bonus';
+export { roundToFiftyCents, getStepTargetProfit } from '../engine/dutching';
+export { calculateSteps } from '../engine/calculations';
+export { buildSequentialTimeline } from '../engine/timeline';
+export { generateCustomSlips } from '../engine/slips';
+export { calculateBinomialRisk, evaluateScenario } from '../engine/risk';
+export type { CustomSlipsResult } from '../engine/slips';
 export type { ModelParameters } from '../types';
 
 // Mantieni le costanti originali per compatibilità
@@ -38,7 +19,7 @@ export const ORIGINAL_BASE_BET = {
   csvTotalOdds: 11.88,
   realTotalOdds: 12.028,
   stake: 20,
-  csvWin: 237.60,
+  csvWin: 237.6,
   realWin: 240.56,
   bonusLabel: 'Bonus 26.2% su 8 partite',
   csvWinWithBonus: 299.376,

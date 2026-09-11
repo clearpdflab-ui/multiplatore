@@ -255,4 +255,3 @@ export interface SavedSlip {
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }
-

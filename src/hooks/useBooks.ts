@@ -47,7 +47,9 @@ function rowToBook(r: DbBookRow, table: Record<number, number>): Book {
 
 function normalizeTable(data: Record<string, number>): Record<number, number> {
   const out: Record<number, number> = {};
-  for (const [k, v] of Object.entries(data)) out[Number(k)] = Number(v);
+  for (const [k, v] of Object.entries(data)) {
+    out[Number(k)] = Number(v);
+  }
   return out;
 }
 
@@ -59,7 +61,9 @@ export interface UseBooksState {
   usingFallback: boolean; // true when Supabase/session unavailable -> DEFAULT_BOOK only
   activeVersion: (bookId: string) => BookBonusVersion | null;
   refresh: () => Promise<void>;
-  createBook: (input: Omit<Book, 'id' | 'bonusTable'> & { bonusTable: Record<number, number> }) => Promise<Book>;
+  createBook: (
+    input: Omit<Book, 'id' | 'bonusTable'> & { bonusTable: Record<number, number> },
+  ) => Promise<Book>;
   updateBook: (id: string, patch: Partial<Book>) => Promise<void>;
   saveBonusVersion: (bookId: string, table: Record<number, number>) => Promise<void>;
   rollbackToVersion: (bookId: string, versionId: string) => Promise<void>;
@@ -70,7 +74,9 @@ export function parseBonusCsv(text: string): { table?: Record<number, number>; e
   const table: Record<number, number> = {};
   for (const rawLine of text.split('\n')) {
     const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
     const [nStr, pStr] = line.split(/[;,]/).map((s) => s.trim());
     const n = Number(nStr);
     const p = Number(pStr);
@@ -80,8 +86,14 @@ export function parseBonusCsv(text: string): { table?: Record<number, number>; e
     table[n] = p;
   }
   const missing: number[] = [];
-  for (let n = 5; n <= 30; n++) if (!(n in table)) missing.push(n);
-  if (missing.length > 0) return { error: `Mancano N: ${missing.join(', ')}` };
+  for (let n = 5; n <= 30; n++) {
+    if (!(n in table)) {
+      missing.push(n);
+    }
+  }
+  if (missing.length > 0) {
+    return { error: `Mancano N: ${missing.join(', ')}` };
+  }
   return { table };
 }
 
@@ -120,16 +132,17 @@ export function useBooks(): UseBooksState {
         setLoading(false);
         return;
       }
-      const { data: bookRows, error: bErr } = await sb
-        .from('books')
-        .select('*')
-        .order('name');
-      if (bErr) throw new Error(bErr.message);
+      const { data: bookRows, error: bErr } = await sb.from('books').select('*').order('name');
+      if (bErr) {
+        throw new Error(bErr.message);
+      }
       const { data: verRows, error: vErr } = await sb
         .from('book_bonus_versions')
         .select('*')
         .order('valid_from', { ascending: false });
-      if (vErr) throw new Error(vErr.message);
+      if (vErr) {
+        throw new Error(vErr.message);
+      }
 
       const verMap: Record<string, BookBonusVersion[]> = {};
       for (const v of (verRows ?? []) as DbVersionRow[]) {
@@ -173,7 +186,9 @@ export function useBooks(): UseBooksState {
 
   const requireClient = () => {
     const sb = getSupabase();
-    if (!sb) throw new Error('Supabase non configurato');
+    if (!sb) {
+      throw new Error('Supabase non configurato');
+    }
     return sb;
   };
 
@@ -182,7 +197,9 @@ export function useBooks(): UseBooksState {
       const sb = requireClient();
       const { data: session } = await sb.auth.getSession();
       const owner = session.session?.user.id;
-      if (!owner) throw new Error('Login richiesto per creare un book');
+      if (!owner) {
+        throw new Error('Login richiesto per creare un book');
+      }
       const { data, error: insErr } = await sb
         .from('books')
         .insert({
@@ -200,13 +217,17 @@ export function useBooks(): UseBooksState {
         })
         .select('*')
         .single();
-      if (insErr) throw new Error(insErr.message);
+      if (insErr) {
+        throw new Error(insErr.message);
+      }
       const row = data as DbBookRow;
       const { error: vErr } = await sb.from('book_bonus_versions').insert({
         book_id: row.id,
         table_data: input.bonusTable,
       });
-      if (vErr) throw new Error(vErr.message);
+      if (vErr) {
+        throw new Error(vErr.message);
+      }
       await refresh();
       return rowToBook(row, input.bonusTable);
     },
@@ -217,18 +238,40 @@ export function useBooks(): UseBooksState {
     async (id: string, patch: Partial<Book>) => {
       const sb = requireClient();
       const payload: Record<string, unknown> = {};
-      if (patch.name !== undefined) payload.name = patch.name;
-      if (patch.isActive !== undefined) payload.is_active = patch.isActive;
-      if (patch.bonusCap !== undefined) payload.bonus_cap = patch.bonusCap;
-      if (patch.minStake !== undefined) payload.min_stake = patch.minStake;
-      if (patch.maxPayout !== undefined) payload.max_payout = patch.maxPayout;
-      if (patch.maxLegs !== undefined) payload.max_legs = patch.maxLegs;
-      if (patch.multiDaysLimit !== undefined) payload.multi_days_limit = patch.multiDaysLimit ?? null;
-      if (patch.overEligible !== undefined) payload.over_eligible = patch.overEligible;
-      if (patch.competitions !== undefined) payload.competitions = patch.competitions;
-      if (patch.apiBookKey !== undefined) payload.api_book_key = patch.apiBookKey ?? null;
+      if (patch.name !== undefined) {
+        payload.name = patch.name;
+      }
+      if (patch.isActive !== undefined) {
+        payload.is_active = patch.isActive;
+      }
+      if (patch.bonusCap !== undefined) {
+        payload.bonus_cap = patch.bonusCap;
+      }
+      if (patch.minStake !== undefined) {
+        payload.min_stake = patch.minStake;
+      }
+      if (patch.maxPayout !== undefined) {
+        payload.max_payout = patch.maxPayout;
+      }
+      if (patch.maxLegs !== undefined) {
+        payload.max_legs = patch.maxLegs;
+      }
+      if (patch.multiDaysLimit !== undefined) {
+        payload.multi_days_limit = patch.multiDaysLimit ?? null;
+      }
+      if (patch.overEligible !== undefined) {
+        payload.over_eligible = patch.overEligible;
+      }
+      if (patch.competitions !== undefined) {
+        payload.competitions = patch.competitions;
+      }
+      if (patch.apiBookKey !== undefined) {
+        payload.api_book_key = patch.apiBookKey ?? null;
+      }
       const { error: upErr } = await sb.from('books').update(payload).eq('id', id);
-      if (upErr) throw new Error(upErr.message);
+      if (upErr) {
+        throw new Error(upErr.message);
+      }
       await refresh();
     },
     [refresh],
@@ -243,10 +286,15 @@ export function useBooks(): UseBooksState {
         .insert({ book_id: bookId, table_data: table })
         .select('id')
         .single();
-      if (insErr) throw new Error(insErr.message);
+      if (insErr) {
+        throw new Error(insErr.message);
+      }
       // Link previous version as superseded (best effort, history stays append-only).
       if (prev) {
-        await sb.from('book_bonus_versions').update({ superseded_by: (data as { id: string }).id }).eq('id', prev.id);
+        await sb
+          .from('book_bonus_versions')
+          .update({ superseded_by: (data as { id: string }).id })
+          .eq('id', prev.id);
       }
       await refresh();
     },
@@ -257,7 +305,9 @@ export function useBooks(): UseBooksState {
     async (bookId: string, versionId: string) => {
       const list = versionsByBook[bookId] ?? [];
       const target = list.find((v) => v.id === versionId);
-      if (!target) throw new Error('Versione non trovata');
+      if (!target) {
+        throw new Error('Versione non trovata');
+      }
       // Rollback = new version copying old data (history never rewritten).
       await saveBonusVersion(bookId, { ...target.tableData });
     },
@@ -273,11 +323,33 @@ export function useBooks(): UseBooksState {
 
   const state = useMemo<UseBooksState>(
     () => ({
-      books, versionsByBook, loading, error, usingFallback,
-      activeVersion, refresh, createBook, updateBook,
-      saveBonusVersion, rollbackToVersion, setBookActive,
+      books,
+      versionsByBook,
+      loading,
+      error,
+      usingFallback,
+      activeVersion,
+      refresh,
+      createBook,
+      updateBook,
+      saveBonusVersion,
+      rollbackToVersion,
+      setBookActive,
     }),
-    [books, versionsByBook, loading, error, usingFallback, activeVersion, refresh, createBook, updateBook, saveBonusVersion, rollbackToVersion, setBookActive],
+    [
+      books,
+      versionsByBook,
+      loading,
+      error,
+      usingFallback,
+      activeVersion,
+      refresh,
+      createBook,
+      updateBook,
+      saveBonusVersion,
+      rollbackToVersion,
+      setBookActive,
+    ],
   );
   return state;
 }

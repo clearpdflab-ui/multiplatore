@@ -39,11 +39,11 @@ async function handle(req: Request): Promise<Response> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ids),
       });
-      if (!res.ok) return json({ error: `HTTP ${res.status}`, data: null }, 502);
+      if (!res.ok) {return json({ error: `HTTP ${res.status}`, data: null }, 502);}
       return json({ data: await res.json() });
     }
     const res = await fetch(`${ST_BASE}/live-event-filtered`);
-    if (!res.ok) return json({ error: `HTTP ${res.status}`, data: null }, 502);
+    if (!res.ok) {return json({ error: `HTTP ${res.status}`, data: null }, 502);}
     return json({ data: await res.json() });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e), data: null }, 502);
@@ -51,6 +51,6 @@ async function handle(req: Request): Promise<Response> {
 }
 
 Deno.serve((req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
+  if (req.method === 'OPTIONS') {return new Response(null, { headers: CORS });}
   return handle(req).catch((e) => json({ error: e instanceof Error ? e.message : String(e), data: null }, 500));
 });

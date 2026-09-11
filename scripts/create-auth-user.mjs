@@ -32,7 +32,7 @@ function askHidden(question) {
     const stdin = process.stdin;
     process.stdout.write(question);
     const wasRaw = stdin.isRaw === true;
-    if (stdin.isTTY) stdin.setRawMode(true);
+    if (stdin.isTTY) {stdin.setRawMode(true);}
     stdin.resume();
     stdin.setEncoding('utf8');
     let buf = '';
@@ -40,7 +40,7 @@ function askHidden(question) {
       const s = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
       for (const c of s) {
         if (c === '\r' || c === '\n') {
-          if (stdin.isTTY) stdin.setRawMode(wasRaw);
+          if (stdin.isTTY) {stdin.setRawMode(wasRaw);}
           stdin.pause();
           stdin.removeListener('data', onData);
           process.stdout.write('\n');
@@ -48,7 +48,7 @@ function askHidden(question) {
           return;
         }
         if (c === String.fromCharCode(3)) {
-          if (stdin.isTTY) stdin.setRawMode(wasRaw);
+          if (stdin.isTTY) {stdin.setRawMode(wasRaw);}
           process.stdout.write('^C\n');
           process.exit(130);
         }
@@ -59,7 +59,7 @@ function askHidden(question) {
           }
           continue;
         }
-        if (c === '\t') continue;
+        if (c === '\t') {continue;}
         buf += c;
         process.stdout.write('*');
       }

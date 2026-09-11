@@ -36,14 +36,22 @@ const TIME_STATUS_MAP: Record<number, ResultStatus> = {
 // prudente: meglio ricontrollare troppo spesso che perdere l'esito di un
 // leg realmente giocato). Solo l'assenza del campo e' 'unknown'.
 export function normalizeMatchTimeStatus(timeStatus: number | undefined): ResultStatus {
-  if (timeStatus === undefined) return 'unknown';
+  if (timeStatus === undefined) {
+    return 'unknown';
+  }
   return TIME_STATUS_MAP[timeStatus] ?? 'live';
 }
 
-export function parseScoreString(ss: string | undefined | null): { home: number; away: number } | null {
-  if (!ss) return null;
+export function parseScoreString(
+  ss: string | undefined | null,
+): { home: number; away: number } | null {
+  if (!ss) {
+    return null;
+  }
   const m = /^(\d+)-(\d+)$/.exec(ss.trim());
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   return { home: Number(m[1]), away: Number(m[2]) };
 }
 
@@ -71,22 +79,35 @@ export function normalizeMatchDetail(raw: RawMatchDetail): NormalizedMatch {
 }
 
 export function isOverLine(totalGoals: number | null, line = 3.5): boolean | null {
-  if (totalGoals === null) return null;
+  if (totalGoals === null) {
+    return null;
+  }
   return totalGoals > line;
 }
 
 // NFD scompone le lettere accentate in base + segno diacritico separato;
 // il filtro a-z0-9 che segue elimina gia' da solo sia il diacritico che ogni
 // altra punteggiatura/spazio, senza bisogno di un secondo passaggio dedicato.
-const normTeam = (s: string) => s.trim().toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+const normTeam = (s: string) =>
+  s
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[^a-z0-9]/g, '');
 
 // Match per nome squadra esatto-normalizzato (case/accenti/punteggiatura
 // ignorati). Nessun candidato o piu' di uno -> null: non esiste ancora un
 // campo orario affidabile nello schema osservato per disambiguare, quindi
 // un match ambiguo e' meglio di un match sbagliato.
-export function matchEventByTeams(candidates: RawMatchDetail[], home: string, away: string): RawMatchDetail | null {
+export function matchEventByTeams(
+  candidates: RawMatchDetail[],
+  home: string,
+  away: string,
+): RawMatchDetail | null {
   const h = normTeam(home);
   const a = normTeam(away);
-  const hits = candidates.filter((c) => normTeam(c.home ?? '') === h && normTeam(c.away ?? '') === a);
+  const hits = candidates.filter(
+    (c) => normTeam(c.home ?? '') === h && normTeam(c.away ?? '') === a,
+  );
   return hits.length === 1 ? hits[0] : null;
 }

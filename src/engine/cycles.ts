@@ -1,9 +1,4 @@
-import {
-  canOpenCycle,
-  maxConcurrentCycles,
-  portfolioExposure,
-  type CycleLedger,
-} from './harmony';
+import { canOpenCycle, maxConcurrentCycles, portfolioExposure, type CycleLedger } from './harmony';
 import type { TicketLeg } from '../types';
 
 // F3 — pure helpers per dashboard cicli (nessun I/O, nessun Supabase qui).
@@ -25,8 +20,12 @@ export function refillToThirty(
   target = 30,
 ): LabeledLeg[] {
   const out = [...current];
-  if (out.length >= target || target < 1) return out.slice(0, Math.max(target, 0));
-  if (pool.length === 0) return out;
+  if (out.length >= target || target < 1) {
+    return out.slice(0, Math.max(target, 0));
+  }
+  if (pool.length === 0) {
+    return out;
+  }
   let i = 0;
   while (out.length < target) {
     const src = pool[i % pool.length];
@@ -59,7 +58,9 @@ export function findSharedLegs(sets: CycleLegSet[]): SharedLegConflict[] {
     const seen = new Set<string>();
     for (const raw of s.legKeys) {
       const k = normalizeLegKey(raw);
-      if (!k || seen.has(k)) continue;
+      if (!k || seen.has(k)) {
+        continue;
+      }
       seen.add(k);
       let owners = byKey.get(k);
       if (!owners) {
@@ -71,7 +72,9 @@ export function findSharedLegs(sets: CycleLegSet[]): SharedLegConflict[] {
   }
   const out: SharedLegConflict[] = [];
   for (const [key, owners] of byKey) {
-    if (owners.size >= 2) out.push({ key, cycleIds: [...owners].sort() });
+    if (owners.size >= 2) {
+      out.push({ key, cycleIds: [...owners].sort() });
+    }
   }
   out.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   return out;
@@ -109,13 +112,21 @@ export function buildTerminationLegs(
   restUnderOdds: number[],
   n: number,
 ): TicketLeg[] | null {
-  if (!Number.isInteger(n) || n < 1 || n > 30) return null;
-  if (!(overOdds > 1)) return null;
-  if (n - 1 > restUnderOdds.length) return null;
+  if (!Number.isInteger(n) || n < 1 || n > 30) {
+    return null;
+  }
+  if (!(overOdds > 1)) {
+    return null;
+  }
+  if (n - 1 > restUnderOdds.length) {
+    return null;
+  }
   const legs: TicketLeg[] = [{ odds: overOdds, market: 'OVER' }];
   for (let i = 0; i < n - 1; i++) {
     const q = restUnderOdds[i];
-    if (!(q > 1)) return null;
+    if (!(q > 1)) {
+      return null;
+    }
     legs.push({ odds: q, market: 'UNDER' });
   }
   return legs;

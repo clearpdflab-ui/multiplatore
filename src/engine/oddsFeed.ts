@@ -42,15 +42,24 @@ const toNum = (v: unknown): number | null => {
 const lineOf = (entry: Record<string, unknown>): number | null => {
   for (const k of ['max', 'line', 'total', 'goalLine']) {
     const n = Number(entry[k]);
-    if (Number.isFinite(n)) return n;
+    if (Number.isFinite(n)) {
+      return n;
+    }
   }
   return null;
 };
 
-export function extractTotalsLine(markets: RawMarket[] | undefined, line: number): { under: number | null; over: number | null } | null {
-  if (!markets) return null;
+export function extractTotalsLine(
+  markets: RawMarket[] | undefined,
+  line: number,
+): { under: number | null; over: number | null } | null {
+  if (!markets) {
+    return null;
+  }
   const totals = markets.find((m) => m.name?.trim().toLowerCase() === 'totals');
-  if (!totals?.odds) return null;
+  if (!totals?.odds) {
+    return null;
+  }
   for (const entry of totals.odds) {
     const l = lineOf(entry);
     if (l !== null && Math.abs(l - line) < 0.001) {
@@ -66,7 +75,9 @@ export function normalizeOddsEvents(raw: RawEventOdds[], line = 3.5): MatchOdds[
     const books: BookTotals[] = [];
     for (const [book, markets] of Object.entries(ev.bookmakers ?? {})) {
       const t = extractTotalsLine(markets, line);
-      if (t && (t.under !== null || t.over !== null)) books.push({ book, under: t.under, over: t.over });
+      if (t && (t.under !== null || t.over !== null)) {
+        books.push({ book, under: t.under, over: t.over });
+      }
     }
     out.push({
       eventId: String(ev.id),
@@ -90,7 +101,9 @@ export function bestTotalsSide(m: MatchOdds, side: 'under' | 'over'): BestSide |
   let best: BestSide | null = null;
   for (const b of m.books) {
     const q = b[side];
-    if (q !== null && (!best || q > best.odds)) best = { book: b.book, odds: q };
+    if (q !== null && (!best || q > best.odds)) {
+      best = { book: b.book, odds: q };
+    }
   }
   return best;
 }
@@ -119,17 +132,26 @@ export function compareMatches(matches: MatchOdds[]): CompareRow[] {
 // Collega il nome bookmaker dell'API ai Book gestionali (apiBookKey o nome,
 // match case-insensitive, tollerante ai suffissi IT/UK).
 export function findRegistryBook(books: Book[], apiName: string): Book | null {
-  const norm = (s: string) => s.trim().toLowerCase().replace(/\s+(it|uk|es|se|dk|fr|be|au|ca|nj)$/,'').replace(/[^a-z0-9]/g, '');
+  const norm = (s: string) =>
+    s
+      .trim()
+      .toLowerCase()
+      .replace(/\s+(it|uk|es|se|dk|fr|be|au|ca|nj)$/, '')
+      .replace(/[^a-z0-9]/g, '');
   const target = norm(apiName);
   let best: { book: Book; len: number } | null = null;
   for (const b of books) {
     const cands = [b.apiBookKey ?? '', b.name];
     for (const c of cands) {
       const n = norm(c);
-      if (!n) continue;
+      if (!n) {
+        continue;
+      }
       if (n === target || n.startsWith(target) || target.startsWith(n)) {
         const len = n.length;
-        if (!best || len > best.len) best = { book: b, len };
+        if (!best || len > best.len) {
+          best = { book: b, len };
+        }
       }
     }
   }
@@ -147,11 +169,24 @@ export interface SweepPlan {
   ok: boolean;
 }
 
-export function planSweep(eventCount: number, keyCount: number, perDayPerKey = 500, eventsPerCall = 10): SweepPlan {
+export function planSweep(
+  eventCount: number,
+  keyCount: number,
+  perDayPerKey = 500,
+  eventsPerCall = 10,
+): SweepPlan {
   const n = Math.max(0, Math.floor(eventCount));
   const k = Math.max(0, Math.floor(keyCount));
   const chunksPerKey = n === 0 ? 0 : Math.ceil(n / Math.max(1, eventsPerCall));
   const callsPerSweep = chunksPerKey * k;
-  const sweepsPerDayPerKey = k === 0 || chunksPerKey === 0 ? 0 : Math.floor(perDayPerKey / chunksPerKey);
-  return { eventCount: n, keyCount: k, chunksPerKey, callsPerSweep, sweepsPerDayPerKey, ok: k > 0 && sweepsPerDayPerKey >= 1 };
+  const sweepsPerDayPerKey =
+    k === 0 || chunksPerKey === 0 ? 0 : Math.floor(perDayPerKey / chunksPerKey);
+  return {
+    eventCount: n,
+    keyCount: k,
+    chunksPerKey,
+    callsPerSweep,
+    sweepsPerDayPerKey,
+    ok: k > 0 && sweepsPerDayPerKey >= 1,
+  };
 }

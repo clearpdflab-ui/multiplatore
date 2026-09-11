@@ -4,7 +4,7 @@ import { roundToFiftyCents, getStepTargetProfit } from './dutching';
 
 export function buildSequentialTimeline(
   params: ModelParameters,
-  matchOutcomes: ('UNDER' | 'OVER' | 'PENDING')[]
+  matchOutcomes: ('UNDER' | 'OVER' | 'PENDING')[],
 ): {
   timeline: SequentialStepState[];
   currentActiveTicketDesc: string;
@@ -14,16 +14,24 @@ export function buildSequentialTimeline(
   finalNet: number;
 } {
   const {
-    totalEvents, baseStake, underOdds, overOdds, targetProfit, model,
-    finalSingleOdds, enableBooster, boosterOdds = 1.10,
-    boosterThresholdEvents = 4, asymmetricMode = 'flat',
+    totalEvents,
+    baseStake,
+    underOdds,
+    overOdds,
+    targetProfit,
+    model,
+    finalSingleOdds,
+    enableBooster,
+    boosterOdds = 1.1,
+    boosterThresholdEvents = 4,
+    asymmetricMode = 'flat',
   } = params;
   const timeline: SequentialStepState[] = [];
   let cumulativeCost = baseStake;
   let activeTicketType: 'MAIN' | 'REPLACEMENT' = 'MAIN';
   let activeTicketDesc = `Multipla Madre (Tutti gli ${totalEvents} Under 3.5)`;
   let currentActiveTicketDesc = activeTicketDesc;
-  let isBroken = false;
+  const isBroken = false;
   let winningAmount = 0;
 
   const baseBonus = getBonusPercentage(totalEvents);
@@ -49,12 +57,16 @@ export function buildSequentialTimeline(
       finalOdds = rawOdds;
     } else if (model === 'original_sum') {
       let raw = overOdds + remainingUnderAfterThis * underOdds;
-      if (hasBooster) raw *= boosterOdds;
+      if (hasBooster) {
+        raw *= boosterOdds;
+      }
       rawOdds = raw;
       finalOdds = raw;
     } else {
       let r = overOdds * Math.pow(underOdds, remainingUnderAfterThis);
-      if (hasBooster) r *= boosterOdds;
+      if (hasBooster) {
+        r *= boosterOdds;
+      }
       rawOdds = r;
       finalOdds = Number((rawOdds * (1 + bonus / 100)).toFixed(3));
     }
@@ -68,9 +80,10 @@ export function buildSequentialTimeline(
     const stake = roundToFiftyCents(rawStake);
 
     const outcome = matchOutcomes[k - 1] || 'PENDING';
-    const coverageDesc = k === totalEvents
-      ? `Singola Finale: Match ${k} Over 3.5${hasBooster ? ` + Booster Cuscinetto (Q=${boosterOdds.toFixed(2)})` : ''}`
-      : `Copertura: Match ${k} OVER + ${remainingUnderAfterThis} restanti UNDER${hasBooster ? ` + Booster (${boosterOdds.toFixed(2)})` : ''} (${effectiveEventsInCoverage} ev.)`;
+    const coverageDesc =
+      k === totalEvents
+        ? `Singola Finale: Match ${k} Over 3.5${hasBooster ? ` + Booster Cuscinetto (Q=${boosterOdds.toFixed(2)})` : ''}`
+        : `Copertura: Match ${k} OVER + ${remainingUnderAfterThis} restanti UNDER${hasBooster ? ` + Booster (${boosterOdds.toFixed(2)})` : ''} (${effectiveEventsInCoverage} ev.)`;
 
     let status: SequentialStepState['status'] = 'WAITING';
     if (isBroken) {

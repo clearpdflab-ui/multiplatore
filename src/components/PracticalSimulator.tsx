@@ -10,10 +10,21 @@ import { CalculationModel } from '../types';
 import { GeometricVisualizer } from './GeometricVisualizer';
 import { SequentialRelayLadder } from './SequentialRelayLadder';
 import { AsymmetricStrategyGuide } from './AsymmetricStrategyGuide';
-import { Sliders, Clock, TrendingUp, AlertTriangle, CheckCircle2, RotateCcw, Scale, Sparkles } from 'lucide-react';
+import {
+  Sliders,
+  Clock,
+  TrendingUp,
+  AlertTriangle,
+  CheckCircle2,
+  RotateCcw,
+  Scale,
+  Sparkles,
+} from 'lucide-react';
 
 export const PracticalSimulator: React.FC = () => {
-  const [subMode, setSubMode] = useState<'sequential_relay' | 'asymmetric_strategy' | 'stress_test'>('sequential_relay');
+  const [subMode, setSubMode] = useState<
+    'sequential_relay' | 'asymmetric_strategy' | 'stress_test'
+  >('sequential_relay');
 
   // Configurable Parameters (defaulting to 8 matches as user specified)
   const [params, setParams] = useState<ModelParameters>({
@@ -29,7 +40,7 @@ export const PracticalSimulator: React.FC = () => {
 
   // Match outcomes for stress-test simulation
   const [matchOutcomes, setMatchOutcomes] = useState<('UNDER' | 'OVER')[]>(() =>
-    Array(params.totalEvents).fill('UNDER')
+    Array(params.totalEvents).fill('UNDER'),
   );
 
   // Update outcomes array when totalEvents changes
@@ -98,7 +109,9 @@ export const PracticalSimulator: React.FC = () => {
       {/* Top Selector: Sequential 2h Relay Mode vs Geometric Stress Test */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-[#0F1117] border border-[#2D3139] p-3 rounded-sm">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-[#64748B] uppercase">Modalità Visualizzazione:</span>
+          <span className="text-xs font-mono text-[#64748B] uppercase">
+            Modalità Visualizzazione:
+          </span>
         </div>
         <div className="flex bg-[#1A1D26] border border-[#2D3139] rounded-xs p-1 text-xs font-mono w-full sm:w-auto">
           <button
@@ -201,7 +214,9 @@ export const PracticalSimulator: React.FC = () => {
               type="number"
               step="0.01"
               value={params.underOdds}
-              onChange={(e) => setParams((p) => ({ ...p, underOdds: parseFloat(e.target.value) || 1.01 }))}
+              onChange={(e) =>
+                setParams((p) => ({ ...p, underOdds: parseFloat(e.target.value) || 1.01 }))
+              }
               className="w-full bg-[#0F1117] border border-[#2D3139] text-white font-mono text-base px-2 py-1 rounded-xs"
             />
           </div>
@@ -214,7 +229,9 @@ export const PracticalSimulator: React.FC = () => {
               type="number"
               step="0.05"
               value={params.overOdds}
-              onChange={(e) => setParams((p) => ({ ...p, overOdds: parseFloat(e.target.value) || 1.1 }))}
+              onChange={(e) =>
+                setParams((p) => ({ ...p, overOdds: parseFloat(e.target.value) || 1.1 }))
+              }
               className="w-full bg-[#0F1117] border border-[#2D3139] text-white font-mono text-base px-2 py-1 rounded-xs"
             />
           </div>
@@ -227,7 +244,9 @@ export const PracticalSimulator: React.FC = () => {
               type="number"
               step="0.05"
               value={params.finalSingleOdds}
-              onChange={(e) => setParams((p) => ({ ...p, finalSingleOdds: parseFloat(e.target.value) || 2.5 }))}
+              onChange={(e) =>
+                setParams((p) => ({ ...p, finalSingleOdds: parseFloat(e.target.value) || 2.5 }))
+              }
               className="w-full bg-[#0F1117] border border-[#2D3139] text-white font-mono text-base px-2 py-1 rounded-xs"
             />
           </div>
@@ -245,7 +264,9 @@ export const PracticalSimulator: React.FC = () => {
                 type="number"
                 step="0.5"
                 value={params.baseStake}
-                onChange={(e) => setParams((p) => ({ ...p, baseStake: parseFloat(e.target.value) || 1 }))}
+                onChange={(e) =>
+                  setParams((p) => ({ ...p, baseStake: parseFloat(e.target.value) || 1 }))
+                }
                 className="w-full bg-[#0F1117] border border-[#2D3139] text-white font-mono text-base px-2 py-1 rounded-xs"
               />
             </div>
@@ -261,7 +282,9 @@ export const PracticalSimulator: React.FC = () => {
                 type="number"
                 step="5"
                 value={params.targetProfit}
-                onChange={(e) => setParams((p) => ({ ...p, targetProfit: parseFloat(e.target.value) || 5 }))}
+                onChange={(e) =>
+                  setParams((p) => ({ ...p, targetProfit: parseFloat(e.target.value) || 5 }))
+                }
                 className="w-full bg-[#0F1117] border border-[#2D3139] text-white font-mono text-base px-2 py-1 rounded-xs"
               />
             </div>
@@ -279,7 +302,7 @@ export const PracticalSimulator: React.FC = () => {
                   setParams((p) => ({
                     ...p,
                     underOdds: 1.32,
-                    overOdds: 3.00,
+                    overOdds: 3.0,
                     finalSingleOdds: 2.75,
                     bookmakerModel: '132_300',
                   }))
@@ -296,14 +319,14 @@ export const PracticalSimulator: React.FC = () => {
                 onClick={() =>
                   setParams((p) => ({
                     ...p,
-                    underOdds: 1.30,
+                    underOdds: 1.3,
                     overOdds: 3.15,
                     finalSingleOdds: 2.85,
                     bookmakerModel: '130_315',
                   }))
                 }
                 className={`px-2.5 py-1 rounded-xs border transition-colors ${
-                  params.underOdds === 1.30 && params.overOdds === 3.15
+                  params.underOdds === 1.3 && params.overOdds === 3.15
                     ? 'bg-[#3B82F6] text-white border-[#3B82F6] font-bold'
                     : 'bg-[#1A1D26] text-[#E0E2E7] border-[#2D3139] hover:bg-[#252A36]'
                 }`}
@@ -319,7 +342,8 @@ export const PracticalSimulator: React.FC = () => {
               {calculateBookmakerAggio(params.underOdds, params.overOdds).aggioPercent}%
             </span>
             <span>
-              (Payout: {calculateBookmakerAggio(params.underOdds, params.overOdds).payoutPercent}%, Fair U: {calculateBookmakerAggio(params.underOdds, params.overOdds).fairUnderProb}%)
+              (Payout: {calculateBookmakerAggio(params.underOdds, params.overOdds).payoutPercent}%,
+              Fair U: {calculateBookmakerAggio(params.underOdds, params.overOdds).fairUnderProb}%)
             </span>
           </div>
         </div>
@@ -345,7 +369,13 @@ export const PracticalSimulator: React.FC = () => {
               type="button"
               role="switch"
               aria-checked={Boolean(params.enableBooster)}
-              onClick={() => setParams((p) => ({ ...p, enableBooster: !p.enableBooster, boosterOdds: p.boosterOdds || 1.10 }))}
+              onClick={() =>
+                setParams((p) => ({
+                  ...p,
+                  enableBooster: !p.enableBooster,
+                  boosterOdds: p.boosterOdds || 1.1,
+                }))
+              }
               className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden ${
                 params.enableBooster ? 'bg-emerald-500' : 'bg-zinc-700'
               }`}
@@ -361,9 +391,17 @@ export const PracticalSimulator: React.FC = () => {
 
             <div
               className="flex items-center gap-1.5 select-none cursor-pointer"
-              onClick={() => setParams((p) => ({ ...p, enableBooster: !p.enableBooster, boosterOdds: p.boosterOdds || 1.10 }))}
+              onClick={() =>
+                setParams((p) => ({
+                  ...p,
+                  enableBooster: !p.enableBooster,
+                  boosterOdds: p.boosterOdds || 1.1,
+                }))
+              }
             >
-              <Sparkles className={`w-3.5 h-3.5 ${params.enableBooster ? 'text-emerald-400 animate-pulse' : 'text-[#64748B]'}`} />
+              <Sparkles
+                className={`w-3.5 h-3.5 ${params.enableBooster ? 'text-emerald-400 animate-pulse' : 'text-[#64748B]'}`}
+              />
               <span className="font-bold text-xs text-white">Boost 1.10:</span>
               <span
                 className={`px-1.5 py-0.2 text-[10px] font-bold uppercase rounded-xs ${
@@ -379,12 +417,12 @@ export const PracticalSimulator: React.FC = () => {
             {params.enableBooster && (
               <div className="flex items-center gap-1 pl-2 border-l border-[#2D3139]">
                 <span className="text-[10px] text-[#64748B]">Quota:</span>
-                {[1.08, 1.10, 1.15].map((q) => (
+                {[1.08, 1.1, 1.15].map((q) => (
                   <button
                     key={q}
                     onClick={() => setParams((p) => ({ ...p, boosterOdds: q }))}
                     className={`px-1.5 py-0.5 text-[10px] font-mono rounded-xs border transition-colors ${
-                      (params.boosterOdds || 1.10) === q
+                      (params.boosterOdds || 1.1) === q
                         ? 'bg-[#3B82F6] text-white border-[#3B82F6] font-bold'
                         : 'bg-[#1A1D26] text-[#94A3B8] border-[#2D3139] hover:text-white'
                     }`}
@@ -453,7 +491,9 @@ export const PracticalSimulator: React.FC = () => {
                 </div>
 
                 <p className="text-xs text-[#94A3B8] mb-3">
-                  Clicca sui riquadri per commutare il risultato tra <span className="text-emerald-400 font-mono">UNDER 3.5</span> e <span className="text-red-400 font-mono">OVER 3.5</span>:
+                  Clicca sui riquadri per commutare il risultato tra{' '}
+                  <span className="text-emerald-400 font-mono">UNDER 3.5</span> e{' '}
+                  <span className="text-red-400 font-mono">OVER 3.5</span>:
                 </p>
 
                 {/* Match Grid Selector */}
@@ -482,8 +522,8 @@ export const PracticalSimulator: React.FC = () => {
                     scenarioResult.status === 'WIN_BASE'
                       ? 'bg-emerald-950/20 border-emerald-500/50 text-emerald-300'
                       : scenarioResult.status === 'WIN_COVERAGE'
-                      ? 'bg-blue-950/20 border-[#3B82F6]/50 text-blue-300'
-                      : 'bg-red-950/30 border-red-500/50 text-red-300'
+                        ? 'bg-blue-950/20 border-[#3B82F6]/50 text-blue-300'
+                        : 'bg-red-950/30 border-red-500/50 text-red-300'
                   }`}
                 >
                   <div className="flex items-center justify-between font-bold mb-1.5">
@@ -500,7 +540,8 @@ export const PracticalSimulator: React.FC = () => {
                         scenarioResult.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'
                       }`}
                     >
-                      {scenarioResult.netProfit >= 0 ? '+' : ''}€{scenarioResult.netProfit.toFixed(2)}
+                      {scenarioResult.netProfit >= 0 ? '+' : ''}€
+                      {scenarioResult.netProfit.toFixed(2)}
                     </span>
                   </div>
                   <p className="text-[11px] opacity-90 leading-relaxed font-sans">
@@ -513,11 +554,15 @@ export const PracticalSimulator: React.FC = () => {
               <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-[#2D3139] text-center font-mono">
                 <div className="p-2 bg-[#1A1D26] rounded-xs border border-[#2D3139]">
                   <div className="text-[9px] text-[#64748B] uppercase">Capitale Impegnato</div>
-                  <div className="text-xs font-bold text-white">€{scenarioResult.totalCost.toFixed(2)}</div>
+                  <div className="text-xs font-bold text-white">
+                    €{scenarioResult.totalCost.toFixed(2)}
+                  </div>
                 </div>
                 <div className="p-2 bg-[#1A1D26] rounded-xs border border-[#2D3139]">
                   <div className="text-[9px] text-[#64748B] uppercase">Incasso Lordo</div>
-                  <div className="text-xs font-bold text-white">€{scenarioResult.grossWin.toFixed(2)}</div>
+                  <div className="text-xs font-bold text-white">
+                    €{scenarioResult.grossWin.toFixed(2)}
+                  </div>
                 </div>
                 <div className="p-2 bg-[#1A1D26] rounded-xs border border-[#2D3139]">
                   <div className="text-[9px] text-[#64748B] uppercase">Bilancio Netto</div>
@@ -541,7 +586,8 @@ export const PracticalSimulator: React.FC = () => {
                   Tabella Delle Multiple a Scalare Calcolate
                 </span>
                 <h3 className="text-sm font-bold text-white mt-0.5">
-                  Piano di Copertura Completo ({params.totalEvents - 1} Coperture + 1 Singola Finale)
+                  Piano di Copertura Completo ({params.totalEvents - 1} Coperture + 1 Singola
+                  Finale)
                 </h3>
               </div>
               <div className="text-xs font-mono text-[#3B82F6]">
@@ -590,8 +636,12 @@ export const PracticalSimulator: React.FC = () => {
                       <td className="py-2.5 px-3 text-white font-semibold">
                         {step.calculatedOdds.toFixed(2)}
                       </td>
-                      <td className="py-2.5 px-3 text-[#3B82F6] font-bold">€{step.stake.toFixed(2)}</td>
-                      <td className="py-2.5 px-3 text-[#94A3B8]">€{step.cumulativeCost.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-[#3B82F6] font-bold">
+                        €{step.stake.toFixed(2)}
+                      </td>
+                      <td className="py-2.5 px-3 text-[#94A3B8]">
+                        €{step.cumulativeCost.toFixed(2)}
+                      </td>
                       <td className="py-2.5 px-3 text-white">€{step.grossWin.toFixed(2)}</td>
                       <td className="py-2.5 px-3 text-right text-emerald-400 font-bold">
                         +€{step.netProfit.toFixed(2)}
@@ -607,4 +657,3 @@ export const PracticalSimulator: React.FC = () => {
     </div>
   );
 };
-

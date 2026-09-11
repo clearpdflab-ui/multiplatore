@@ -4,9 +4,17 @@ import { roundToFiftyCents, getStepTargetProfit } from './dutching';
 
 export function calculateSteps(params: ModelParameters): any[] {
   const {
-    totalEvents, baseStake, underOdds, overOdds, targetProfit, model,
-    finalSingleOdds, enableBooster, boosterOdds = 1.10,
-    boosterThresholdEvents = 4, asymmetricMode = 'flat',
+    totalEvents,
+    baseStake,
+    underOdds,
+    overOdds,
+    targetProfit,
+    model,
+    finalSingleOdds,
+    enableBooster,
+    boosterOdds = 1.1,
+    boosterThresholdEvents = 4,
+    asymmetricMode = 'flat',
   } = params;
   const steps: any[] = [];
   let cumulativeCost = baseStake;
@@ -33,15 +41,20 @@ export function calculateSteps(params: ModelParameters): any[] {
       }
     } else if (model === 'original_sum') {
       let raw = overOdds + remainingUnder * underOdds;
-      if (shouldAddBooster) raw *= boosterOdds;
+      if (shouldAddBooster) {
+        raw *= boosterOdds;
+      }
       odds = Number(raw.toFixed(2));
       formulaText = `${overOdds} + (${remainingUnder} × ${underOdds})${shouldAddBooster ? ` × ${boosterOdds}` : ''} = ${odds}`;
     } else {
       let rawOdds = overOdds * Math.pow(underOdds, remainingUnder);
-      if (shouldAddBooster) rawOdds *= boosterOdds;
+      if (shouldAddBooster) {
+        rawOdds *= boosterOdds;
+      }
       odds = Number((rawOdds * (1 + bonus / 100)).toFixed(3));
       const boosterLabel = shouldAddBooster ? ` × Booster ${boosterOdds.toFixed(2)}` : '';
-      const bonusLabel = bonus > 0 ? ` [+${bonus}% bonus (${effectiveEvents} ev.)]` : ' [0% bonus (<5)]';
+      const bonusLabel =
+        bonus > 0 ? ` [+${bonus}% bonus (${effectiveEvents} ev.)]` : ' [0% bonus (<5)]';
       formulaText = `${overOdds} × (${underOdds})^${remainingUnder}${boosterLabel}${bonusLabel} = ${odds.toFixed(2)}`;
     }
 
@@ -61,9 +74,10 @@ export function calculateSteps(params: ModelParameters): any[] {
     steps.push({
       step: k,
       name: k === totalEvents ? `Step ${k} (Singola Finale)` : `Step ${k} (Copertura ${k})`,
-      eventDescription: k === totalEvents
-        ? `Match ${k} Over 3.5${shouldAddBooster ? ` + Booster 1.10` : ''}`
-        : `1 Over (Match ${k}) + ${remainingUnder} Under${shouldAddBooster ? ` + Booster 1.10` : ''}`,
+      eventDescription:
+        k === totalEvents
+          ? `Match ${k} Over 3.5${shouldAddBooster ? ` + Booster 1.10` : ''}`
+          : `1 Over (Match ${k}) + ${remainingUnder} Under${shouldAddBooster ? ` + Booster 1.10` : ''}`,
       calculatedOdds: odds,
       oddsFormulaText: formulaText,
       stake,

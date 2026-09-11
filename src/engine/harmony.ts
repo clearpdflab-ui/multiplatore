@@ -37,26 +37,36 @@ export interface SizingArgs {
 const r2 = (x: number) => Number(x.toFixed(2));
 
 export function sizeTicket(args: SizingArgs): SizedTicket {
-  const {
-    legs,
-    book = DEFAULT_BOOK,
-    spent,
-    bleed = 0,
-    target = 45,
-    minStake = 1,
-  } = args;
+  const { legs, book = DEFAULT_BOOK, spent, bleed = 0, target = 45, minStake = 1 } = args;
   const n = legs.length;
   const raw = legs.reduce((acc, l) => acc * l.odds, 1);
   const bonus = getBonusForBook(book, n);
   const finale = raw * (1 + bonus / 100);
   if (!(n >= 1) || !(finale > 1)) {
-    return { legs, book, n, raw, bonus, finale, stakeNeutral: 0, stake: 0, lordo: 0, nettoNoBleed: 0, feasible: false };
+    return {
+      legs,
+      book,
+      n,
+      raw,
+      bonus,
+      finale,
+      stakeNeutral: 0,
+      stake: 0,
+      lordo: 0,
+      nettoNoBleed: 0,
+      feasible: false,
+    };
   }
   const neutral = (spent + bleed + target) / (finale - 1);
   const stake = roundToFiftyCents(Math.max(neutral, minStake));
   const lordo = r2(stake * finale);
   return {
-    legs, book, n, raw, bonus, finale,
+    legs,
+    book,
+    n,
+    raw,
+    bonus,
+    finale,
     stakeNeutral: r2(neutral),
     stake,
     lordo,
@@ -67,9 +77,16 @@ export function sizeTicket(args: SizingArgs): SizedTicket {
 
 // Dynamic target: never fixed, never negative.
 // T(d) = min(max(Tbase, rho * spent), TmaxFeasible); Tmax<0 => no ticket.
-export function targetForDepth(base: number, rho: number, spent: number, tMaxFeasible: number): number {
+export function targetForDepth(
+  base: number,
+  rho: number,
+  spent: number,
+  tMaxFeasible: number,
+): number {
   const desired = Math.max(base, rho * spent);
-  if (!(tMaxFeasible >= 0)) return 0;
+  if (!(tMaxFeasible >= 0)) {
+    return 0;
+  }
   return Math.min(desired, tMaxFeasible);
 }
 
@@ -79,21 +96,35 @@ export function bankrollTargets(bankroll: number, tau = 0.015): { tBase: number 
 }
 
 export function maxConcurrentCycles(
-  bankroll: number, worstCycleCost: number, factor = 2, opCap = 6,
+  bankroll: number,
+  worstCycleCost: number,
+  factor = 2,
+  opCap = 6,
 ): { nMax: number; utilization: number } {
-  if (!(bankroll > 0) || !(worstCycleCost > 0)) return { nMax: 0, utilization: 0 };
+  if (!(bankroll > 0) || !(worstCycleCost > 0)) {
+    return { nMax: 0, utilization: 0 };
+  }
   const nMax = Math.max(0, Math.min(opCap, Math.floor(bankroll / (factor * worstCycleCost))));
   return { nMax, utilization: r2((nMax * worstCycleCost) / bankroll) };
 }
 
 // Spend ceiling keeping the exchange lock placeable:
 // lockStake = (S + T)/ (lockFin - 1) <= sCap  =>  S <= sCap*(lockFin-1) - T - B
-export function spendLimitForLock(sCap: number, lockFin: number, target: number, bleed: number): number {
+export function spendLimitForLock(
+  sCap: number,
+  lockFin: number,
+  target: number,
+  bleed: number,
+): number {
   return r2(sCap * (lockFin - 1) - target - bleed);
 }
 
 // Void leg: drop it, recompute on N-1 (bonus tier may fall). Floor stays >= 0.
-export function recomputeAfterVoid(legs: TicketLeg[], voidIndex: number, book: Book = DEFAULT_BOOK) {
+export function recomputeAfterVoid(
+  legs: TicketLeg[],
+  voidIndex: number,
+  book: Book = DEFAULT_BOOK,
+) {
   const kept = legs.filter((_, i) => i !== voidIndex);
   const n = kept.length;
   const raw = kept.reduce((acc, l) => acc * l.odds, 1);
@@ -103,7 +134,9 @@ export function recomputeAfterVoid(legs: TicketLeg[], voidIndex: number, book: B
 }
 
 export function phaseOfTicket(args: { overLegHit: boolean; decided: boolean }): TicketPhase {
-  if (args.decided) return 'SETTLED';
+  if (args.decided) {
+    return 'SETTLED';
+  }
   return args.overLegHit ? 'RIDING' : 'SEEKING';
 }
 
@@ -140,7 +173,11 @@ export interface BuildChainArgs {
   budget?: number; // default Infinity
 }
 
-export function buildReferenceChain(args: BuildChainArgs): { rows: ChainRow[]; feasible: boolean; minTrueNetto: number } {
+export function buildReferenceChain(args: BuildChainArgs): {
+  rows: ChainRow[];
+  feasible: boolean;
+  minTrueNetto: number;
+} {
   const {
     motherUnderOdds,
     overOdds,
@@ -155,15 +192,28 @@ export function buildReferenceChain(args: BuildChainArgs): { rows: ChainRow[]; f
   } = args;
 
   const N = motherUnderOdds.length;
-  interface Draft { kind: ChainRow['kind']; legs: TicketLeg[]; stake: number; policyStake?: number }
+  interface Draft {
+    kind: ChainRow['kind'];
+    legs: TicketLeg[];
+    stake: number;
+    policyStake?: number;
+  }
   const drafts: Draft[] = [];
-  drafts.push({ kind: 'MOTHER', legs: motherUnderOdds.map((o) => ({ odds: o, market: 'UNDER' as const })), stake: 0, policyStake: s0 });
+  drafts.push({
+    kind: 'MOTHER',
+    legs: motherUnderOdds.map((o) => ({ odds: o, market: 'UNDER' as const })),
+    stake: 0,
+    policyStake: s0,
+  });
   for (let k = 1; k <= N - 1; k++) {
     // After k confirmed Unders (M1..Mk): Over@M(k+1) + Unders after it.
     const rest = motherUnderOdds.slice(k + 1);
     drafts.push({
       kind: 'COVERAGE',
-      legs: [{ odds: overOdds, market: 'OVER' }, ...rest.map((o) => ({ odds: o, market: 'UNDER' as const }))],
+      legs: [
+        { odds: overOdds, market: 'OVER' },
+        ...rest.map((o) => ({ odds: o, market: 'UNDER' as const })),
+      ],
       stake: 0,
     });
   }
@@ -183,9 +233,12 @@ export function buildReferenceChain(args: BuildChainArgs): { rows: ChainRow[]; f
     const bonus = getBonusForBook(book, n);
     const finale = raw * (1 + bonus / 100);
     const target = Math.max(targetBase, rho * spent);
-    d.stake = d.policyStake !== undefined
-      ? d.policyStake
-      : (finale > 1 ? roundToFiftyCents(Math.max((spent + target) / (finale - 1), minStake)) : 0);
+    d.stake =
+      d.policyStake !== undefined
+        ? d.policyStake
+        : finale > 1
+          ? roundToFiftyCents(Math.max((spent + target) / (finale - 1), minStake))
+          : 0;
     spent = r2(spent + d.stake);
   }
 
@@ -206,10 +259,19 @@ export function buildReferenceChain(args: BuildChainArgs): { rows: ChainRow[]; f
     const trueNetto = r2(lordo - (spentSoFar + laterStakes));
     const feasible = d.stake > 0 && d.stake <= sCap && spentSoFar <= budget;
     rows.push({
-      index: k, kind: d.kind, n, raw: r2(raw), bonus, finale: r2(finale),
-      stake: d.stake, spentCum: spentSoFar, lordo,
+      index: k,
+      kind: d.kind,
+      n,
+      raw: r2(raw),
+      bonus,
+      finale: r2(finale),
+      stake: d.stake,
+      spentCum: spentSoFar,
+      lordo,
       nettoNoBleed: r2(lordo - spentSoFar),
-      bleedReserved: bleed, trueNetto, feasible,
+      bleedReserved: bleed,
+      trueNetto,
+      feasible,
     });
   }
   const minTrueNetto = Math.min(...rows.map((r) => r.trueNetto));
@@ -218,7 +280,11 @@ export function buildReferenceChain(args: BuildChainArgs): { rows: ChainRow[]; f
 
 // Fallback ladder: first feasible plan wins (full T/N -> reduced T -> lock).
 // Returns null when nothing is placeable (stop signal, never a forced loss).
-export interface FallbackCandidate { legs: TicketLeg[]; book?: Book; label: string }
+export interface FallbackCandidate {
+  legs: TicketLeg[];
+  book?: Book;
+  label: string;
+}
 
 export function resolveWithFallback(args: {
   candidates: FallbackCandidate[]; // ordered by preference
@@ -230,21 +296,40 @@ export function resolveWithFallback(args: {
   sCap?: number;
   budget?: number;
 }): (SizedTicket & { label: string }) | null {
-  const { candidates, spent, bleed = 0, targetBase = 45, rho = 1, minStake = 1, sCap = 150, budget = Number.POSITIVE_INFINITY } = args;
+  const {
+    candidates,
+    spent,
+    bleed = 0,
+    targetBase = 45,
+    rho = 1,
+    minStake = 1,
+    sCap = 150,
+    budget = Number.POSITIVE_INFINITY,
+  } = args;
   for (const c of candidates) {
     const book = c.book ?? DEFAULT_BOOK;
     const n = c.legs.length;
     const raw = c.legs.reduce((a, l) => a * l.odds, 1);
     const bonus = getBonusForBook(book, n);
     const finale = raw * (1 + bonus / 100);
-    if (!(n >= 1) || !(finale > 1)) continue;
-    const tMaxFeasible = (sCap * (finale - 1)) - spent - bleed;
+    if (!(n >= 1) || !(finale > 1)) {
+      continue;
+    }
+    const tMaxFeasible = sCap * (finale - 1) - spent - bleed;
     const target = targetForDepth(Math.max(targetBase, rho * spent), rho, spent, tMaxFeasible);
-    if (target < 0) continue;
+    if (target < 0) {
+      continue;
+    }
     const sized = sizeTicket({ legs: c.legs, book, spent, bleed, target, minStake });
-    if (!sized.feasible) continue;
-    if (sized.stake > sCap) continue;
-    if (spent + sized.stake > budget) continue;
+    if (!sized.feasible) {
+      continue;
+    }
+    if (sized.stake > sCap) {
+      continue;
+    }
+    if (spent + sized.stake > budget) {
+      continue;
+    }
     return { ...sized, label: c.label };
   }
   return null;
@@ -264,18 +349,27 @@ export function expectedBleed(laterStakes: number[], reachProbPerLeg = 0.6944): 
 }
 
 // Portfolio math (pure): concurrent ledgers + shared-leg guard inputs.
-export interface CycleLedger { id: string; spent: number }
+export interface CycleLedger {
+  id: string;
+  spent: number;
+}
 
 export function portfolioExposure(ledgers: CycleLedger[]): number {
   return r2(ledgers.reduce((a, l) => a + l.spent, 0));
 }
 
 export function canOpenCycle(args: {
-  bankroll: number; worstCycleCost: number; active: CycleLedger[]; factor?: number; opCap?: number;
+  bankroll: number;
+  worstCycleCost: number;
+  active: CycleLedger[];
+  factor?: number;
+  opCap?: number;
 }): { ok: boolean; reason: string } {
   const { bankroll, worstCycleCost, active, factor = 2, opCap = 6 } = args;
   const { nMax } = maxConcurrentCycles(bankroll, worstCycleCost, factor, opCap);
-  if (active.length >= nMax) return { ok: false, reason: `max ${nMax} cicli concorrenti` };
+  if (active.length >= nMax) {
+    return { ok: false, reason: `max ${nMax} cicli concorrenti` };
+  }
   if (portfolioExposure(active) + worstCycleCost > bankroll) {
     return { ok: false, reason: 'tetto bankroll superato' };
   }

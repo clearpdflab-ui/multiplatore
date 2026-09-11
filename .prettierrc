@@ -5,8 +5,7 @@
   "trailingComma": "all",
   "printWidth": 100,
   "arrowParens": "always",
-  "endOfLine": "lf",
-  "plugins": ["@prettier/plugin-xml"],
+  "endOfLine": "auto",
   "overrides": [
     {
       "files": ["*.css", "*.scss"],

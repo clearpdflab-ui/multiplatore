@@ -1,7 +1,19 @@
 import React, { useState } from 'react';
-import { ORIGINAL_BASE_BET, ORIGINAL_CSV_STEPS, WEAK_POINTS, IMPROVEMENTS } from '../data/originalData';
+import {
+  ORIGINAL_BASE_BET,
+  ORIGINAL_CSV_STEPS,
+  WEAK_POINTS,
+  IMPROVEMENTS,
+} from '../data/originalData';
 import { calculateBinomialRisk } from '../utils/mathEngine';
-import { AlertTriangle, TrendingDown, CheckCircle2, ChevronRight, Calculator, Flame } from 'lucide-react';
+import {
+  AlertTriangle,
+  TrendingDown,
+  CheckCircle2,
+  ChevronRight,
+  Calculator,
+  Flame,
+} from 'lucide-react';
 
 export const MathematicalAnalysis: React.FC = () => {
   const [selectedWeakPoint, setSelectedWeakPoint] = useState<string>(WEAK_POINTS[0].id);
@@ -24,7 +36,11 @@ export const MathematicalAnalysis: React.FC = () => {
               Discrepanza Fondamentale: Formula Lineare vs Esponenziale
             </h2>
             <p className="text-xs sm:text-sm text-[#94A3B8] mt-1 max-w-3xl leading-relaxed">
-              Nel foglio CSV inviato, la quota complessiva delle multiple di copertura è stata calcolata <strong className="text-red-400">sommando le quote</strong> (Q_over + N × Q_under) anziché <strong className="text-[#3B82F6]">moltiplicandole</strong> (Q_over × Q_under^N). Questo altera l'intera architettura del capitale necessario e l'efficienza delle coperture.
+              Nel foglio CSV inviato, la quota complessiva delle multiple di copertura è stata
+              calcolata <strong className="text-red-400">sommando le quote</strong> (Q_over + N ×
+              Q_under) anziché <strong className="text-[#3B82F6]">moltiplicandole</strong> (Q_over ×
+              Q_under^N). Questo altera l'intera architettura del capitale necessario e l'efficienza
+              delle coperture.
             </p>
           </div>
 
@@ -36,7 +52,9 @@ export const MathematicalAnalysis: React.FC = () => {
             </div>
             <div className="text-[#3B82F6] font-mono text-xl font-bold">≠</div>
             <div className="bg-[#0F1117] border border-[#3B82F6]/40 px-4 py-2.5 rounded-xs text-center">
-              <div className="text-[10px] text-[#3B82F6] uppercase font-mono">Quota Reale Cop. 1</div>
+              <div className="text-[10px] text-[#3B82F6] uppercase font-mono">
+                Quota Reale Cop. 1
+              </div>
               <div className="text-base sm:text-lg font-mono font-bold text-emerald-400">27.34</div>
               <div className="text-[9px] text-[#3B82F6] font-mono">3.00 × (1.32)⁸</div>
             </div>
@@ -61,7 +79,10 @@ export const MathematicalAnalysis: React.FC = () => {
               Perché il modello pre-match perde nel 73% dei casi
             </h3>
             <p className="text-xs text-[#94A3B8] leading-relaxed mb-4">
-              Se giocate in blocco prima dell&apos;inizio, le coperture coprono <em>soltanto</em> il caso di <strong className="text-white">esattamente 1 solo Over</strong>. Se ne escono 2 o più, <strong>tutte le schedine perdono</strong>. La soluzione è il <strong className="text-[#3B82F6]">Relay Sequenziale ogni 2 ore</strong>.
+              Se giocate in blocco prima dell&apos;inizio, le coperture coprono <em>soltanto</em> il
+              caso di <strong className="text-white">esattamente 1 solo Over</strong>. Se ne escono
+              2 o più, <strong>tutte le schedine perdono</strong>. La soluzione è il{' '}
+              <strong className="text-[#3B82F6]">Relay Sequenziale ogni 2 ore</strong>.
             </p>
 
             <div className="space-y-3 font-mono">
@@ -75,7 +96,9 @@ export const MathematicalAnalysis: React.FC = () => {
 
               <div className="p-3 bg-[#1A1D26] border border-[#2D3139] rounded-xs flex items-center justify-between">
                 <div>
-                  <div className="text-[11px] text-[#94A3B8]">Esattamente 1 Over (Vince 1 Copertura)</div>
+                  <div className="text-[11px] text-[#94A3B8]">
+                    Esattamente 1 Over (Vince 1 Copertura)
+                  </div>
                   <div className="text-xs text-[#64748B]">7 Under e 1 solo Over</div>
                 </div>
                 <div className="text-base font-bold text-[#3B82F6]">{risk.pOneError}%</div>
@@ -84,10 +107,12 @@ export const MathematicalAnalysis: React.FC = () => {
               <div className="p-3 bg-[#1A1D26] border border-red-500/40 rounded-xs flex items-center justify-between bg-red-950/20">
                 <div>
                   <div className="text-[11px] text-red-300 font-semibold flex items-center gap-1.5">
-                    <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
-                    ≥ 2 Over (Criticità nel Pre-Match)
+                    <AlertTriangle className="w-3.5 h-3.5 text-red-400" />≥ 2 Over (Criticità nel
+                    Pre-Match)
                   </div>
-                  <div className="text-xs text-red-400/80">Risolto dal relay progressivo a sostituzione</div>
+                  <div className="text-xs text-red-400/80">
+                    Risolto dal relay progressivo a sostituzione
+                  </div>
                 </div>
                 <div className="text-lg font-bold text-red-400">{risk.pMultipleErrors}%</div>
               </div>
@@ -113,38 +138,56 @@ export const MathematicalAnalysis: React.FC = () => {
             <div className="space-y-3 font-mono text-xs">
               <div className="p-3 bg-[#1A1D26] border border-[#2D3139] rounded-xs">
                 <div className="text-white font-bold mb-1 flex items-center gap-1.5">
-                  <span className="w-5 h-5 bg-[#3B82F6] text-white rounded-full flex items-center justify-center text-[10px]">1</span>
+                  <span className="w-5 h-5 bg-[#3B82F6] text-white rounded-full flex items-center justify-center text-[10px]">
+                    1
+                  </span>
                   Cadenza Sequenziale di 2 Ore
                 </div>
                 <p className="text-[11px] text-[#94A3B8] font-sans leading-relaxed">
-                  Le partite sono distanziate di 2 ore. La multipla di copertura successiva parte <strong>solo dopo aver conosciuto l&apos;esito della precedente</strong>. Il capitale non viene bloccato tutto all&apos;inizio, ma investito a tappe.
+                  Le partite sono distanziate di 2 ore. La multipla di copertura successiva parte{' '}
+                  <strong>solo dopo aver conosciuto l&apos;esito della precedente</strong>. Il
+                  capitale non viene bloccato tutto all&apos;inizio, ma investito a tappe.
                 </p>
               </div>
 
               <div className="p-3 bg-[#1A1D26] border border-[#2D3139] rounded-xs">
                 <div className="text-white font-bold mb-1 flex items-center gap-1.5">
-                  <span className="w-5 h-5 bg-[#3B82F6] text-white rounded-full flex items-center justify-center text-[10px]">2</span>
+                  <span className="w-5 h-5 bg-[#3B82F6] text-white rounded-full flex items-center justify-center text-[10px]">
+                    2
+                  </span>
                   Relay a Sostituzione &amp; Singola Finale
                 </div>
                 <p className="text-[11px] text-[#94A3B8] font-sans leading-relaxed">
-                  Se una partita termina Over, la copertura ha preso l&apos;Over e ha come gambe rimanenti tutti Under: <strong>prende il posto della multipla madre</strong> e continua ad essere protetta partita per partita fino alla <strong className="text-white">singola finale</strong> (Over 3.5 sull&apos;ultimo match) che chiude matematicamente tutte le coperture.
+                  Se una partita termina Over, la copertura ha preso l&apos;Over e ha come gambe
+                  rimanenti tutti Under: <strong>prende il posto della multipla madre</strong> e
+                  continua ad essere protetta partita per partita fino alla{' '}
+                  <strong className="text-white">singola finale</strong> (Over 3.5 sull&apos;ultimo
+                  match) che chiude matematicamente tutte le coperture.
                 </p>
               </div>
 
               <div className="p-3 bg-[#1A1D26] border border-[#2D3139] rounded-xs">
                 <div className="text-white font-bold mb-1 flex items-center gap-1.5">
-                  <span className="w-5 h-5 bg-amber-500 text-black rounded-full flex items-center justify-center text-[10px]">3</span>
+                  <span className="w-5 h-5 bg-amber-500 text-black rounded-full flex items-center justify-center text-[10px]">
+                    3
+                  </span>
                   Soglia Bonus Multipla (Minimo 5 Eventi)
                 </div>
                 <p className="text-[11px] text-[#94A3B8] font-sans leading-relaxed">
-                  Il bonus scatta a partire da 5 eventi (es. 8 eventi = +26.2%, 7 = +18%, 6 = +12%, 5 = +6%). Sotto i 5 eventi (Match 5, 6, 7 e Singola finale) il bonus è pari a <strong>0%</strong>. Per compensare il crollo delle quote, la formula adatta la puntata per garantire il recupero.
+                  Il bonus scatta a partire da 5 eventi (es. 8 eventi = +26.2%, 7 = +18%, 6 = +12%,
+                  5 = +6%). Sotto i 5 eventi (Match 5, 6, 7 e Singola finale) il bonus è pari a{' '}
+                  <strong>0%</strong>. Per compensare il crollo delle quote, la formula adatta la
+                  puntata per garantire il recupero.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="mt-4 pt-3 border-t border-[#2D3139] text-[11px] text-[#64748B] font-mono flex items-center justify-between">
-            <span>Formula Dutching: Stake = (Costi + Target) / (Quota - 1) &bull; <strong className="text-emerald-400 font-normal">Arrotondato a step di 0,50€</strong></span>
+            <span>
+              Formula Dutching: Stake = (Costi + Target) / (Quota - 1) &bull;{' '}
+              <strong className="text-emerald-400 font-normal">Arrotondato a step di 0,50€</strong>
+            </span>
           </div>
         </div>
       </div>
@@ -153,10 +196,11 @@ export const MathematicalAnalysis: React.FC = () => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xs uppercase tracking-widest text-orange-400 font-bold flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-orange-400" />
-            4 Punti Deboli Rilevati nel Modello
+            <AlertTriangle className="w-4 h-4 text-orange-400" />4 Punti Deboli Rilevati nel Modello
           </h2>
-          <span className="text-xs text-[#64748B] font-mono">Clicca su ciascuna anomalia per dettagli</span>
+          <span className="text-xs text-[#64748B] font-mono">
+            Clicca su ciascuna anomalia per dettagli
+          </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -166,8 +210,8 @@ export const MathematicalAnalysis: React.FC = () => {
               wp.severity === 'critical'
                 ? 'border-red-500'
                 : wp.severity === 'high'
-                ? 'border-orange-500'
-                : 'border-yellow-500';
+                  ? 'border-orange-500'
+                  : 'border-yellow-500';
 
             return (
               <div
@@ -197,7 +241,9 @@ export const MathematicalAnalysis: React.FC = () => {
                 </div>
                 <div className="text-[11px] text-emerald-400/90 leading-snug flex items-start gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                  <span><strong>Soluzione:</strong> {wp.suggestedFix}</span>
+                  <span>
+                    <strong>Soluzione:</strong> {wp.suggestedFix}
+                  </span>
                 </div>
               </div>
             );

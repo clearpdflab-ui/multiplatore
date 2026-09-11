@@ -1,5 +1,9 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
-import { normalizeMatchDetail, type NormalizedMatch, type RawMatchDetail } from '../engine/resultsFeed';
+import {
+  normalizeMatchDetail,
+  type NormalizedMatch,
+  type RawMatchDetail,
+} from '../engine/resultsFeed';
 import { mockMatchDetailsForIds } from '../data/mockResults';
 
 // F5 client: Edge Function proxy (scoretrend.net) -> normalizzazione match.
@@ -16,9 +20,13 @@ export interface ResultsFetchResult {
 
 async function fetchEdge(eventIds: string[], timeoutMs = 15000): Promise<ResultsFetchResult> {
   const sb = getSupabase();
-  if (!sb || !isSupabaseConfigured) throw new Error('supabase non configurato');
+  if (!sb || !isSupabaseConfigured) {
+    throw new Error('supabase non configurato');
+  }
   const url = new URL((import.meta.env.VITE_SUPABASE_URL as string) + FN_PATH);
-  if (eventIds.length > 0) url.searchParams.set('eventIds', eventIds.join(','));
+  if (eventIds.length > 0) {
+    url.searchParams.set('eventIds', eventIds.join(','));
+  }
   const { data: s } = await sb.auth.getSession();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -29,7 +37,9 @@ async function fetchEdge(eventIds: string[], timeoutMs = 15000): Promise<Results
       },
       signal: ctrl.signal,
     });
-    if (!res.ok) throw new Error(`edge HTTP ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`edge HTTP ${res.status}`);
+    }
     const body = await res.json();
     const raw = Array.isArray(body.data) ? (body.data as RawMatchDetail[]) : [];
     return {

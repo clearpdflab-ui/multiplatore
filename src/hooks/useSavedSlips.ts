@@ -10,7 +10,9 @@ const STORAGE_KEY = 'multiplatore:saved_slips:v1';
 
 function uid(): string {
   try {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+      return crypto.randomUUID();
+    }
   } catch {
     /* fallback sotto */
   }
@@ -34,9 +36,15 @@ function rowToSlip(r: DbSavedSlipRow): SavedSlip {
     id: r.id,
     name: r.name,
     matches: Array.isArray(r.matches) ? r.matches : [],
-    params: (r.params && typeof r.params === 'object' ? r.params : {
-      baseStake: 20, targetProfit: 45, asymmetricMode: 'flat', enableBooster: false, boosterOdds: 1.10,
-    }) as SavedSlipParams,
+    params: (r.params && typeof r.params === 'object'
+      ? r.params
+      : {
+          baseStake: 20,
+          targetProfit: 45,
+          asymmetricMode: 'flat',
+          enableBooster: false,
+          boosterOdds: 1.1,
+        }) as SavedSlipParams,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
@@ -45,7 +53,9 @@ function rowToSlip(r: DbSavedSlipRow): SavedSlip {
 function loadLocal(): SavedSlip[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
+    if (!raw) {
+      return [];
+    }
     const arr = JSON.parse(raw);
     return Array.isArray(arr) ? (arr as SavedSlip[]) : [];
   } catch {
@@ -111,11 +121,17 @@ export function useSavedSlips(): UseSavedSlipsState {
         .from('saved_slips')
         .select('*')
         .order('created_at', { ascending: false });
-      if (selErr) throw new Error(selErr.message);
+      if (selErr) {
+        throw new Error(selErr.message);
+      }
       persist(((data ?? []) as DbSavedSlipRow[]).map(rowToSlip));
       setUsingFallback(false);
     } catch (e) {
-      setError(e instanceof Error ? `Sync cloud non riuscita (dati locali salvi): ${e.message}` : 'Errore caricamento schedine');
+      setError(
+        e instanceof Error
+          ? `Sync cloud non riuscita (dati locali salvi): ${e.message}`
+          : 'Errore caricamento schedine',
+      );
       persist(initial);
       setUsingFallback(true);
     } finally {
@@ -127,24 +143,45 @@ export function useSavedSlips(): UseSavedSlipsState {
     void refresh();
   }, [refresh]);
 
-  const cloud = useCallback(async (fn: (sb: NonNullable<ReturnType<typeof getSupabase>>) => Promise<{ error?: { message: string } | null } | void>) => {
-    const sb = getSupabase();
-    if (!sb) return;
-    try {
-      const { data: sessionData } = await sb.auth.getSession();
-      if (!sessionData.session) return;
-      const res = await fn(sb);
-      if (res && res.error) throw new Error(res.error.message);
-    } catch (e) {
-      setError(e instanceof Error ? `Sync cloud non riuscita (dati locali salvi): ${e.message}` : 'Sync cloud non riuscita');
-    }
-  }, []);
+  const cloud = useCallback(
+    async (
+      fn: (
+        sb: NonNullable<ReturnType<typeof getSupabase>>,
+      ) => Promise<{ error?: { message: string } | null } | void>,
+    ) => {
+      const sb = getSupabase();
+      if (!sb) {
+        return;
+      }
+      try {
+        const { data: sessionData } = await sb.auth.getSession();
+        if (!sessionData.session) {
+          return;
+        }
+        const res = await fn(sb);
+        if (res && res.error) {
+          throw new Error(res.error.message);
+        }
+      } catch (e) {
+        setError(
+          e instanceof Error
+            ? `Sync cloud non riuscita (dati locali salvi): ${e.message}`
+            : 'Sync cloud non riuscita',
+        );
+      }
+    },
+    [],
+  );
 
   const saveSlip = useCallback(
     async (input: CreateSlipInput): Promise<SavedSlip> => {
       const name = input.name.trim();
-      if (!name) throw new Error('Nome schedina obbligatorio');
-      if (!input.matches.length) throw new Error('Nessuna partita da salvare');
+      if (!name) {
+        throw new Error('Nome schedina obbligatorio');
+      }
+      if (!input.matches.length) {
+        throw new Error('Nessuna partita da salvare');
+      }
       const slip: SavedSlip = {
         id: uid(),
         name,
@@ -173,7 +210,9 @@ export function useSavedSlips(): UseSavedSlipsState {
   const overwriteSlip = useCallback(
     async (id: string, input: CreateSlipInput): Promise<void> => {
       const target = slips.find((s) => s.id === id);
-      if (!target) throw new Error('Schedina non trovata');
+      if (!target) {
+        throw new Error('Schedina non trovata');
+      }
       const updated: SavedSlip = {
         ...target,
         name: input.name.trim() || target.name,
@@ -183,7 +222,8 @@ export function useSavedSlips(): UseSavedSlipsState {
       };
       persist(slips.map((s) => (s.id === id ? updated : s)));
       await cloud(async (sb) => {
-        const { error: upErr } = await sb.from('saved_slips')
+        const { error: upErr } = await sb
+          .from('saved_slips')
           .update({ name: updated.name, matches: updated.matches, params: updated.params })
           .eq('id', id);
         return { error: upErr };
@@ -195,7 +235,9 @@ export function useSavedSlips(): UseSavedSlipsState {
   const renameSlip = useCallback(
     async (id: string, name: string): Promise<void> => {
       const clean = name.trim();
-      if (!clean) throw new Error('Nome schedina obbligatorio');
+      if (!clean) {
+        throw new Error('Nome schedina obbligatorio');
+      }
       persist(slips.map((s) => (s.id === id ? { ...s, name: clean, updatedAt: nowIso() } : s)));
       await cloud(async (sb) => {
         const { error: upErr } = await sb.from('saved_slips').update({ name: clean }).eq('id', id);
@@ -217,8 +259,28 @@ export function useSavedSlips(): UseSavedSlipsState {
   );
 
   const state = useMemo<UseSavedSlipsState>(
-    () => ({ slips, loading, error, usingFallback, refresh, saveSlip, overwriteSlip, renameSlip, deleteSlip }),
-    [slips, loading, error, usingFallback, refresh, saveSlip, overwriteSlip, renameSlip, deleteSlip],
+    () => ({
+      slips,
+      loading,
+      error,
+      usingFallback,
+      refresh,
+      saveSlip,
+      overwriteSlip,
+      renameSlip,
+      deleteSlip,
+    }),
+    [
+      slips,
+      loading,
+      error,
+      usingFallback,
+      refresh,
+      saveSlip,
+      overwriteSlip,
+      renameSlip,
+      deleteSlip,
+    ],
   );
   return state;
 }

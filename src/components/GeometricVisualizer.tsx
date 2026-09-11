@@ -28,13 +28,14 @@ export const GeometricVisualizer: React.FC<GeometricVisualizerProps> = ({
     return { x, y, step: s.step, cost: s.cumulativeCost, win: s.grossWin, roi: s.roiPercentage };
   });
 
-  const pathD = points.length > 0
-    ? `M ${points[0].x} ${points[0].y} ` +
-      points
-        .slice(1)
-        .map((p) => `L ${p.x} ${p.y}`)
-        .join(' ')
-    : 'M 0 180 Q 100 180, 200 100 T 400 20';
+  const pathD =
+    points.length > 0
+      ? `M ${points[0].x} ${points[0].y} ` +
+        points
+          .slice(1)
+          .map((p) => `L ${p.x} ${p.y}`)
+          .join(' ')
+      : 'M 0 180 Q 100 180, 200 100 T 400 20';
 
   const inflectionIdx = Math.floor(points.length / 2);
   const inflectionPoint = points[inflectionIdx] || { x: 230, y: 90 };
@@ -56,9 +57,7 @@ export const GeometricVisualizer: React.FC<GeometricVisualizerProps> = ({
           <span className="w-1.5 h-1.5 bg-[#3B82F6] rounded-full"></span>
           CURVA DI SCALARE E PUNTO DI INFLESSIONE
         </span>
-        <span className="text-[#3B82F6]">
-          Capitale Max Esposto: €{maxCost.toFixed(2)}
-        </span>
+        <span className="text-[#3B82F6]">Capitale Max Esposto: €{maxCost.toFixed(2)}</span>
       </div>
 
       {/* SVG Canvas */}
@@ -191,19 +190,27 @@ export const GeometricVisualizer: React.FC<GeometricVisualizerProps> = ({
       {/* 4 Phases Breakdown in geometric style */}
       <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-auto">
         <div className="border-t-2 border-[#3B82F6] pt-2 bg-[#0F1117]/60 p-2 rounded-xs border-x border-b border-[#2D3139]/40">
-          <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-mono">Fase 1</div>
+          <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-mono">
+            Fase 1
+          </div>
           <div className="text-xs font-semibold text-white">Copertura Base</div>
-          <div className="text-[10px] text-[#94A3B8] font-mono mt-0.5">Stake €{baseStake} // Under</div>
+          <div className="text-[10px] text-[#94A3B8] font-mono mt-0.5">
+            Stake €{baseStake} // Under
+          </div>
         </div>
 
         <div className="border-t-2 border-[#3B82F6] pt-2 bg-[#0F1117]/60 p-2 rounded-xs border-x border-b border-[#2D3139]/40">
-          <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-mono">Fase 2</div>
+          <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-mono">
+            Fase 2
+          </div>
           <div className="text-xs font-semibold text-white">Incremento α</div>
           <div className="text-[10px] text-[#3B82F6] font-mono mt-0.5">Scale 1.15x - 1.4x</div>
         </div>
 
         <div className="border-t-2 border-orange-400 pt-2 bg-[#0F1117]/60 p-2 rounded-xs border-x border-b border-[#2D3139]/40 opacity-90">
-          <div className="text-[10px] text-orange-400 uppercase tracking-wider font-mono">Fase 3</div>
+          <div className="text-[10px] text-orange-400 uppercase tracking-wider font-mono">
+            Fase 3
+          </div>
           <div className="text-xs font-semibold text-white">Saturazione</div>
           <div className="text-[10px] text-[#94A3B8] font-mono mt-0.5">Costo &gt; €100</div>
         </div>

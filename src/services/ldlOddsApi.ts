@@ -8,11 +8,7 @@ import {
   type RawLdlEvent,
   type RawLdlSite,
 } from '../engine/coverOddsFeed';
-import {
-  MOCK_LDL_COVERODDS,
-  MOCK_LDL_COVER_EVENTS,
-  MOCK_LDL_SITES,
-} from '../data/mockCoverOdds';
+import { MOCK_LDL_COVERODDS, MOCK_LDL_COVER_EVENTS, MOCK_LDL_SITES } from '../data/mockCoverOdds';
 
 // F5 client: Edge Function proxy (token Cognito server-side, auto-refresh).
 // Shape REALI confermate sull'API autenticata (2026-09-10):
@@ -33,12 +29,20 @@ export interface CoverOddsFetchResult {
   errors: string[];
 }
 
-async function fetchResource<T>(resource: string, signal: AbortSignal, extraParams?: Record<string, string>): Promise<T> {
+async function fetchResource<T>(
+  resource: string,
+  signal: AbortSignal,
+  extraParams?: Record<string, string>,
+): Promise<T> {
   const sb = getSupabase();
-  if (!sb || !isSupabaseConfigured) throw new Error('supabase non configurato');
+  if (!sb || !isSupabaseConfigured) {
+    throw new Error('supabase non configurato');
+  }
   const url = new URL((import.meta.env.VITE_SUPABASE_URL as string) + FN_PATH);
   url.searchParams.set('resource', resource);
-  for (const [k, v] of Object.entries(extraParams ?? {})) url.searchParams.set(k, v);
+  for (const [k, v] of Object.entries(extraParams ?? {})) {
+    url.searchParams.set(k, v);
+  }
   const { data: s } = await sb.auth.getSession();
   const res = await fetch(url.toString(), {
     headers: {
@@ -50,19 +54,27 @@ async function fetchResource<T>(resource: string, signal: AbortSignal, extraPara
     let detail = '';
     try {
       const body = await res.json();
-      if (body?.error) detail = `: ${body.error}`;
-    } catch { /* risposta non JSON: sotto resta solo lo status */ }
+      if (body?.error) {
+        detail = `: ${body.error}`;
+      }
+    } catch {
+      /* risposta non JSON: sotto resta solo lo status */
+    }
     throw new Error(`edge HTTP ${res.status} su ${resource}${detail}`);
   }
   const body = await res.json();
-  if (body.error) throw new Error(`${resource}: ${body.error}`);
+  if (body.error) {
+    throw new Error(`${resource}: ${body.error}`);
+  }
   return (Array.isArray(body.data) ? body.data : []) as T;
 }
 
 // F9: i problemi token non hanno senso da ritentare; timeout/rete/5xx/429 si'.
 function isRetryable(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e);
-  if (msg.includes('TOKEN')) return false;
+  if (msg.includes('TOKEN')) {
+    return false;
+  }
   return /abort|timeout|network|HTTP (5\d\d|429)/i.test(msg);
 }
 
@@ -78,7 +90,9 @@ async function fetchResourceWithRetry<T>(
     try {
       return await fetchResource<T>(resource, ctrl.signal, extraParams);
     } catch (e) {
-      if (!isRetryable(e) || i === attempts - 1) throw e;
+      if (!isRetryable(e) || i === attempts - 1) {
+        throw e;
+      }
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     } finally {
       clearTimeout(timer);
@@ -127,10 +141,18 @@ function buildPuntaPuntaQuery(p: CoverSuggestionParams): Record<string, string> 
     size: String(p.size ?? 100),
     page: String(p.page ?? 0),
   };
-  if (p.oddsMin !== undefined) query.oddsMin = String(p.oddsMin);
-  if (p.oddsMax !== undefined) query.oddsMax = String(p.oddsMax);
-  if (p.dateTo !== undefined) query.dateTo = p.dateTo;
-  if (p.dateFrom !== undefined) query.dateFrom = p.dateFrom;
+  if (p.oddsMin !== undefined) {
+    query.oddsMin = String(p.oddsMin);
+  }
+  if (p.oddsMax !== undefined) {
+    query.oddsMax = String(p.oddsMax);
+  }
+  if (p.dateTo !== undefined) {
+    query.dateTo = p.dateTo;
+  }
+  if (p.dateFrom !== undefined) {
+    query.dateFrom = p.dateFrom;
+  }
   return query;
 }
 
@@ -141,16 +163,28 @@ export async function fetchCoverSuggestions(
   p: CoverSuggestionParams,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<CoverOddsFetchResult> {
-  const covers = await fetchResourceWithRetry<RawLdlCoverOddsItem[]>('puntapunta', buildPuntaPuntaQuery(p), timeoutMs);
+  const covers = await fetchResourceWithRetry<RawLdlCoverOddsItem[]>(
+    'puntapunta',
+    buildPuntaPuntaQuery(p),
+    timeoutMs,
+  );
   const [sitesRes, eventsRes] = await Promise.allSettled([
     fetchResourceWithRetry<RawLdlSite[]>('sites', undefined, timeoutMs, 1),
     fetchResourceWithRetry<RawLdlEvent[]>('events', undefined, timeoutMs, 1),
   ]);
   const errors: string[] = [];
   const sites = sitesRes.status === 'fulfilled' ? sitesRes.value : [];
-  if (sitesRes.status === 'rejected') errors.push(`siti bookmaker non disponibili: ${sitesRes.reason instanceof Error ? sitesRes.reason.message : String(sitesRes.reason)}`);
+  if (sitesRes.status === 'rejected') {
+    errors.push(
+      `siti bookmaker non disponibili: ${sitesRes.reason instanceof Error ? sitesRes.reason.message : String(sitesRes.reason)}`,
+    );
+  }
   const events = eventsRes.status === 'fulfilled' ? eventsRes.value : [];
-  if (eventsRes.status === 'rejected') errors.push(`metadati eventi non disponibili: ${eventsRes.reason instanceof Error ? eventsRes.reason.message : String(eventsRes.reason)}`);
+  if (eventsRes.status === 'rejected') {
+    errors.push(
+      `metadati eventi non disponibili: ${eventsRes.reason instanceof Error ? eventsRes.reason.message : String(eventsRes.reason)}`,
+    );
+  }
   const sitesById = buildSitesIndex(sites);
   const eventsById = new Map(events.map((e) => [String(e.id), e]));
   const matches = normalizeCoverOddsItems(covers, {
@@ -186,7 +220,9 @@ export async function fetchCoverFeed(
 }
 
 // Bookmaker attivi LDL (type=bookmaker) per i selettori coppia book.
-export async function fetchLdlBookmakers(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Array<{ id: number; name: string }>> {
+export async function fetchLdlBookmakers(
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<Array<{ id: number; name: string }>> {
   const sites = await fetchResourceWithRetry<RawLdlSite[]>('sites', undefined, timeoutMs, 2);
   return sites
     .filter((s) => s.type === 'bookmaker' && s.name)

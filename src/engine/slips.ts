@@ -21,32 +21,52 @@ export function generateCustomSlips(
   targetProfit: number,
   asymmetricMode: AsymmetricMode = 'flat',
   enableBooster: boolean = false,
-  boosterOdds: number = 1.10,
-  boosterThresholdEvents: number = 4
+  boosterOdds: number = 1.1,
+  boosterThresholdEvents: number = 4,
 ): CustomSlipsResult {
   const N = matches.length;
   if (N === 0) {
     const emptySlip: GeneratedSlip = {
-      id: 's0', step: 0, type: 'MOTHER',
-      title: 'Schedina Madre (Nessuna Partita)', code: 'S0',
-      timing: 'Non definita', items: [], eventCount: 0,
-      rawMultiplier: 1, bonusPercentage: 0, finalMultiplier: 1,
-      stake: baseStake, targetProfit, cumulativeCost: baseStake,
-      potentialGrossPayout: 0, potentialNetProfit: 0, status: 'PENDING',
+      id: 's0',
+      step: 0,
+      type: 'MOTHER',
+      title: 'Schedina Madre (Nessuna Partita)',
+      code: 'S0',
+      timing: 'Non definita',
+      items: [],
+      eventCount: 0,
+      rawMultiplier: 1,
+      bonusPercentage: 0,
+      finalMultiplier: 1,
+      stake: baseStake,
+      targetProfit,
+      cumulativeCost: baseStake,
+      potentialGrossPayout: 0,
+      potentialNetProfit: 0,
+      status: 'PENDING',
     };
     return {
-      motherSlip: emptySlip, coverageSlips: [],
-      totalInvestedSoFar: baseStake, maxPotentialExposure: baseStake,
-      currentActiveSlipCode: 'S0', hasOverOccurred: false,
-      firstOverIndex: null, overallStatus: 'IN_PLAY',
-      winningSlipCode: null, netGainRealized: null,
+      motherSlip: emptySlip,
+      coverageSlips: [],
+      totalInvestedSoFar: baseStake,
+      maxPotentialExposure: baseStake,
+      currentActiveSlipCode: 'S0',
+      hasOverOccurred: false,
+      firstOverIndex: null,
+      overallStatus: 'IN_PLAY',
+      winningSlipCode: null,
+      netGainRealized: null,
     };
   }
 
   const motherItems: GeneratedSlipItem[] = matches.map((m) => ({
-    matchId: m.id, matchOrder: m.order, homeTeam: m.homeTeam,
-    awayTeam: m.awayTeam, timeSlot: m.timeSlot, market: 'UNDER 3.5',
-    odds: Number(m.underOdds) || 1.30,
+    matchId: m.id,
+    matchOrder: m.order,
+    homeTeam: m.homeTeam,
+    awayTeam: m.awayTeam,
+    timeSlot: m.timeSlot,
+    market: 'UNDER 3.5',
+    odds: Number(m.underOdds) || 1.3,
   }));
 
   const motherRawMultiplier = motherItems.reduce((acc, it) => acc * it.odds, 1);
@@ -62,18 +82,29 @@ export function generateCustomSlips(
   const allUnder = allResolved && !hasOver;
 
   let motherStatus: 'PENDING' | 'ACTIVE' | 'WON' | 'LOST' = 'ACTIVE';
-  if (allUnder) motherStatus = 'WON';
-  else if (hasOver) motherStatus = 'LOST';
+  if (allUnder) {
+    motherStatus = 'WON';
+  } else if (hasOver) {
+    motherStatus = 'LOST';
+  }
 
   const motherSlip: GeneratedSlip = {
-    id: 'slip-mother', step: 0, type: 'MOTHER',
-    title: `Schedina Madre (${N} Match UNDER 3.5)`, code: 'S0',
+    id: 'slip-mother',
+    step: 0,
+    type: 'MOTHER',
+    title: `Schedina Madre (${N} Match UNDER 3.5)`,
+    code: 'S0',
     timing: `Piazzare prima del Match 1 (${matches[0]?.timeSlot || 'Inizio'})`,
-    items: motherItems, eventCount: N,
+    items: motherItems,
+    eventCount: N,
     rawMultiplier: Number(motherRawMultiplier.toFixed(2)),
-    bonusPercentage: motherBonus, finalMultiplier: motherFinalMultiplier,
-    stake: baseStake, targetProfit: motherNet, cumulativeCost: baseStake,
-    potentialGrossPayout: motherGross, potentialNetProfit: motherNet,
+    bonusPercentage: motherBonus,
+    finalMultiplier: motherFinalMultiplier,
+    stake: baseStake,
+    targetProfit: motherNet,
+    cumulativeCost: baseStake,
+    potentialGrossPayout: motherGross,
+    potentialNetProfit: motherNet,
     status: motherStatus,
   };
 
@@ -88,18 +119,24 @@ export function generateCustomSlips(
 
     const items: GeneratedSlipItem[] = [];
     items.push({
-      matchId: currentMatch.id, matchOrder: currentMatch.order,
-      homeTeam: currentMatch.homeTeam, awayTeam: currentMatch.awayTeam,
-      timeSlot: currentMatch.timeSlot, market: 'OVER 3.5',
+      matchId: currentMatch.id,
+      matchOrder: currentMatch.order,
+      homeTeam: currentMatch.homeTeam,
+      awayTeam: currentMatch.awayTeam,
+      timeSlot: currentMatch.timeSlot,
+      market: 'OVER 3.5',
       odds: Number(currentMatch.overOdds) || 3.0,
     });
     for (let j = k; j < N; j++) {
       const nextMatch = matches[j];
       items.push({
-        matchId: nextMatch.id, matchOrder: nextMatch.order,
-        homeTeam: nextMatch.homeTeam, awayTeam: nextMatch.awayTeam,
-        timeSlot: nextMatch.timeSlot, market: 'UNDER 3.5',
-        odds: Number(nextMatch.underOdds) || 1.30,
+        matchId: nextMatch.id,
+        matchOrder: nextMatch.order,
+        homeTeam: nextMatch.homeTeam,
+        awayTeam: nextMatch.awayTeam,
+        timeSlot: nextMatch.timeSlot,
+        market: 'UNDER 3.5',
+        odds: Number(nextMatch.underOdds) || 1.3,
       });
     }
 
@@ -107,9 +144,12 @@ export function generateCustomSlips(
     const shouldAddBooster = Boolean(enableBooster && baseEventCount <= boosterThresholdEvents);
     if (shouldAddBooster) {
       items.push({
-        matchId: `booster-k${k}`, matchOrder: 99,
-        homeTeam: 'Evento Booster', awayTeam: '(1X / Doppia Chance)',
-        timeSlot: currentMatch.timeSlot, market: 'BOOSTER 1X/12',
+        matchId: `booster-k${k}`,
+        matchOrder: 99,
+        homeTeam: 'Evento Booster',
+        awayTeam: '(1X / Doppia Chance)',
+        timeSlot: currentMatch.timeSlot,
+        market: 'BOOSTER 1X/12',
         odds: boosterOdds,
       });
     }
@@ -125,33 +165,45 @@ export function generateCustomSlips(
     }
     const stake = roundToFiftyCents(rawStake);
     const potentialGrossPayout = Number((stake * finalMultiplier).toFixed(2));
-    const potentialNetProfit = Number((potentialGrossPayout - (runningCumulativeCost + stake)).toFixed(2));
+    const potentialNetProfit = Number(
+      (potentialGrossPayout - (runningCumulativeCost + stake)).toFixed(2),
+    );
 
     let slipStatus: 'PENDING' | 'ACTIVE' | 'WON' | 'LOST' = 'PENDING';
     if (currentMatch.outcome === 'OVER') {
-      if (firstOverIdx === matchIdx) slipStatus = 'WON';
-      else slipStatus = 'LOST';
+      if (firstOverIdx === matchIdx) {
+        slipStatus = 'WON';
+      } else {
+        slipStatus = 'LOST';
+      }
     } else if (currentMatch.outcome === 'UNDER') {
       slipStatus = 'LOST';
     } else if (!hasOver) {
       const earlierResolved = matches.slice(0, matchIdx).every((m) => m.outcome === 'UNDER');
-      if (earlierResolved) slipStatus = 'ACTIVE';
+      if (earlierResolved) {
+        slipStatus = 'ACTIVE';
+      }
     }
 
     coverageSlips.push({
-      id: `slip-c${k}`, step: k,
+      id: `slip-c${k}`,
+      step: k,
       type: isFinalSingle ? 'FINAL_SINGLE' : 'COVERAGE',
       title: isFinalSingle
         ? `Singola Finale Chiusura (${currentMatch.homeTeam} - ${currentMatch.awayTeam})`
         : `Copertura C${k} (${currentMatch.homeTeam} - ${currentMatch.awayTeam} OVER + Restanti UNDER)`,
       code: `C${k}`,
       timing: `Piazzare prima di ${currentMatch.homeTeam} - ${currentMatch.awayTeam} (${currentMatch.timeSlot})`,
-      items, eventCount: items.length,
+      items,
+      eventCount: items.length,
       rawMultiplier: Number(rawMultiplier.toFixed(2)),
-      bonusPercentage: bonus, finalMultiplier,
-      stake, targetProfit: stepTarget,
+      bonusPercentage: bonus,
+      finalMultiplier,
+      stake,
+      targetProfit: stepTarget,
       cumulativeCost: Number(runningCumulativeCost.toFixed(2)),
-      potentialGrossPayout, potentialNetProfit,
+      potentialGrossPayout,
+      potentialNetProfit,
       status: slipStatus,
     });
     runningCumulativeCost = Number((runningCumulativeCost + stake).toFixed(2));
@@ -166,7 +218,9 @@ export function generateCustomSlips(
 
   let currentActiveSlipCode = 'S0';
   const activeCoverage = coverageSlips.find((s) => s.status === 'ACTIVE');
-  if (activeCoverage) currentActiveSlipCode = activeCoverage.code;
+  if (activeCoverage) {
+    currentActiveSlipCode = activeCoverage.code;
+  }
 
   let overallStatus: 'IN_PLAY' | 'WON_MOTHER' | 'WON_COVERAGE' | 'LOST_MULTIPLE_OVERS' = 'IN_PLAY';
   let winningSlipCode: string | null = null;
@@ -189,11 +243,15 @@ export function generateCustomSlips(
   }
 
   return {
-    motherSlip, coverageSlips,
+    motherSlip,
+    coverageSlips,
     totalInvestedSoFar: Number(actualInvestedSoFar.toFixed(2)),
     maxPotentialExposure: Number(runningCumulativeCost.toFixed(2)),
-    currentActiveSlipCode, hasOverOccurred: hasOver,
-    firstOverIndex: firstOverIdx, overallStatus,
-    winningSlipCode, netGainRealized,
+    currentActiveSlipCode,
+    hasOverOccurred: hasOver,
+    firstOverIndex: firstOverIdx,
+    overallStatus,
+    winningSlipCode,
+    netGainRealized,
   };
 }

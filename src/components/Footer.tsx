@@ -26,7 +26,9 @@ export const Footer: React.FC<FooterProps> = ({ currentView, onViewChange }) => 
           <div className="text-[10px] text-[#64748B] uppercase tracking-wider font-mono">
             Architettura Calcolo
           </div>
-          <div className="text-xs sm:text-sm font-mono text-[#3B82F6]">Dutching Esponenziale v4.2</div>
+          <div className="text-xs sm:text-sm font-mono text-[#3B82F6]">
+            Dutching Esponenziale v4.2
+          </div>
         </div>
       </div>
 

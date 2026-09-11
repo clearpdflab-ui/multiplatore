@@ -15,7 +15,9 @@ export interface OddsFetchResult {
 
 async function fetchEdge(eventIds: number[], timeoutMs = 15000): Promise<OddsFetchResult> {
   const sb = getSupabase();
-  if (!sb || !isSupabaseConfigured) throw new Error('supabase non configurato');
+  if (!sb || !isSupabaseConfigured) {
+    throw new Error('supabase non configurato');
+  }
   const url = (import.meta.env.VITE_SUPABASE_URL as string) + FN_PATH;
   const { data: s } = await sb.auth.getSession();
   const ctrl = new AbortController();
@@ -30,7 +32,9 @@ async function fetchEdge(eventIds: number[], timeoutMs = 15000): Promise<OddsFet
       body: JSON.stringify({ eventIds }),
       signal: ctrl.signal,
     });
-    if (!res.ok) throw new Error(`edge HTTP ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`edge HTTP ${res.status}`);
+    }
     const body = await res.json();
     const raw = Array.isArray(body.data) ? (body.data as RawEventOdds[]) : [];
     return {

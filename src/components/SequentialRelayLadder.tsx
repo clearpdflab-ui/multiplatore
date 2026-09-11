@@ -1,16 +1,29 @@
 import React, { useState, useMemo } from 'react';
 import { ModelParameters, buildSequentialTimeline, getBonusPercentage } from '../utils/mathEngine';
-import { Clock, ArrowRight, CheckCircle2, RotateCcw, Play, AlertCircle, Shield, Award, Sparkles } from 'lucide-react';
+import {
+  Clock,
+  ArrowRight,
+  CheckCircle2,
+  RotateCcw,
+  Play,
+  AlertCircle,
+  Shield,
+  Award,
+  Sparkles,
+} from 'lucide-react';
 
 interface SequentialRelayLadderProps {
   params: ModelParameters;
   onParamsChange?: (newParams: ModelParameters) => void;
 }
 
-export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ params, onParamsChange }) => {
+export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({
+  params,
+  onParamsChange,
+}) => {
   // Outcomes array for sequential matches
   const [matchOutcomes, setMatchOutcomes] = useState<('UNDER' | 'OVER' | 'PENDING')[]>(() =>
-    Array(params.totalEvents).fill('PENDING')
+    Array(params.totalEvents).fill('PENDING'),
   );
 
   // Active step in interactive manual walk-through
@@ -34,14 +47,18 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
     setMatchOutcomes(Array(params.totalEvents).fill('PENDING'));
   };
 
-  const applyPresetScenario = (scenario: 'clean_all_under' | 'over_match_1' | 'over_match_4' | 'final_single_over') => {
+  const applyPresetScenario = (
+    scenario: 'clean_all_under' | 'over_match_1' | 'over_match_4' | 'final_single_over',
+  ) => {
     const arr: ('UNDER' | 'OVER' | 'PENDING')[] = Array(params.totalEvents).fill('UNDER');
     if (scenario === 'clean_all_under') {
       // all under
     } else if (scenario === 'over_match_1') {
       arr[0] = 'OVER';
     } else if (scenario === 'over_match_4') {
-      if (arr.length >= 4) arr[3] = 'OVER';
+      if (arr.length >= 4) {
+        arr[3] = 'OVER';
+      }
     } else if (scenario === 'final_single_over') {
       arr[params.totalEvents - 1] = 'OVER';
     }
@@ -58,13 +75,20 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
               <span className="px-2 py-0.5 bg-[#3B82F6]/20 text-[#3B82F6] border border-[#3B82F6]/40 text-[10px] font-mono font-bold uppercase tracking-wider rounded-xs">
                 Architettura a Scalare Sequenziale
               </span>
-              <span className="text-xs text-[#94A3B8] font-mono">Cadenza: 2 Ore tra le Partite</span>
+              <span className="text-xs text-[#94A3B8] font-mono">
+                Cadenza: 2 Ore tra le Partite
+              </span>
             </div>
             <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
               Relay Dinamico a Sostituzione & Singola Finale
             </h2>
             <p className="text-xs sm:text-sm text-[#94A3B8] mt-1 max-w-3xl leading-relaxed">
-              Le coperture <strong className="text-white">non vengono piazzate tutte insieme</strong>, ma una alla volta ogni 2 ore, solo dopo aver conosciuto l&apos;esito del match precedente. Se un match termina Over, la copertura subentra come nuova schedina madre attiva e continua a essere protetta fino alla <strong className="text-emerald-400">singola finale</strong>.
+              Le coperture{' '}
+              <strong className="text-white">non vengono piazzate tutte insieme</strong>, ma una
+              alla volta ogni 2 ore, solo dopo aver conosciuto l&apos;esito del match precedente. Se
+              un match termina Over, la copertura subentra come nuova schedina madre attiva e
+              continua a essere protetta fino alla{' '}
+              <strong className="text-emerald-400">singola finale</strong>.
             </p>
           </div>
 
@@ -75,9 +99,16 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
               <span>Regola Bonus Multipla</span>
             </div>
             <div className="text-[11px] font-mono text-[#94A3B8] space-y-0.5">
-              <div>≥ 8 Eventi: <span className="text-emerald-400 font-bold">+26.2%</span></div>
-              <div>5, 6, 7 Eventi: <span className="text-[#3B82F6] font-bold">+6% / +12% / +18%</span></div>
-              <div>&lt; 5 Eventi: <span className="text-red-400 font-bold">0% Bonus (Nessun Bonus)</span></div>
+              <div>
+                ≥ 8 Eventi: <span className="text-emerald-400 font-bold">+26.2%</span>
+              </div>
+              <div>
+                5, 6, 7 Eventi: <span className="text-[#3B82F6] font-bold">+6% / +12% / +18%</span>
+              </div>
+              <div>
+                &lt; 5 Eventi:{' '}
+                <span className="text-red-400 font-bold">0% Bonus (Nessun Bonus)</span>
+              </div>
             </div>
           </div>
         </div>
@@ -137,7 +168,11 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
               </span>
             </div>
             <p className="text-xs text-[#94A3B8] leading-relaxed max-w-2xl">
-              Aggiungendo un evento a quota minima (es. 1.10 tipo 1X o Over 0.5) quando gli eventi calano, la quota finale sale, <strong className="text-emerald-400">abbattendo lo stake richiesto</strong> e permettendo a 4 eventi di diventare 5 per <strong className="text-[#3B82F6]">riattivare il bonus multipla (+6%)</strong>!
+              Aggiungendo un evento a quota minima (es. 1.10 tipo 1X o Over 0.5) quando gli eventi
+              calano, la quota finale sale,{' '}
+              <strong className="text-emerald-400">abbattendo lo stake richiesto</strong> e
+              permettendo a 4 eventi di diventare 5 per{' '}
+              <strong className="text-[#3B82F6]">riattivare il bonus multipla (+6%)</strong>!
             </p>
           </div>
 
@@ -153,7 +188,7 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
                     onParamsChange({
                       ...params,
                       enableBooster: !params.enableBooster,
-                      boosterOdds: params.boosterOdds || 1.10,
+                      boosterOdds: params.boosterOdds || 1.1,
                     });
                   }
                 }}
@@ -177,12 +212,14 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
                     onParamsChange({
                       ...params,
                       enableBooster: !params.enableBooster,
-                      boosterOdds: params.boosterOdds || 1.10,
+                      boosterOdds: params.boosterOdds || 1.1,
                     });
                   }
                 }}
               >
-                <Sparkles className={`w-3.5 h-3.5 ${params.enableBooster ? 'text-emerald-400 animate-pulse' : 'text-[#64748B]'}`} />
+                <Sparkles
+                  className={`w-3.5 h-3.5 ${params.enableBooster ? 'text-emerald-400 animate-pulse' : 'text-[#64748B]'}`}
+                />
                 <span className="font-bold text-xs text-white">Boost 1.10:</span>
                 <span
                   className={`px-1.5 py-0.2 text-[10px] font-bold uppercase rounded-xs ${
@@ -200,7 +237,7 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
             {params.enableBooster && (
               <div className="flex items-center gap-1.5 bg-[#0F1117] border border-[#2D3139] p-1.5 rounded-xs text-xs font-mono">
                 <span className="text-[11px] text-[#64748B] pl-1">Quota:</span>
-                {[1.08, 1.10, 1.15].map((q) => (
+                {[1.08, 1.1, 1.15].map((q) => (
                   <button
                     key={q}
                     onClick={() => {
@@ -212,7 +249,7 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
                       }
                     }}
                     className={`px-2 py-0.5 rounded-xs transition-colors ${
-                      (params.boosterOdds || 1.10) === q
+                      (params.boosterOdds || 1.1) === q
                         ? 'bg-[#3B82F6] text-white font-bold'
                         : 'text-[#94A3B8] hover:text-white'
                     }`}
@@ -229,11 +266,13 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
         {params.enableBooster && (
           <div className="mt-3 pt-3 border-t border-[#2D3139] grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
             <div className="p-2.5 bg-[#0F1117] border border-[#2D3139] rounded-xs">
-              <div className="text-[10px] text-[#64748B] uppercase">Vantaggio 1: Singola Finale</div>
+              <div className="text-[10px] text-[#64748B] uppercase">
+                Vantaggio 1: Singola Finale
+              </div>
               <div className="text-white font-bold mt-0.5">
                 Quota sale da {params.finalSingleOdds?.toFixed(2) || '2.75'} a{' '}
                 <span className="text-emerald-400 font-bold">
-                  {((params.finalSingleOdds || 2.75) * (params.boosterOdds || 1.10)).toFixed(2)}
+                  {((params.finalSingleOdds || 2.75) * (params.boosterOdds || 1.1)).toFixed(2)}
                 </span>
               </div>
               <div className="text-[11px] text-emerald-400/90 mt-0.5">
@@ -242,9 +281,12 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
             </div>
 
             <div className="p-2.5 bg-[#0F1117] border border-[#2D3139] rounded-xs">
-              <div className="text-[10px] text-[#64748B] uppercase">Vantaggio 2: Recupero Bonus Multipla</div>
+              <div className="text-[10px] text-[#64748B] uppercase">
+                Vantaggio 2: Recupero Bonus Multipla
+              </div>
               <div className="text-white font-bold mt-0.5">
-                Step 5 (4 ev.) + 1 Booster = <span className="text-[#3B82F6]">5 Eventi (+6% Bonus)</span>
+                Step 5 (4 ev.) + 1 Booster ={' '}
+                <span className="text-[#3B82F6]">5 Eventi (+6% Bonus)</span>
               </div>
               <div className="text-[11px] text-[#94A3B8] mt-0.5">
                 Elimina il salto a 0% bonus sullo Step 5
@@ -252,10 +294,10 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
             </div>
 
             <div className="p-2.5 bg-red-950/20 border border-red-500/30 rounded-xs">
-              <div className="text-[10px] text-red-400 uppercase font-semibold">⚠️ Controindicazione Matematica</div>
-              <div className="text-red-300 font-bold mt-0.5">
-                Rischio Fallimento Booster: ~9.1%
+              <div className="text-[10px] text-red-400 uppercase font-semibold">
+                ⚠️ Controindicazione Matematica
               </div>
+              <div className="text-red-300 font-bold mt-0.5">Rischio Fallimento Booster: ~9.1%</div>
               <div className="text-[11px] text-red-400/80 mt-0.5">
                 Se l&apos;evento a 1.10 salta, perdi l&apos;intera copertura!
               </div>
@@ -271,7 +313,8 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
             <span>Sequenza Oraria Partite (+2 Ore ad ogni Step)</span>
           </h3>
           <span className="text-xs font-mono text-[#64748B]">
-            Capitale Progressivo Attualmente Impegnato: <strong className="text-white">€{simulation.totalSpentSoFar.toFixed(2)}</strong>
+            Capitale Progressivo Attualmente Impegnato:{' '}
+            <strong className="text-white">€{simulation.totalSpentSoFar.toFixed(2)}</strong>
           </span>
         </div>
 
@@ -288,8 +331,8 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
                   isCurrentPending
                     ? 'bg-[#141824] border-[#3B82F6] shadow-sm shadow-[#3B82F6]/10'
                     : isPast
-                    ? 'bg-[#0F1117] border-[#2D3139]'
-                    : 'bg-[#0A0B10] border-[#20242C] opacity-75'
+                      ? 'bg-[#0F1117] border-[#2D3139]'
+                      : 'bg-[#0A0B10] border-[#20242C] opacity-75'
                 }`}
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
@@ -318,7 +361,7 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
                         {/* Booster Badge */}
                         {step.hasBooster && (
                           <span className="text-[10px] font-mono px-1.5 py-0.2 bg-[#3B82F6]/20 text-[#3B82F6] border border-[#3B82F6]/40 rounded-xs font-bold">
-                            + Booster {(params.boosterOdds || 1.10).toFixed(2)}
+                            + Booster {(params.boosterOdds || 1.1).toFixed(2)}
                           </span>
                         )}
 
@@ -335,14 +378,31 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
                       </div>
 
                       <p className="text-xs text-[#94A3B8] font-mono mb-1">
-                        <strong className="text-[#E0E2E7]">Copertura:</strong> {step.coverageTicketDesc}
+                        <strong className="text-[#E0E2E7]">Copertura:</strong>{' '}
+                        {step.coverageTicketDesc}
                       </p>
 
                       <div className="flex flex-wrap items-center gap-3 text-[11px] font-mono text-[#64748B]">
-                        <span>Quota Reale: <strong className="text-white">{step.rawOdds.toFixed(2)}</strong></span>
-                        <span>Quota Finale + Bonus: <strong className="text-emerald-400">{step.finalOddsWithBonus.toFixed(2)}</strong></span>
-                        <span>Target Utile: <strong className="text-amber-400">€{(step.stepTargetProfit ?? params.targetProfit).toFixed(2)}</strong></span>
-                        <span>Puntata Calcolata: <strong className="text-[#3B82F6]">€{step.stake.toFixed(2)}</strong></span>
+                        <span>
+                          Quota Reale:{' '}
+                          <strong className="text-white">{step.rawOdds.toFixed(2)}</strong>
+                        </span>
+                        <span>
+                          Quota Finale + Bonus:{' '}
+                          <strong className="text-emerald-400">
+                            {step.finalOddsWithBonus.toFixed(2)}
+                          </strong>
+                        </span>
+                        <span>
+                          Target Utile:{' '}
+                          <strong className="text-amber-400">
+                            €{(step.stepTargetProfit ?? params.targetProfit).toFixed(2)}
+                          </strong>
+                        </span>
+                        <span>
+                          Puntata Calcolata:{' '}
+                          <strong className="text-[#3B82F6]">€{step.stake.toFixed(2)}</strong>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -385,7 +445,10 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
                             <>
                               <Shield className="w-4 h-4 text-[#3B82F6]" />
                               <span>
-                                Esito: OVER 3.5 &rarr; {isSingleFinal ? 'Vince Singola Finale!' : 'Copertura Diventa Schedina Madre!'}
+                                Esito: OVER 3.5 &rarr;{' '}
+                                {isSingleFinal
+                                  ? 'Vince Singola Finale!'
+                                  : 'Copertura Diventa Schedina Madre!'}
                               </span>
                             </>
                           )}
@@ -425,7 +488,12 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
                 Tutte le coperture si sono alternate fino all&apos;evento finale
               </h3>
               <p className="text-xs text-[#94A3B8] mt-1 font-mono">
-                Incasso Lordo: <span className="text-white font-bold">€{simulation.finalPayout.toFixed(2)}</span> &bull; Spesa Totale Cumulata: <span className="text-white font-bold">€{simulation.totalSpentSoFar.toFixed(2)}</span>
+                Incasso Lordo:{' '}
+                <span className="text-white font-bold">€{simulation.finalPayout.toFixed(2)}</span>{' '}
+                &bull; Spesa Totale Cumulata:{' '}
+                <span className="text-white font-bold">
+                  €{simulation.totalSpentSoFar.toFixed(2)}
+                </span>
               </p>
             </div>
 
@@ -450,10 +518,15 @@ export const SequentialRelayLadder: React.FC<SequentialRelayLadderProps> = ({ pa
           Analisi dell&apos;Efficienza Finanziaria tra le 2 Ore:
         </div>
         <p className="leading-relaxed">
-          1. <strong>Vantaggio del Relay Sequenziale (2 ore):</strong> Non si investono tutti i soldi subito. Se le prime partite escono Under, la spesa rimane bassa e si impegna capitale solo se e quando necessario.
+          1. <strong>Vantaggio del Relay Sequenziale (2 ore):</strong> Non si investono tutti i
+          soldi subito. Se le prime partite escono Under, la spesa rimane bassa e si impegna
+          capitale solo se e quando necessario.
         </p>
         <p className="leading-relaxed">
-          2. <strong>Il Punto Debole Finale (La Perdita del Bonus):</strong> Quando si scende sotto i 5 eventi (Match 5, 6, 7 e la Singola Finale), il moltiplicatore perde il bonus (passa a 0%). Contemporaneamente la quota complessiva crolla (da ~26.0 a ~3.00). Per recuperare le puntate precedenti e garantire utile, la puntata sulla singola finale sale sensibilmente.
+          2. <strong>Il Punto Debole Finale (La Perdita del Bonus):</strong> Quando si scende sotto
+          i 5 eventi (Match 5, 6, 7 e la Singola Finale), il moltiplicatore perde il bonus (passa a
+          0%). Contemporaneamente la quota complessiva crolla (da ~26.0 a ~3.00). Per recuperare le
+          puntate precedenti e garantire utile, la puntata sulla singola finale sale sensibilmente.
         </p>
       </div>
     </div>

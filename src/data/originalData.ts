@@ -7,7 +7,7 @@ export const ORIGINAL_BASE_BET = {
   csvTotalOdds: 11.88, // In CSV: 9 * 1.32 = 11.88
   realTotalOdds: 12.028, // In reality: 1.32^9 = 12.028
   stake: 20,
-  csvWin: 237.60,
+  csvWin: 237.6,
   realWin: 240.56,
   bonusLabel: 'Bonus 26.2% su 8 partite',
   csvWinWithBonus: 299.376,
@@ -23,9 +23,9 @@ export const ORIGINAL_CSV_STEPS: OriginalCsvStep[] = [
     csvOdds: 13.56, // 3 + 8*1.32 = 13.56
     realOdds: 27.336, // 3 * 1.32^8 = 27.336
     csvStake: 5.0,
-    csvWin: 67.80,
+    csvWin: 67.8,
     csvTotalCost: 25.0,
-    csvNetProfit: 42.80,
+    csvNetProfit: 42.8,
     optimalStakeReal: 2.65,
     optimalWinReal: 72.44,
   },
@@ -65,12 +65,12 @@ export const ORIGINAL_CSV_STEPS: OriginalCsvStep[] = [
     nUnder: 5,
     qUnder: 1.32,
     qOver: 3.0,
-    csvOdds: 9.60, // 3 + 5*1.32 = 9.60
+    csvOdds: 9.6, // 3 + 5*1.32 = 9.60
     realOdds: 11.885, // 3 * 1.32^5 = 11.885
     csvStake: 10.5,
-    csvWin: 100.80,
+    csvWin: 100.8,
     csvTotalCost: 50.0,
-    csvNetProfit: 50.80,
+    csvNetProfit: 50.8,
     optimalStakeReal: 9.19,
     optimalWinReal: 109.22,
   },
@@ -144,7 +144,8 @@ export const WEAK_POINTS: WeakPoint[] = [
     tag: 'Formula Errata nel CSV',
     description:
       'Nelle scommesse sportive le quote di una multipla si moltiplicano in modo esponenziale (Q_tot = q1 × q2 × ... × qn). Nel foglio CSV le quote sono state calcolate per somma lineare (es. 9 × 1,32 = 11,88 invece di 1,32⁹ = 12,03, e per la Copertura 1: 3 + 8×1,32 = 13,56 invece di 3 × 1,32⁸ = 27,34).',
-    mathProof: 'Nel CSV: Q = 3 + (8 × 1.32) = 13.56. Reale: Q = 3 × (1.32)^8 = 27.34 (+101.6% di differenza sulla prima copertura!).',
+    mathProof:
+      'Nel CSV: Q = 3 + (8 × 1.32) = 13.56. Reale: Q = 3 × (1.32)^8 = 27.34 (+101.6% di differenza sulla prima copertura!).',
     suggestedFix:
       'Utilizzare la formula esponenziale corretta. Con la quota reale di 27.34, per ottenere lo stesso utile di ~45€ basta puntare 2.65€ invece dei 5.00€ calcolati nel foglio, dimezzando il capitale esposto!',
   },
@@ -154,9 +155,9 @@ export const WEAK_POINTS: WeakPoint[] = [
     severity: 'critical',
     tag: 'Rischio Catastrofico',
     description:
-      'Tutte le schedine di copertura nel foglio coprono ESATTAMENTE 1 singolo Over 3.5 e 8 Under 3.5. Se si verificano 2 o più Over 3.5 su 9 partite, SALTA SIA LA MULTIPLA PRINCIPALE SIA TUTTE LE COPERTURE, con perdita secca del 100% dell\'intero capitale impegnato (da 25€ fino a 279€/330€).',
+      "Tutte le schedine di copertura nel foglio coprono ESATTAMENTE 1 singolo Over 3.5 e 8 Under 3.5. Se si verificano 2 o più Over 3.5 su 9 partite, SALTA SIA LA MULTIPLA PRINCIPALE SIA TUTTE LE COPERTURE, con perdita secca del 100% dell'intero capitale impegnato (da 25€ fino a 279€/330€).",
     mathProof:
-      'Con P(Under)=0.73 e P(Over)=0.27, per la distribuzione binomiale: P(0 Over)=6.2%, P(1 Over)=20.7%, mentre P(≥ 2 Over) = 73.1%! C\'è oltre il 73% di probabilità teorica che l\'intero sistema fallisca simultaneamente se giocato pre-match.',
+      "Con P(Under)=0.73 e P(Over)=0.27, per la distribuzione binomiale: P(0 Over)=6.2%, P(1 Over)=20.7%, mentre P(≥ 2 Over) = 73.1%! C'è oltre il 73% di probabilità teorica che l'intero sistema fallisca simultaneamente se giocato pre-match.",
     suggestedFix:
       'Trasformare la copertura in una "Scalare Sequenziale Temporale (Live)": NON giocare tutte le coperture prima dell\'inizio, ma scaglionare gli eventi nel tempo e coprire solo l\'evento successivo se quelli precedenti sono passati.',
   },
@@ -166,7 +167,7 @@ export const WEAK_POINTS: WeakPoint[] = [
     severity: 'high',
     tag: 'Inefficienza di Capitale',
     description:
-      'Se le coperture vengono piazzate tutte insieme prima dell\'inizio delle partite, si bloccano subito oltre 159€ - 279€. Ma se la Partita 1 finisce Over 3.5, hai già sprecato le puntate sulle coperture 2, 3, 4, 5, 6, 7 e 8!',
+      "Se le coperture vengono piazzate tutte insieme prima dell'inizio delle partite, si bloccano subito oltre 159€ - 279€. Ma se la Partita 1 finisce Over 3.5, hai già sprecato le puntate sulle coperture 2, 3, 4, 5, 6, 7 e 8!",
     mathProof:
       'Costo totale pre-match = 20€ + 5€ + 6.5€ + 8€ + 10.5€ + 14€ + 19€ + 29€ + 47€ = 159€ (o fino a 279€-330€ nel CSV). Il capitale a rischio sale a 8x lo stake base.',
     suggestedFix:
@@ -178,7 +179,7 @@ export const WEAK_POINTS: WeakPoint[] = [
     severity: 'high',
     tag: 'Svantaggio Matematico',
     description:
-      'Ogni evento Under 3.5 a 1.32 e Over 3.5 a 3.00 contiene una trattenuta (aggio) del bookmaker di circa il 6-8%. Inserire 9 eventi in una multipla moltiplica l\'aggio esponenzialmente: (1 - 0.07)⁹ ≈ 0.52. Il valore atteso (Expected Value) è fortemente negativo se non c\'è quota di valore (Value Bet).',
+      "Ogni evento Under 3.5 a 1.32 e Over 3.5 a 3.00 contiene una trattenuta (aggio) del bookmaker di circa il 6-8%. Inserire 9 eventi in una multipla moltiplica l'aggio esponenzialmente: (1 - 0.07)⁹ ≈ 0.52. Il valore atteso (Expected Value) è fortemente negativo se non c'è quota di valore (Value Bet).",
     mathProof:
       'Allibramento medio = (1/1.32) + (1/3.00) = 0.7575 + 0.3333 = 1.0908 (9.08% di aggio a partita). Su 9 partite: (1 / 1.0908)^9 = 0.449 (payout teorico 45%).',
     suggestedFix:
@@ -194,7 +195,8 @@ export const IMPROVEMENTS: ImprovementModel[] = [
     description:
       'Calcola lo stake esatto per ogni copertura garantendo un profitto costante prefissato, usando le quote reali moltiplicate.',
     formula: 'Stake_k = (Costo_Pregresso + Target_Profit) / (Quota_Reale_k - 1)',
-    advantage: 'Riduce il capitale necessario per le prime coperture del 40-50% rispetto al foglio CSV.',
+    advantage:
+      'Riduce il capitale necessario per le prime coperture del 40-50% rispetto al foglio CSV.',
   },
   {
     id: 'imp-2',
@@ -202,17 +204,20 @@ export const IMPROVEMENTS: ImprovementModel[] = [
     tag: 'Eliminazione Rischio Doppio Errore',
     description:
       'Le partite sono organizzate in slot orari distinti. Non si piazza alcuna copertura finché non rimangono gli ultimi 2 o 3 eventi attivi.',
-    formula: 'Se Match_k perde -> Stop & Incasso. Se Match_k vince -> Prosegui senza spendere per coperture inutili.',
-    advantage: 'Si rischiano solo i 20€ iniziali per il 90% del tempo, senza impegnare 159€-330€ in anticipo.',
+    formula:
+      'Se Match_k perde -> Stop & Incasso. Se Match_k vince -> Prosegui senza spendere per coperture inutili.',
+    advantage:
+      'Si rischiano solo i 20€ iniziali per il 90% del tempo, senza impegnare 159€-330€ in anticipo.',
   },
   {
     id: 'imp-3',
     title: 'Hedging tramite Betting Exchange (Banca Under / Copertura Singola)',
     tag: 'Massima Resa',
     description:
-      'Invece di costruire 8 contromultiple complesse con 8 Under e 1 Over (che soffrono l\'aggio esponenziale), si banca l\'evento singolo sul Betting Exchange.',
+      "Invece di costruire 8 contromultiple complesse con 8 Under e 1 Over (che soffrono l'aggio esponenziale), si banca l'evento singolo sul Betting Exchange.",
     formula: 'Banca Quota_Under sul Match attivo quando la quota scende live.',
-    advantage: 'Zero rischio di doppio errore simultaneo su altre partite e commissioni bookmaker ridotte al minimo.',
+    advantage:
+      'Zero rischio di doppio errore simultaneo su altre partite e commissioni bookmaker ridotte al minimo.',
   },
   {
     id: 'imp-4',
@@ -220,7 +225,9 @@ export const IMPROVEMENTS: ImprovementModel[] = [
     tag: 'Idea Ottimizzazione Utente',
     description:
       'Quando le partite rimaste scendono sotto i 5 eventi (Match 5, 6, 7 e Singola Finale), il moltiplicatore perde il bonus (passa a 0%). Aggiungendo un evento "cuscinetto" a quota bassa (es. 1.10 come 1X o Over 0.5), si aumenta la quota totale e al 4° step si ripristina la soglia dei 5 eventi sbloccando il +6% di Bonus Multipla.',
-    formula: 'Quota_Finale = Quota_Copertura × 1.10 × (1 + Bonus%)  ==>  Stake_Finale = (Costi + Target) / (Quota_Finale - 1)',
-    advantage: 'Riduce lo stake necessario sulla singola finale di oltre il 18% e riattiva il bonus a 5 eventi. Richiede però cautela statistica: una quota 1.10 ha circa il 9% di rischio di insuccesso imprevisto.',
+    formula:
+      'Quota_Finale = Quota_Copertura × 1.10 × (1 + Bonus%)  ==>  Stake_Finale = (Costi + Target) / (Quota_Finale - 1)',
+    advantage:
+      'Riduce lo stake necessario sulla singola finale di oltre il 18% e riattiva il bonus a 5 eventi. Richiede però cautela statistica: una quota 1.10 ha circa il 9% di rischio di insuccesso imprevisto.',
   },
 ];

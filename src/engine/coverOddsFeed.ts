@@ -53,9 +53,15 @@ const STATUS_MAP: Record<string, LdlMatchStatus> = {
 
 export function normalizeLdlStatus(raw: string | undefined | null): LdlMatchStatus {
   const s = (raw ?? '').trim().toLowerCase();
-  if (!s) return 'scheduled';
-  if (s in STATUS_MAP) return STATUS_MAP[s];
-  if (/tempo|recupero|intervallo/.test(s)) return 'live';
+  if (!s) {
+    return 'scheduled';
+  }
+  if (s in STATUS_MAP) {
+    return STATUS_MAP[s];
+  }
+  if (/tempo|recupero|intervallo/.test(s)) {
+    return 'live';
+  }
   return 'other';
 }
 
@@ -89,16 +95,24 @@ export interface CoverOddsRow {
 }
 
 function computeLineStatus(totalGoals: number | null, line: number): LineStatus | null {
-  if (totalGoals === null) return null;
-  if (totalGoals > line) return 'over';
-  if (totalGoals === Math.floor(line)) return 'warning';
+  if (totalGoals === null) {
+    return null;
+  }
+  if (totalGoals > line) {
+    return 'over';
+  }
+  if (totalGoals === Math.floor(line)) {
+    return 'warning';
+  }
   return 'safe';
 }
 
 export function normalizeCoverOdds(raw: RawLdlEvent[], line = 3.5): CoverOddsRow[] {
   return raw.map((ev) => {
     const books: CoverOddsBook[] = (ev.sites ?? [])
-      .filter((s) => s.line === undefined || s.line === null || Math.abs(Number(s.line) - line) < 0.001)
+      .filter(
+        (s) => s.line === undefined || s.line === null || Math.abs(Number(s.line) - line) < 0.001,
+      )
       .map((s) => ({ book: s.site, under: toNum(s.under), over: toNum(s.over) }))
       .filter((b) => b.under !== null || b.over !== null);
     return buildRow(ev, books, line);
@@ -134,7 +148,9 @@ export function bestCoverSide(row: CoverOddsRow, side: 'under' | 'over'): BestCo
   let best: BestCoverSide | null = null;
   for (const b of row.books) {
     const q = b[side];
-    if (q !== null && (!best || q > best.odds)) best = { book: b.book, odds: q };
+    if (q !== null && (!best || q > best.odds)) {
+      best = { book: b.book, odds: q };
+    }
   }
   return best;
 }
@@ -181,19 +197,26 @@ export interface RawLdlSite {
 
 const COVER_TYPE_RE = /^(under|over)\s+(\d+(?:[.,]\d+)?)$/i;
 
-export function parseCoverType(type: string | undefined | null):
-  { side: 'under' | 'over'; line: number } | null {
+export function parseCoverType(
+  type: string | undefined | null,
+): { side: 'under' | 'over'; line: number } | null {
   const m = COVER_TYPE_RE.exec((type ?? '').trim());
-  if (!m) return null;
+  if (!m) {
+    return null;
+  }
   const line = Number(m[2].replace(',', '.'));
-  if (!Number.isFinite(line)) return null;
+  if (!Number.isFinite(line)) {
+    return null;
+  }
   return { side: m[1].toLowerCase() as 'under' | 'over', line };
 }
 
 export function buildSitesIndex(sites: RawLdlSite[]): Record<string, string> {
   const idx: Record<string, string> = {};
   for (const s of sites) {
-    if (s?.id !== undefined && s.name) idx[String(s.id)] = s.name;
+    if (s?.id !== undefined && s.name) {
+      idx[String(s.id)] = s.name;
+    }
   }
   return idx;
 }
@@ -204,19 +227,27 @@ export function buildSitesIndex(sites: RawLdlSite[]): Record<string, string> {
 export function collectInactiveSiteIds(sites: RawLdlSite[]): Set<string> {
   const out = new Set<string>();
   for (const s of sites) {
-    if (s?.id !== undefined && s.type && s.type !== 'bookmaker') out.add(String(s.id));
+    if (s?.id !== undefined && s.type && s.type !== 'bookmaker') {
+      out.add(String(s.id));
+    }
   }
   return out;
 }
 
 function bookNameFromSite(site: RawLdlCoverSiteRef, sitesById: Record<string, string>): string {
   const byId = sitesById[String(site?.id)];
-  if (byId) return byId;
-  if (site?.name) return site.name;
+  if (byId) {
+    return byId;
+  }
+  if (site?.name) {
+    return site.name;
+  }
   if (site?.url) {
     try {
       return new URL(site.url).hostname.replace(/^www\./, '');
-    } catch { /* url malformata: fallback sotto */ }
+    } catch {
+      /* url malformata: fallback sotto */
+    }
   }
   return String(site?.id ?? 'unknown');
 }
@@ -232,21 +263,28 @@ export function normalizeCoverOddsItems(
 ): CoverOddsRow[] {
   const line = opts.line ?? 3.5;
   const sitesById = opts.sitesById ?? {};
-  const eventsById = opts.eventsById instanceof Map
-    ? opts.eventsById
-    : new Map(Object.entries(opts.eventsById ?? {}));
+  const eventsById =
+    opts.eventsById instanceof Map
+      ? opts.eventsById
+      : new Map(Object.entries(opts.eventsById ?? {}));
 
   const rows: CoverOddsRow[] = [];
   for (const item of items) {
     const ev = item?.event;
-    if (!ev || ev.id === undefined || ev.id === null) continue;
+    if (!ev || ev.id === undefined || ev.id === null) {
+      continue;
+    }
     const idKey = String(ev.id);
 
     // Metadati (datetime/league/status/score) arrivano da /events: il feed
     // coverodds li ha null. Fallback prudente sull'evento incorporato.
     const meta = eventsById.get(idKey);
     const enriched: RawLdlEvent = meta
-      ? { ...meta, home: { ...meta.home, name: ev.home?.name ?? meta.home?.name }, away: { ...meta.away, name: ev.away?.name ?? meta.away?.name } }
+      ? {
+          ...meta,
+          home: { ...meta.home, name: ev.home?.name ?? meta.home?.name },
+          away: { ...meta.away, name: ev.away?.name ?? meta.away?.name },
+        }
       : { ...ev, sites: null };
     rows.push({
       ...buildRow(
@@ -273,14 +311,23 @@ export function buildBooksFromEntries(
   const byBook = new Map<string, CoverOddsBook>();
   for (const entry of entries) {
     const parsed = parseCoverType(entry?.type);
-    if (!parsed || Math.abs(parsed.line - line) > 0.001) continue;
-    if (inactiveSiteIds?.has(String(entry?.site?.id))) continue;
+    if (!parsed || Math.abs(parsed.line - line) > 0.001) {
+      continue;
+    }
+    if (inactiveSiteIds?.has(String(entry?.site?.id))) {
+      continue;
+    }
     const q = toNum(entry.odds);
-    if (q === null) continue;
+    if (q === null) {
+      continue;
+    }
     const name = bookNameFromSite(entry.site, sitesById);
     const cur = byBook.get(name) ?? { book: name, under: null, over: null };
-    if (parsed.side === 'under') cur.under = cur.under === null ? q : Math.max(cur.under, q);
-    else cur.over = cur.over === null ? q : Math.max(cur.over, q);
+    if (parsed.side === 'under') {
+      cur.under = cur.under === null ? q : Math.max(cur.under, q);
+    } else {
+      cur.over = cur.over === null ? q : Math.max(cur.over, q);
+    }
     byBook.set(name, cur);
   }
   return Array.from(byBook.values());
@@ -299,13 +346,15 @@ export function normalizeEventsFeed(
 ): CoverOddsRow[] {
   const line = opts.line ?? 3.5;
   const sitesById = opts.sitesById ?? {};
-  const oddsByEventId = opts.oddsByEventId instanceof Map
-    ? opts.oddsByEventId
-    : new Map(Object.entries(opts.oddsByEventId ?? {}));
+  const oddsByEventId =
+    opts.oddsByEventId instanceof Map
+      ? opts.oddsByEventId
+      : new Map(Object.entries(opts.oddsByEventId ?? {}));
   return events
     .filter((ev) => ev && ev.id !== undefined && ev.id !== null)
     .map((ev) => {
-      const entries = oddsByEventId.get(String(ev.id)) ?? (ev.sites ? sitesToEntries(ev.sites) : []);
+      const entries =
+        oddsByEventId.get(String(ev.id)) ?? (ev.sites ? sitesToEntries(ev.sites) : []);
       return buildRow(
         { ...ev, sites: null },
         buildBooksFromEntries(entries, line, sitesById, opts.inactiveSiteIds),

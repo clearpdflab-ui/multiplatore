@@ -22,11 +22,13 @@ export function evaluateScenario(
   outcomes: ('UNDER' | 'OVER')[],
   steps: any[],
   baseStake: number,
-  baseOdds: number
+  baseOdds: number,
 ) {
   const overIndices: number[] = [];
   outcomes.forEach((out, idx) => {
-    if (out === 'OVER') overIndices.push(idx + 1);
+    if (out === 'OVER') {
+      overIndices.push(idx + 1);
+    }
   });
   const totalOver = overIndices.length;
   const totalCost = baseStake + steps.reduce((sum: number, s: any) => sum + s.stake, 0);

@@ -31,7 +31,9 @@ export function useAuth(): UseAuthState {
       }
     });
     const { data: sub } = sb.auth.onAuthStateChange((_ev, s) => {
-      if (mounted) setSession(s);
+      if (mounted) {
+        setSession(s);
+      }
     });
     return () => {
       mounted = false;
@@ -41,7 +43,9 @@ export function useAuth(): UseAuthState {
 
   const signIn = useCallback(async (email: string, password: string) => {
     const sb = getSupabase();
-    if (!sb) throw new Error('Supabase non configurato');
+    if (!sb) {
+      throw new Error('Supabase non configurato');
+    }
     setError(null);
     const { error: e } = await sb.auth.signInWithPassword({ email, password });
     if (e) {
@@ -52,7 +56,9 @@ export function useAuth(): UseAuthState {
 
   const signOut = useCallback(async () => {
     const sb = getSupabase();
-    if (!sb) return;
+    if (!sb) {
+      return;
+    }
     await sb.auth.signOut();
   }, []);
 
