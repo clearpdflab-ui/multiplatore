@@ -24,6 +24,8 @@ import {
 // con /sites (site.name e' null nelle risposte odds).
 
 const FN_PATH = '/functions/v1/ldl-odds';
+const RETRY_DELAY_MS = 2000;
+const DEFAULT_TIMEOUT_MS = 45000;
 
 export interface CoverOddsFetchResult {
   matches: CoverOddsRow[];
@@ -44,10 +46,45 @@ async function fetchResource<T>(resource: string, signal: AbortSignal, extraPara
     },
     signal,
   });
-  if (!res.ok) throw new Error(`edge HTTP ${res.status} su ${resource}`);
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const body = await res.json();
+      if (body?.error) detail = `: ${body.error}`;
+    } catch { /* risposta non JSON: sotto resta solo lo status */ }
+    throw new Error(`edge HTTP ${res.status} su ${resource}${detail}`);
+  }
   const body = await res.json();
   if (body.error) throw new Error(`${resource}: ${body.error}`);
   return (Array.isArray(body.data) ? body.data : []) as T;
+}
+
+// F9: i problemi token non hanno senso da ritentare; timeout/rete/5xx/429 si'.
+function isRetryable(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes('TOKEN')) return false;
+  return /abort|timeout|network|HTTP (5\d\d|429)/i.test(msg);
+}
+
+async function fetchResourceWithRetry<T>(
+  resource: string,
+  extraParams?: Record<string, string>,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  attempts = 2,
+): Promise<T> {
+  for (let i = 0; i < attempts; i++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      return await fetchResource<T>(resource, ctrl.signal, extraParams);
+    } catch (e) {
+      if (!isRetryable(e) || i === attempts - 1) throw e;
+      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw new Error('unreachable');
 }
 
 // Parametri replicati dalla chiamata reale del sito (dump utente 2026-09-10):
@@ -98,37 +135,39 @@ function buildPuntaPuntaQuery(p: CoverSuggestionParams): Record<string, string> 
 }
 
 // Lancia in caso di errore edge: per chi vuole gestire il fallimento (CyclesDashboard).
+// F9: puntapunta e' il dato critico (retry 2x); sites/events sono cacheati 5'
+// sull'edge e degradabili (metadati/nomi mancanti != feed morto).
 export async function fetchCoverSuggestions(
   p: CoverSuggestionParams,
-  timeoutMs = 30000,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<CoverOddsFetchResult> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const [covers, sites, events] = await Promise.all([
-      fetchResource<RawLdlCoverOddsItem[]>('puntapunta', ctrl.signal, buildPuntaPuntaQuery(p)),
-      fetchResource<RawLdlSite[]>('sites', ctrl.signal),
-      fetchResource<RawLdlEvent[]>('events', ctrl.signal),
-    ]);
-    const sitesById = buildSitesIndex(sites);
-    const eventsById = new Map(events.map((e) => [String(e.id), e]));
-    const matches = normalizeCoverOddsItems(covers, {
-      line: 3.5,
-      sitesById,
-      inactiveSiteIds: collectInactiveSiteIds(sites),
-      eventsById,
-    }).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
-    return { matches, source: 'edge', errors: [] };
-  } finally {
-    clearTimeout(timer);
-  }
+  const covers = await fetchResourceWithRetry<RawLdlCoverOddsItem[]>('puntapunta', buildPuntaPuntaQuery(p), timeoutMs);
+  const [sitesRes, eventsRes] = await Promise.allSettled([
+    fetchResourceWithRetry<RawLdlSite[]>('sites', undefined, timeoutMs, 1),
+    fetchResourceWithRetry<RawLdlEvent[]>('events', undefined, timeoutMs, 1),
+  ]);
+  const errors: string[] = [];
+  const sites = sitesRes.status === 'fulfilled' ? sitesRes.value : [];
+  if (sitesRes.status === 'rejected') errors.push(`siti bookmaker non disponibili: ${sitesRes.reason instanceof Error ? sitesRes.reason.message : String(sitesRes.reason)}`);
+  const events = eventsRes.status === 'fulfilled' ? eventsRes.value : [];
+  if (eventsRes.status === 'rejected') errors.push(`metadati eventi non disponibili: ${eventsRes.reason instanceof Error ? eventsRes.reason.message : String(eventsRes.reason)}`);
+  const sitesById = buildSitesIndex(sites);
+  const eventsById = new Map(events.map((e) => [String(e.id), e]));
+  const matches = normalizeCoverOddsItems(covers, {
+    line: 3.5,
+    sitesById,
+    inactiveSiteIds: collectInactiveSiteIds(sites),
+    eventsById,
+  }).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+  return { matches, source: 'edge', errors };
 }
 
 // Feed principale del Calendario: come fetchCoverSuggestions ma con caduta
-// su mock invece di throw, cosi' la UI mostra sempre qualcosa + badge fonte.
+// su mock invece di throw. Il chiamante usa i dati mock SOLO se non ha ancora
+// dati reali (F9: mai sostituire dati buoni con mock).
 export async function fetchCoverFeed(
   p: CoverSuggestionParams,
-  timeoutMs = 30000,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<CoverOddsFetchResult> {
   try {
     return await fetchCoverSuggestions(p, timeoutMs);
@@ -147,16 +186,10 @@ export async function fetchCoverFeed(
 }
 
 // Bookmaker attivi LDL (type=bookmaker) per i selettori coppia book.
-export async function fetchLdlBookmakers(timeoutMs = 15000): Promise<Array<{ id: number; name: string }>> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const sites = await fetchResource<RawLdlSite[]>('sites', ctrl.signal);
-    return sites
-      .filter((s) => s.type === 'bookmaker' && s.name)
-      .map((s) => ({ id: s.id, name: String(s.name) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  } finally {
-    clearTimeout(timer);
-  }
+export async function fetchLdlBookmakers(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Array<{ id: number; name: string }>> {
+  const sites = await fetchResourceWithRetry<RawLdlSite[]>('sites', undefined, timeoutMs, 2);
+  return sites
+    .filter((s) => s.type === 'bookmaker' && s.name)
+    .map((s) => ({ id: s.id, name: String(s.name) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }

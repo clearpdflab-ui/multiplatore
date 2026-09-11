@@ -148,6 +148,13 @@ async function ldlFetch(token: string, upstream: string): Promise<Response> {
   return fetch(upstream, { headers: { Authorization: `Bearer ${token}` } });
 }
 
+// F9: cache 5' per isolate sui dati lenti-a-variare. L'UI pesca sites+events
+// ogni 60s: senza cache sono ~30 chiamate LDL/ora per i soli dati di supporto;
+// con la cache diventa ~12/giorno. puntapunta NO (quote live, cambia tutto).
+const CACHEABLE_RESOURCES = new Set(['events', 'sites']);
+const CACHE_TTL_MS = 5 * 60_000;
+const upstreamCache = new Map<string, { body: unknown; expiresAt: number }>();
+
 async function handle(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const resource = url.searchParams.get('resource') ?? 'events';
@@ -176,6 +183,12 @@ async function handle(req: Request): Promise<Response> {
     upstream.searchParams.set(k, v);
   }
 
+  const cacheKey = CACHEABLE_RESOURCES.has(resource) ? resource : null;
+  if (cacheKey) {
+    const hit = upstreamCache.get(cacheKey);
+    if (hit && Date.now() < hit.expiresAt) return json({ data: hit.body, cache: 'hit' });
+  }
+
   try {
     const first = await getLdlToken();
     let token = first.token;
@@ -200,6 +213,7 @@ async function handle(req: Request): Promise<Response> {
     }
     if (!res.ok) return json({ error: `HTTP ${res.status}`, data: null }, 502);
     const data = await res.json();
+    if (cacheKey) upstreamCache.set(cacheKey, { body: data, expiresAt: Date.now() + CACHE_TTL_MS });
     return json({ data });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e), data: null }, 502);

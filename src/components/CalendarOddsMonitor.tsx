@@ -272,6 +272,11 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const madreKey = madreSites.join(',');
   const coperturaKey = coperturaSites.join(',');
 
+  // F9: una volta ottenuti dati reali, un refresh che fallisce NON deve
+  // sostituirli con il mock: si tengono gli ultimi buoni + errore in banner.
+  const hasEdgeDataRef = React.useRef(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
+
   async function loadRows() {
     if (!madreSites.length || !coperturaSites.length) return;
     setLoading(true);
@@ -281,9 +286,19 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         sites2PuntaPunta: coperturaSites,
         dateTo: new Date(Date.now() + CALENDAR_WINDOW_DAYS * 24 * 3600_000).toISOString(),
       });
-      setRows(r.matches);
-      setSource(r.source);
-      setLdlErrors(r.errors);
+      if (r.source === 'edge') {
+        hasEdgeDataRef.current = true;
+        setRows(r.matches);
+        setSource('edge');
+        setLdlErrors(r.errors);
+        setLastUpdatedAt(Date.now());
+      } else {
+        setLdlErrors(r.errors);
+        if (!hasEdgeDataRef.current) {
+          setRows(r.matches);
+          setSource('mock');
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -593,10 +608,10 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         </div>
       )}
 
-      {/* Partial-data notice (quote caricate solo per alcuni eventi) */}
+      {/* Aggiornamento fallito/incompleto: i dati mostrati restano gli ultimi buoni */}
       {source === 'edge' && ldlErrors.length > 0 && (
         <div className="bg-sky-950/40 border border-sky-500/40 p-3 rounded-xs text-sky-300 font-mono text-xs">
-          <span>{ldlErrors.slice(0, 2).join(' · ')}{ldlErrors.length > 2 ? ` (+${ldlErrors.length - 2} altri)` : ''}</span>
+          <span>⚠ Ultimo aggiornamento: {ldlErrors.slice(0, 2).join(' · ')}{ldlErrors.length > 2 ? ` (+${ldlErrors.length - 2} altri)` : ''} — sotto ci sono gli ultimi dati reali riusciti.</span>
         </div>
       )}
 
@@ -759,9 +774,15 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
             <Layers className="w-4 h-4 text-[#3B82F6]" />
             Partite &amp; Copertura Bookmaker (Under 3.5 / Over 3.5)
           </h3>
-          <span className="text-xs font-mono text-[#64748B]">
-            Mostrando {filteredRows.length} partite
-          </span>
+          <div className="flex items-center gap-2 text-xs font-mono text-[#64748B]">
+            <span>Mostrando {filteredRows.length} partite</span>
+            {lastUpdatedAt && (
+              <span className={ldlErrors.length > 0 && source === 'edge' ? 'text-amber-300' : ''}>
+                · agg. {new Date(lastUpdatedAt).toLocaleTimeString('it-IT')}
+                {ldlErrors.length > 0 && source === 'edge' && ' (ultimo riuscito)'}
+              </span>
+            )}
+          </div>
         </div>
 
         {filteredRows.length === 0 ? (
