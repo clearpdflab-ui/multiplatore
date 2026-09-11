@@ -169,7 +169,9 @@ describe('generateCustomSlips — netto reale del relay (regressione bancata fin
 
 describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () => {
   const genLay = (over: number[], mode: 'flat' | 'back_loaded' = 'flat') =>
-    generateCustomSlips(mkMatches(8, over), 20, 45, mode, false, 1.1, 4, 'lay_exchange', 1.3, 5);
+    generateCustomSlips(mkMatches(8, over), 20, 45, mode, false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.3,
+    });
 
   it('Over@7 su 8, match 8 UNDER: la bancata C8 pareggia i due rami finali', () => {
     const r = genLay([7]);
@@ -222,7 +224,7 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
     // regressione "puntate sballate": a piano il riferimento era la madre
     // (payout 8 gambe) -> banca da 912€/RESP 866 sui dati reali. Ora il
     // riferimento e' l'ultima copertura C_{N-1} (lo scontro tipico).
-    const r = generateCustomSlips(mkMatches(8, [], false), 20, 45, 'flat', false, 1.1, 4, 'lay_exchange', 1.3, 5);
+    const r = generateCustomSlips(mkMatches(8, [], false), 20, 45, 'flat', false, 1.1, 4, 'lay_exchange', { layOdds: 1.3 });
     const C7 = r.coverageSlips[6];
     const C8 = r.coverageSlips[7];
     expect(C8.stake).toBeCloseTo(C7.potentialGrossPayout / 1.25, 0);
@@ -245,7 +247,7 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
 
   it('stake bancata MANUALE (es. 40): scala standard, netti dei due rami onesti', () => {
     // l'utente fissa lui lo stake della banca (40): nessun gonfio su C7
-    const r = generateCustomSlips(mkMatches(8, [7]), 20, 45, 'flat', false, 1.1, 4, 'lay_exchange', 1.3, 5, 40);
+    const r = generateCustomSlips(mkMatches(8, [7]), 20, 45, 'flat', false, 1.1, 4, 'lay_exchange', { layOdds: 1.3, layStake: 40 });
     const C7 = r.coverageSlips[6];
     const C8 = r.coverageSlips[7];
     expect(C8.stake).toBe(40);
@@ -275,5 +277,75 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
     // Over precoce (Over@1): il green-up non puo' recuperare, l'app lo mostra onesto
     const rEarly = genLay([1], 'back_loaded');
     expect(rEarly.netGainRealized).toBeLessThan(0);
+  });
+});
+
+describe('generateCustomSlips — ARMONIZZAZIONE regola mai-perdita (F15)', () => {
+  // quote reali della "multipla prova" utente (8 match, Under 1.33-1.95)
+  const REAL_ODDS: [number, number][] = [
+    [1.4, 2.6],
+    [1.33, 3],
+    [1.33, 3.3],
+    [1.57, 2.3],
+    [1.77, 2],
+    [1.65, 2.2],
+    [1.55, 2.4],
+    [1.95, 1.75],
+  ];
+  const mkReal = (): UserMatch[] =>
+    REAL_ODDS.map(([u, o], i) => ({
+      id: `r${i + 1}`,
+      order: i + 1,
+      timeSlot: `t${i}`,
+      homeTeam: `H${i + 1}`,
+      awayTeam: `A${i + 1}`,
+      underOdds: u,
+      overOdds: o,
+      outcome: 'PENDING' as const,
+    }));
+
+  it('lay 1.40 in-play: dutching a payout comune, OGNI ramo finale chiude positivo', () => {
+    const r = generateCustomSlips(mkReal(), 40, 45, 'flat', false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.4,
+      harmonized: true,
+    });
+    expect(r.harmonization?.requested).toBe(true);
+    expect(r.harmonization?.feasible).toBe(true);
+    // payout comune su tutte le coperture (dutching, tolleranza arrotondamenti)
+    const pays = r.coverageSlips.slice(0, 7).map((s) => s.potentialGrossPayout);
+    expect(Math.max(...pays) - Math.min(...pays)).toBeLessThan(30);
+    // OGNI ramo (madre, C1..C7 se vincono, banca se esce Over) >= 0
+    [r.motherSlip, ...r.coverageSlips].forEach((s) => {
+      expect(s.realizedNetIfWon).toBeGreaterThan(0);
+    });
+    // il netto garantito ~ il target (45)
+    expect(r.harmonization?.equalizedNet ?? 0).toBeGreaterThan(40);
+  });
+
+  it('lay 1.95 pre-match (utente): IMPOSSIBILE armonizzare, fallback standard onesto', () => {
+    const r = generateCustomSlips(mkReal(), 40, 45, 'flat', false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.95,
+      harmonized: true,
+    });
+    expect(r.harmonization?.requested).toBe(true);
+    expect(r.harmonization?.feasible).toBe(false);
+    // quota lay massima ammessa ~1.75 con queste quote/commissione
+    expect(r.harmonization?.maxLayQuote ?? 0).toBeLessThan(1.8);
+    expect(r.harmonization?.maxLayQuote ?? 0).toBeGreaterThan(1.7);
+    // fallback: sizing standard (C7 = 34 sui dati reali)
+    expect(r.coverageSlips[6].stake).toBe(34);
+    expect(r.harmonization?.equalizedNet).toBeNull();
+  });
+
+  it('book_single: nessuna info di armonizzazione', () => {
+    const r = generateCustomSlips(mkMatches(8, [7]), 20, 45);
+    expect(r.harmonization).toBeNull();
+  });
+
+  it('senza armonizzazione richiesta: harmonization null anche in lay', () => {
+    const r = generateCustomSlips(mkReal(), 40, 45, 'flat', false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.4,
+    });
+    expect(r.harmonization).toBeNull();
   });
 });

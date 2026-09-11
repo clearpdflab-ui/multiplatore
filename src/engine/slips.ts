@@ -19,6 +19,25 @@ export interface CustomSlipsResult {
   overallStatus: 'IN_PLAY' | 'WON_MOTHER' | 'WON_COVERAGE' | 'LOST_MULTIPLE_OVERS';
   winningSlipCode: string | null;
   netGainRealized: number | null;
+  // F15 — armonizzazione regola mai-perdita (solo finalHedgeMode lay_exchange)
+  harmonization: HarmonizationInfo | null;
+}
+
+export interface LayFinaleOptions {
+  layOdds?: number; // null/undefined = auto (quota Under ultimo match)
+  layCommissionPct?: number; // default 5
+  layStake?: number; // stake bancata manuale (>0), altrimenti sizing automatico
+  harmonized?: boolean; // sizing armonizzato: OGNI esito finale >= 0
+}
+
+export interface HarmonizationInfo {
+  requested: boolean; // armonizzazione richiesta (regola mai-perdita)
+  feasible: boolean; // chiude a questa quota lay? (k * SOMMA(1/m) < 1)
+  layQuoteUsed: number;
+  kFactor: number; // (L - c) / (1 - c)
+  sumInverseMultipliers: number; // SOMMA 1/m_k sulle coperture book
+  maxLayQuote: number; // quota lay massima per cui il dutching chiude
+  equalizedNet: number | null; // netto garantito su OGNI ramo (se feasible)
 }
 
 export function generateCustomSlips(
@@ -30,9 +49,7 @@ export function generateCustomSlips(
   boosterOdds: number = 1.1,
   boosterThresholdEvents: number = 4,
   finalHedgeMode: FinalHedgeMode = 'book_single',
-  layOdds?: number,
-  layCommissionPct: number = 5,
-  layStakeOverride?: number,
+  lay?: LayFinaleOptions,
 ): CustomSlipsResult {
   const N = matches.length;
   if (N === 0) {
@@ -67,6 +84,7 @@ export function generateCustomSlips(
       overallStatus: 'IN_PLAY',
       winningSlipCode: null,
       netGainRealized: null,
+      harmonization: null,
     };
   }
 
@@ -120,14 +138,16 @@ export function generateCustomSlips(
   };
 
   const coverageSlips: GeneratedSlip[] = [];
-  let runningCumulativeCost = baseStake;
 
   // F13: con finale in banca (lay exchange) l'ultimo step NON e' una singola
   // bookmaker: il loop costruisce solo C1..C_{N-1}, la banca C_N viene
   // dimensionata dopo (serve il payout della schedina attiva alla finale).
-  // Stake manuale della banca (se >0): l'utente fa da se' il sizing.
-  const manualLayStake = Number(layStakeOverride) > 0 ? Number(layStakeOverride) : null;
   const lastBookStep = finalHedgeMode === 'lay_exchange' ? N - 1 : N;
+
+  // PASS 1 — scheletro delle coperture book: gambe, moltiplicatori (con
+  // bonus/booster) e stato. Gli stake vengono assegnati DOPO (pass 2), perche'
+  // il sizing armonizzato (regola mai-perdita) ha bisogno di TUTTI i
+  // moltiplicatori della scala insieme, non solo del cumulato fino a k.
   for (let k = 1; k <= lastBookStep; k++) {
     const matchIdx = k - 1;
     const currentMatch = matches[matchIdx];
@@ -175,24 +195,6 @@ export function generateCustomSlips(
     const bonus = getBonusPercentage(items.length);
     const finalMultiplier = Number((rawMultiplier * (1 + bonus / 100)).toFixed(2));
 
-    // F14-revisto: niente piu' gonfio automatico su C_{N-1}. Con quote lay alte
-    // (es. 1.95) il k-factor (L-c)/(1-c) raddoppia lo stake (C7 34 -> 93 sui
-    // dati reali dell'utente) senza rendere verde lo scontro: il sizing resta
-    // STANDARD su tutta la scala, la bancata e' dimensionata a parte e i netti
-    // dei due rami sono mostrati per come sono (rossi compresi).
-
-    let rawStake = 0;
-    if (finalMultiplier > 1) {
-      rawStake = (runningCumulativeCost + stepTarget) / (finalMultiplier - 1);
-    } else {
-      rawStake = 10;
-    }
-    const stake = roundToFiftyCents(rawStake);
-    const potentialGrossPayout = Number((stake * finalMultiplier).toFixed(2));
-    const potentialNetProfit = Number(
-      (potentialGrossPayout - (runningCumulativeCost + stake)).toFixed(2),
-    );
-
     let slipStatus: 'PENDING' | 'ACTIVE' | 'WON' | 'LOST' = 'PENDING';
     if (currentMatch.outcome === 'OVER') {
       // Logica "Live Relay a Scalare": questa copertura vince se e solo se
@@ -232,15 +234,78 @@ export function generateCustomSlips(
       rawMultiplier: Number(rawMultiplier.toFixed(2)),
       bonusPercentage: bonus,
       finalMultiplier,
-      stake,
+      stake: 0,
       targetProfit: stepTarget,
-      cumulativeCost: Number(runningCumulativeCost.toFixed(2)),
-      potentialGrossPayout,
-      potentialNetProfit,
+      cumulativeCost: 0,
+      potentialGrossPayout: 0,
+      potentialNetProfit: 0,
       realizedNetIfWon: 0,
       status: slipStatus,
     });
-    runningCumulativeCost = Number((runningCumulativeCost + stake).toFixed(2));
+  }
+
+  // PASS 2 — sizing delle puntate book.
+  //
+  // STANDARD (o fallback): recupero sequenziale, ogni C_k recupera il cumulato
+  // + il suo target di step (curva asimmetrica compresa).
+  //
+  // F15 — ARMONIZZATO (regola mai-perdita, solo lay_exchange): tutte le
+  // coperture pagano lo STESSO payout D, dimensionato cosi' che OGNI esito
+  // finale (madre, qualsiasi C_k, banca se esce Over) chiuda >= target:
+  //   Under@k: D - I - B(L-1) >= t      Over: B(1-c) - I >= t
+  // da cui (pareggiando il ramo peggiore) B = D/(L-c) e D = k*(I+t) con
+  // k = (L-c)/(1-c) (il lock estrae solo (1-c)/(L-c) del payout).
+  // Con I = S0 + SOMMA s_k e s_k = D/m_k si chiude solo se
+  //   k * SOMMA(1/m_k) < 1   (dutching): altrimenti l'armonizzazione e'
+  // MATEMATICAMENTE impossibile a questa quota lay e l'app lo dichiara
+  // (torna sizing standard + rami onesti). La quota lay massima ammessa e'
+  // L_max = (1-c)/SOMMA(1/m_k) + c: sopra, serve bancare in-play quando
+  // l'Under dell'ultimo match scende.
+  const layOpts = lay ?? {};
+  const manualLayStake = Number(layOpts.layStake) > 0 ? Number(layOpts.layStake) : null;
+  const harmonizeRequested =
+    finalHedgeMode === 'lay_exchange' && Boolean(layOpts.harmonized) && N > 1;
+  const layQuotePlan =
+    Number(layOpts.layOdds) > 1
+      ? Number(layOpts.layOdds)
+      : Number(matches[N - 1].underOdds) || 1.3;
+  const commPlan = Math.min(0.2, Math.max(0, (Number(layOpts.layCommissionPct) || 5) / 100));
+  const kFactorPlan = (layQuotePlan - commPlan) / (1 - commPlan);
+  const sumInverse = coverageSlips.reduce(
+    (acc, s) => acc + (s.finalMultiplier > 1 ? 1 / s.finalMultiplier : 0),
+    0,
+  );
+  const maxLayQuote =
+    sumInverse > 0 ? Number(((1 / sumInverse) * (1 - commPlan) + commPlan).toFixed(2)) : 0;
+  const harmonizedFeasible =
+    harmonizeRequested && kFactorPlan > 1 && kFactorPlan * sumInverse < 0.99;
+
+  let runningCumulativeCost = baseStake;
+  if (harmonizedFeasible) {
+    const totalBook = (baseStake + kFactorPlan * targetProfit * sumInverse) / (1 - kFactorPlan * sumInverse);
+    const commonPayout = kFactorPlan * (totalBook + targetProfit);
+    coverageSlips.forEach((s) => {
+      s.stake = roundToFiftyCents(commonPayout / s.finalMultiplier);
+      s.cumulativeCost = Number(runningCumulativeCost.toFixed(2));
+      s.potentialGrossPayout = Number((s.stake * s.finalMultiplier).toFixed(2));
+      s.potentialNetProfit = Number(
+        (s.potentialGrossPayout - (runningCumulativeCost + s.stake)).toFixed(2),
+      );
+      s.targetProfit = targetProfit;
+      runningCumulativeCost = Number((runningCumulativeCost + s.stake).toFixed(2));
+    });
+  } else {
+    coverageSlips.forEach((s) => {
+      const rawStake =
+        s.finalMultiplier > 1 ? (runningCumulativeCost + s.targetProfit) / (s.finalMultiplier - 1) : 10;
+      s.stake = roundToFiftyCents(rawStake);
+      s.cumulativeCost = Number(runningCumulativeCost.toFixed(2));
+      s.potentialGrossPayout = Number((s.stake * s.finalMultiplier).toFixed(2));
+      s.potentialNetProfit = Number(
+        (s.potentialGrossPayout - (runningCumulativeCost + s.stake)).toFixed(2),
+      );
+      runningCumulativeCost = Number((runningCumulativeCost + s.stake).toFixed(2));
+    });
   }
 
   // Netto finale REALE se una schedina vince la corsa: quando la vincente e'
@@ -261,15 +326,15 @@ export function generateCustomSlips(
   // P*(1-c)/(L-c) - I (>=0 se la scala non ha esagerato con le puntate).
   const bookStakesTotal = runningCumulativeCost; // S0 + C1..C_{N-1}
   let layLiability = 0;
+  let harmonization: HarmonizationInfo | null = null;
   if (finalHedgeMode === 'lay_exchange') {
     const finalMatch = matches[N - 1];
-    // Riferimento per il sizing della banca = la schedina che sarebbe ATTIMA
-    // alla finale: la C_j dell'ultimo Over gia' verificato tra i match 1..N-1;
-    // la madre SOLO se i primi N-1 sono gia' tutti risolti Under (e' lei lo
-    // scontro reale); a piano/partita in corso (match ancora pending) il
-    // riferimento e' l'ULTIMA copertura C_{N-1}: e' lo scontro tipico della
-    // bancata finale (C_{N-1} vs banca), NON il lock integrale della madre
-    // (payout enorme -> bancata da centinaia di euro, inutile come default).
+    // Riferimento per il sizing della banca. ARMONIZZATO (feasible): il payout
+    // COMUNE D delle coperture (il peggiore per costruzione) -> garanzia su
+    // OGNI ramo. STANDARD: la schedina che sarebbe ATTIMA alla finale (la C_j
+    // dell'ultimo Over gia' verificato; la madre SOLO a scontro risolto; a
+    // piano l'ULTIMA copertura C_{N-1}, lo scontro tipico della bancata,
+    // NON il lock integrale della madre).
     let activeOverIdx = -1;
     matches.slice(0, N - 1).forEach((m, i) => {
       if (m.outcome === 'OVER') {
@@ -278,19 +343,23 @@ export function generateCustomSlips(
     });
     const anyPendingBefore = N > 1 && matches.slice(0, N - 1).some((m) => m.outcome === 'PENDING');
     const lastCoverage = coverageSlips[coverageSlips.length - 1];
-    const activePayout =
-      activeOverIdx !== -1
+    const worstCoveragePayout = coverageSlips.length
+      ? Math.min(...coverageSlips.map((s) => s.potentialGrossPayout))
+      : motherGross;
+    const activePayout = harmonizedFeasible
+      ? worstCoveragePayout
+      : activeOverIdx !== -1
         ? coverageSlips[activeOverIdx].potentialGrossPayout
         : anyPendingBefore && lastCoverage
           ? lastCoverage.potentialGrossPayout
           : motherGross;
 
-    const layQuote =
-      Number(layOdds) > 1 ? Number(layOdds) : Number(finalMatch.underOdds) || 1.3;
-    const commission = Math.min(0.2, Math.max(0, (layCommissionPct || 0) / 100));
+    const layQuote = layQuotePlan;
+    const commission = commPlan;
     const denom = layQuote - commission;
     // Stake della banca: manuale se impostato, altrimenti green-up pari
-    // (B = P/(L-c) equalizza i due rami finali).
+    // (B = P/(L-c) equalizza i due rami finali; in armonizzato P = payout
+    // comune -> OGNI ramo chiude >= equalizedNet).
     const layStake = manualLayStake ?? roundToFiftyCents(denom > 0 ? activePayout / denom : 10);
     layLiability = Number((layStake * (layQuote - 1)).toFixed(2));
     const layWinProfit = Number((layStake * (1 - commission)).toFixed(2));
@@ -340,6 +409,23 @@ export function generateCustomSlips(
       commissionPct: Number((commission * 100).toFixed(2)),
       status: layStatus,
     });
+
+    if (harmonizeRequested) {
+      const overNet = layWinProfit - bookStakesTotal;
+      const worstUnderNet = worstCoveragePayout - bookStakesTotal - layLiability;
+      const motherBranchNet = motherGross - bookStakesTotal - layLiability;
+      harmonization = {
+        requested: true,
+        feasible: harmonizedFeasible,
+        layQuoteUsed: layQuote,
+        kFactor: Number(kFactorPlan.toFixed(4)),
+        sumInverseMultipliers: Number(sumInverse.toFixed(4)),
+        maxLayQuote,
+        equalizedNet: harmonizedFeasible
+          ? Number(Math.min(overNet, worstUnderNet, motherBranchNet).toFixed(2))
+          : null,
+      };
+    }
   }
 
   const totalPotentialExposure =
@@ -349,13 +435,14 @@ export function generateCustomSlips(
 
   if (finalHedgeMode === 'lay_exchange') {
     // Ramo Under (vince la schedina attiva): puntate bookmaker + responsabilita'
-    // della banca SE PIAZZATA (status != PENDING). Finche' la banca non e'
-    // piazzata, il "netto se vince" della scala e' quello puro del relay
-    // (payout - puntate book): la responsabilita' la sconta solo chi ce l'ha
-    // davvero a rischio. Ramo Over (vince la banca): solo le puntate bookmaker.
+    // della banca SE PIAZZATA (status != PENDING) o se la scala e' ARMONIZZATA
+    // (la bancata e' parte del piano, va considerata fin da subito). Finche'
+    // la banca non e' piazzata in modalita' standard, il "netto se vince"
+    // della scala e' quello puro del relay (payout - puntate book). Ramo Over
+    // (vince la banca): solo le puntate bookmaker.
     const laySlip = coverageSlips[coverageSlips.length - 1];
     const layPlaced = Boolean(laySlip && laySlip.status !== 'PENDING');
-    const layLiabilityIfPlaced = layPlaced ? layLiability : 0;
+    const layLiabilityIfPlaced = layPlaced || harmonizedFeasible ? layLiability : 0;
     motherSlip.realizedNetIfWon = Number(
       (motherSlip.potentialGrossPayout - (bookStakesTotal + layLiabilityIfPlaced)).toFixed(2),
     );
@@ -442,5 +529,6 @@ export function generateCustomSlips(
     overallStatus,
     winningSlipCode,
     netGainRealized,
+    harmonization,
   };
 }

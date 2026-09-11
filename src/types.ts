@@ -268,6 +268,8 @@ export interface SavedSlipParams {
   layCommissionPct?: number;
   // Stake della bancata scelto a mano dall'utente (se assente: sizing green-up)
   layStake?: number;
+  // F15: sizing armonizzato regola mai-perdita (dutching a payout comune)
+  harmonized?: boolean;
 }
 
 export interface SavedSlip {

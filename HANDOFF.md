@@ -594,3 +594,39 @@ manuale dell'utente.
   perde); con stake manuale 40 → RESP 38, Under +45.62 / Over −75.5.
   Test: +2 (piano: sizing su C_{N−1} e atteso senza responsabilità) →
   **124/124**, tsc, lint 0 error, build OK. Commit `46fa96b` + fix successivo.
+
+## F15 — Regola MAI-PERDITA obbligatori: sizing ARMONIZZATO (2026-09-11, notte 4)
+
+- **Direttiva utente**: "la regola è obbligatoria non devo mai perdere, quindi
+  le puntate vanno armonizzate per trovarmi sempre in positivo alla fine".
+- **Formalizzazione** (`src/engine/slips.ts`): no-loss su OGNI esito finale
+  (madre, qualsiasi C_k, banca se esce Over) ⇒ dutching a PAYOUT COMUNE D:
+  con k=(L−c)/(1−c) il lock estrae (1−c)/(L−c) del payout, quindi serve
+  D = k·(I+t) con I = S0+Σ puntate book; da I = S0 + D·Σ(1/m_k) segue
+  **fattibilità ⇔ k·Σ(1/m_k) < 1**; L_max = (1−c)/Σ(1/m_k)+c. Bancata
+  dimensionata sul payout comune (ramo peggiore) ⇒ ogni ramo ≥ equalizedNet.
+- **Engine**: refactor in 2 pass (pass 1 scheletri con moltiplicatori/stato,
+  pass 2 sizing standard-sequenziale OPPURE armonizzato); nuovo oggetto
+  `lay: LayFinaleOptions` (layOdds/layCommissionPct/layStake/harmonized) al
+  posto dei parametri posizionali; `CustomSlipsResult.harmonization` con
+  verdetto (requested/feasible/kFactor/Σ1/m/maxLayQuote/equalizedNet).
+  Infeasible ⇒ fallback sizing standard + rami onesti. In armonizzato la
+  responsabilità banca è conteggiata nei netti da subito (la bancata è parte
+  del piano); in standard solo se piazzata.
+- **UI LiveSlipTracker**: toggle "Armonizza (mai perdita)" (default ON, solo
+  lay_exchange), banner verdetto: verde "Scala ARMONIZZATA: ogni esito ≥
+  +€X, book €I + resp €R" / rosso "IMPOSSIBILE a lay @L, serve ≤ @L_max
+  (in-play quando l'Under scende), scala standard con rami onesti".
+  `SavedSlipParams.harmonized` persistito.
+- **Numeri su dati reali utente** (8 match Under 1.33–1.95, S0=40, t=45,
+  Σ1/m=0.558, L_max=1.75):
+  - lay @1.40 in-play: C1..C7 = 7.5/9/11.5/27.5/58.5/88/125 (payout comune
+    ~585-603), banca 432.5/RESP 173, madre +1192 → **ogni ramo ≥ +43.25,
+    esposizione 540€**.
+  - lay @1.60: fattibile ma capitale esplode (esposizione 1502€) — il costo
+    della garanzia cresce con la quota lay (diverge verso L_max).
+  - lay @1.95 pre-match: **IMPOSSIBILE** (k=2.0, k·Σ=1.12 ≥ 1) → banner
+    rosso + scala standard.
+- Test: +4 (fattibile @1.4 ogni ramo > 0 e payout comune; impossibile @1.95
+  con maxLayQuote ~1.75 e fallback C7=34; null in book; null se non
+  richiesto) → **128/128**, tsc, lint 0 error, build OK.
