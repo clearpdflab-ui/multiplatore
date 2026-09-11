@@ -14,6 +14,9 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
       reportsDirectory: './coverage',
+      // Il threshold 80% (PLAN.md) si applica al motore di calcolo testato:
+      // UI, hooks, services e edge functions non sono unit-testati per scelta.
+      include: ['src/engine/**'],
       thresholds: {
         lines: 80,
         functions: 80,

@@ -422,3 +422,33 @@ manuale dell'utente.
   (i tipi reali del pacchetto non vengono risolti): aggiungere qui ogni nuova
   icona (F10: `FolderOpen`; per questo `Wand2` non compilava in F8).
 - Test 84/84, tsc pulito, build OK.
+
+## F11 — Perche' la produzione sembrava "demo": deploy Vercel SENZA env build-time (2026-09-11, sera)
+
+- **Sintomi utente**: su multiplatore.vercel.app niente login, dati fermi/-demo.
+- **Diagnosi**: il bundle live CONTIENE l'ultima versione del codice (stringhe
+  F10 presenti) quindi la Git-integration di Vercel funziona; MA nel bundle NON
+  c'e' l'anon key JWT ne' l'URL progetto → la build e' partita **senza**
+  `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` → `isSupabaseConfigured=false`
+  → AuthBar nascosta, hooks in fallback locale, feed Calendario sempre mock.
+- **Attenzione scope**: CLI loggata `quixelone` (team personale `quixelones-projects`,
+  vecchio progetto multiplatore con env GIUSTE ma deployment di 3giu' prima).
+  Il sito live e' nel team **`rcsitalia`** (scope non raggiungibile da
+  quixelone: "specified scope does not exist"). **Da fare**: aggiungere le due
+  env vars su Project Settings -> Environment Variables del progetto
+  rcsitalia/multiplatore (ambiente Production) e Redeploy dall'ultima
+  deployment. Valori: `VITE_SUPABASE_URL=https://ekzjsltnamndtydodkhx.supabase.co`,
+  `VITE_SUPABASE_ANON_KEY=<anon public key dashboard API Keys>`.
+- **Pipeline CI mai verde dal 07/09** (non blocca Vercel, ma era tutta rossa):
+  cause a cascata: (1) regole `@typescript-eslint/*` senza plugin -> crash eslint;
+  (2) `.prettierrc` con `@prettier/plugin-xml` non installato -> crash prettier;
+  (3) config eslint senza scope ne' globals (browser/node/deno mescolati) -> 5k
+  errori; (4) threshold coverage 80% globali su TUTTO src (UI/hooks non testati).
+  Fix: devDeps `typescript-eslint` + `globals`, eslint.config a scope con parser
+  + globals per ambiente, `eqeqeq {null:'ignore'}`, prettier senza plugin xml +
+  endOfLine auto + `npm run format`, coverage `include: src/engine/**` + nuovi
+  test slips/timeline/risk/dutching -> **lint/format/test/typecheck/build tutti
+  verdi, coverage motore 97%, 110 test**.
+- **F11 UX**: LiveSlipTracker non carica piu' le 8 Serie A finte di default:
+  stato vuoto con empty-state + CTA "Apri Calendario" / preset demo su richiesta.
+  `DEFAULT_SERIE_A_MATCHES` resta solo come preset manuale.

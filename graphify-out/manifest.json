@@ -1,0 +1,488 @@
+{
+  "eslint.config.js": {
+    "mtime": 1789138369.676737,
+    "seen": 1789138700.5188634,
+    "ast_hash": "45bc331e4fc89ac1b3e2c916926b3acd",
+    "semantic_hash": "45bc331e4fc89ac1b3e2c916926b3acd"
+  },
+  "metadata.json": {
+    "mtime": 1788674793.835254,
+    "seen": 1789138700.5188744,
+    "ast_hash": "ad49afdd941cc80a99b725edd6b06308",
+    "semantic_hash": "ad49afdd941cc80a99b725edd6b06308"
+  },
+  "package.json": {
+    "mtime": 1789138198.1325274,
+    "seen": 1789138700.5188787,
+    "ast_hash": "83a5106b4c14bd4f8bda8514eb241d2e",
+    "semantic_hash": "83a5106b4c14bd4f8bda8514eb241d2e"
+  },
+  "postcss.config.js": {
+    "mtime": 1788675673.805914,
+    "seen": 1789138700.5188813,
+    "ast_hash": "306f31f1ac5c485c0ea3dc3325f3ec16",
+    "semantic_hash": "306f31f1ac5c485c0ea3dc3325f3ec16"
+  },
+  "pyengine/__init__.py": {
+    "mtime": 1788795875.312428,
+    "seen": 1789138700.5188842,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "pyengine/cli.py": {
+    "mtime": 1788797948.376365,
+    "seen": 1789138700.518886,
+    "ast_hash": "8d5135779508ab40b05edb9cbda07148",
+    "semantic_hash": "8d5135779508ab40b05edb9cbda07148"
+  },
+  "pyengine/core.py": {
+    "mtime": 1788797892.7413144,
+    "seen": 1789138700.5188885,
+    "ast_hash": "8bf7313a405899e72e2271a85656f6ab",
+    "semantic_hash": "8bf7313a405899e72e2271a85656f6ab"
+  },
+  "pyengine/model.py": {
+    "mtime": 1788795875.3144484,
+    "seen": 1789138700.5188901,
+    "ast_hash": "01f7a24dd395303643973388d6636948",
+    "semantic_hash": "01f7a24dd395303643973388d6636948"
+  },
+  "pyengine/tests/__init__.py": {
+    "mtime": 1788795875.3144484,
+    "seen": 1789138700.5188923,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "pyengine/tests/test_core.py": {
+    "mtime": 1788798013.5305698,
+    "seen": 1789138700.5188947,
+    "ast_hash": "0993f052692127c1141d82907d4d7267",
+    "semantic_hash": "0993f052692127c1141d82907d4d7267"
+  },
+  "scripts/create-auth-user.mjs": {
+    "mtime": 1789138286.94936,
+    "seen": 1789138700.5188963,
+    "ast_hash": "abdae0a6e974293d0b020429b32d169c",
+    "semantic_hash": "abdae0a6e974293d0b020429b32d169c"
+  },
+  "scripts/nvidia_chat.py": {
+    "mtime": 1788966309.170482,
+    "seen": 1789138700.518899,
+    "ast_hash": "be3f4fcd13a9d6ed60ae02f3c4a0d89a",
+    "semantic_hash": "be3f4fcd13a9d6ed60ae02f3c4a0d89a"
+  },
+  "server/config/config.ts": {
+    "mtime": 1788675603.627499,
+    "seen": 1789138700.5189004,
+    "ast_hash": "fa936ed205e8ac6261fccb342083def0",
+    "semantic_hash": "fa936ed205e8ac6261fccb342083def0"
+  },
+  "server/index.ts": {
+    "mtime": 1788676266.5179224,
+    "seen": 1789138700.5189023,
+    "ast_hash": "7bb06380226e5a0707551279b2b38021",
+    "semantic_hash": "7bb06380226e5a0707551279b2b38021"
+  },
+  "server/middleware/auth.ts": {
+    "mtime": 1788676158.0698645,
+    "seen": 1789138700.5189042,
+    "ast_hash": "59bbf0d9199fbe70c74f67696afee5ea",
+    "semantic_hash": "59bbf0d9199fbe70c74f67696afee5ea"
+  },
+  "server/models/schema.sql": {
+    "mtime": 1788675657.6309445,
+    "seen": 1789138700.518906,
+    "ast_hash": "4690e794e9f84be1eb824f374f57269e",
+    "semantic_hash": "4690e794e9f84be1eb824f374f57269e"
+  },
+  "server/package.json": {
+    "mtime": 1788675653.3007207,
+    "seen": 1789138700.5189078,
+    "ast_hash": "b188793b3f7553cb7f61fb0b0dcc436f",
+    "semantic_hash": "b188793b3f7553cb7f61fb0b0dcc436f"
+  },
+  "server/routes/api.ts": {
+    "mtime": 1788676304.7682178,
+    "seen": 1789138700.5189092,
+    "ast_hash": "4b450d4f4de8d0bb382e6b8d2a2b3a5f",
+    "semantic_hash": "4b450d4f4de8d0bb382e6b8d2a2b3a5f"
+  },
+  "src/App.tsx": {
+    "mtime": 1788797653.4172335,
+    "seen": 1789138700.518911,
+    "ast_hash": "9630616f0650e4d13c45e5aaf5d05c74",
+    "semantic_hash": "9630616f0650e4d13c45e5aaf5d05c74"
+  },
+  "src/components/AsymmetricStrategyGuide.tsx": {
+    "mtime": 1789138537.385432,
+    "seen": 1789138700.5189128,
+    "ast_hash": "1b1680b27d13fc558829755ba1a8cd77",
+    "semantic_hash": "1b1680b27d13fc558829755ba1a8cd77"
+  },
+  "src/components/AuthBar.tsx": {
+    "mtime": 1789138537.4518926,
+    "seen": 1789138700.5189142,
+    "ast_hash": "5504de7f302eb245e15412736f85f8d8",
+    "semantic_hash": "5504de7f302eb245e15412736f85f8d8"
+  },
+  "src/components/BooksManager.tsx": {
+    "mtime": 1789138537.6117609,
+    "seen": 1789138700.5189164,
+    "ast_hash": "3916ed9f6a093e588a1a5353bb94a658",
+    "semantic_hash": "3916ed9f6a093e588a1a5353bb94a658"
+  },
+  "src/components/CalendarOddsMonitor.tsx": {
+    "mtime": 1789138537.8527684,
+    "seen": 1789138700.51892,
+    "ast_hash": "c9b01090210c2693a6e718a75b462a01",
+    "semantic_hash": "c9b01090210c2693a6e718a75b462a01"
+  },
+  "src/components/CyclesDashboard.tsx": {
+    "mtime": 1789138538.11886,
+    "seen": 1789138700.5189216,
+    "ast_hash": "9616059a32faa9624b5b7e3f7c146345",
+    "semantic_hash": "9616059a32faa9624b5b7e3f7c146345"
+  },
+  "src/components/Footer.tsx": {
+    "mtime": 1789138538.14527,
+    "seen": 1789138700.5189235,
+    "ast_hash": "3ead592f4f78a1ecd0cd6114fa05b935",
+    "semantic_hash": "3ead592f4f78a1ecd0cd6114fa05b935"
+  },
+  "src/components/GeometricVisualizer.tsx": {
+    "mtime": 1789138538.209832,
+    "seen": 1789138700.5189254,
+    "ast_hash": "648e965d489f4cfc831733d8cbe963d4",
+    "semantic_hash": "648e965d489f4cfc831733d8cbe963d4"
+  },
+  "src/components/Header.tsx": {
+    "mtime": 1788797644.7053688,
+    "seen": 1789138700.518927,
+    "ast_hash": "8ed79bb4172efe48515dc2f99001f2a7",
+    "semantic_hash": "8ed79bb4172efe48515dc2f99001f2a7"
+  },
+  "src/components/LiveSlipTracker.tsx": {
+    "mtime": 1789138538.6949685,
+    "seen": 1789138700.5189285,
+    "ast_hash": "e03bcc75e0989b02cf8889ca36622874",
+    "semantic_hash": "e03bcc75e0989b02cf8889ca36622874"
+  },
+  "src/components/MathematicalAnalysis.tsx": {
+    "mtime": 1789138538.8004708,
+    "seen": 1789138700.5189307,
+    "ast_hash": "4993547f0f3070f3fd1d4d640a0601d0",
+    "semantic_hash": "4993547f0f3070f3fd1d4d640a0601d0"
+  },
+  "src/components/PracticalSimulator.tsx": {
+    "mtime": 1789138538.9257617,
+    "seen": 1789138700.5189326,
+    "ast_hash": "3778bfc5769efc68398af4a735abc0d9",
+    "semantic_hash": "3778bfc5769efc68398af4a735abc0d9"
+  },
+  "src/components/SequentialRelayLadder.tsx": {
+    "mtime": 1789138539.0409331,
+    "seen": 1789138700.5189342,
+    "ast_hash": "5d6aed1c61b87130a9e4dac88a905905",
+    "semantic_hash": "5d6aed1c61b87130a9e4dac88a905905"
+  },
+  "src/data/mockCoverOdds.ts": {
+    "mtime": 1789138539.0962555,
+    "seen": 1789138700.518936,
+    "ast_hash": "a53c695617015df893ee086d8dedc2c2",
+    "semantic_hash": "a53c695617015df893ee086d8dedc2c2"
+  },
+  "src/data/mockOdds.ts": {
+    "mtime": 1789138539.144603,
+    "seen": 1789138700.5189376,
+    "ast_hash": "55a7c2ded093024e66bed14a3c6b732d",
+    "semantic_hash": "55a7c2ded093024e66bed14a3c6b732d"
+  },
+  "src/data/mockResults.ts": {
+    "mtime": 1789138539.1658614,
+    "seen": 1789138700.5189388,
+    "ast_hash": "8101e564e3e710a6ada5c3809bff82c0",
+    "semantic_hash": "8101e564e3e710a6ada5c3809bff82c0"
+  },
+  "src/data/originalData.ts": {
+    "mtime": 1789138539.2370815,
+    "seen": 1789138700.5189407,
+    "ast_hash": "3a58ff72e3bcd5ce2ce6e8d07a2affba",
+    "semantic_hash": "3a58ff72e3bcd5ce2ce6e8d07a2affba"
+  },
+  "src/engine/bonus.ts": {
+    "mtime": 1788789365.1713085,
+    "seen": 1789138700.518942,
+    "ast_hash": "011ef6e0bd9ee9e9b770e3e04e4eef1a",
+    "semantic_hash": "011ef6e0bd9ee9e9b770e3e04e4eef1a"
+  },
+  "src/engine/books.ts": {
+    "mtime": 1789138539.3007646,
+    "seen": 1789138700.518944,
+    "ast_hash": "daee26f38fcaf283e84a94bbe9ef2278",
+    "semantic_hash": "daee26f38fcaf283e84a94bbe9ef2278"
+  },
+  "src/engine/calculations.ts": {
+    "mtime": 1789138539.3657517,
+    "seen": 1789138700.5189455,
+    "ast_hash": "5af8657398edc66b9dfa35e74944f3af",
+    "semantic_hash": "5af8657398edc66b9dfa35e74944f3af"
+  },
+  "src/engine/coverOddsFeed.ts": {
+    "mtime": 1789138539.478865,
+    "seen": 1789138700.5189478,
+    "ast_hash": "1325b65a6f5b91235c698c72b361b066",
+    "semantic_hash": "1325b65a6f5b91235c698c72b361b066"
+  },
+  "src/engine/cycles.ts": {
+    "mtime": 1789138539.538976,
+    "seen": 1789138700.51895,
+    "ast_hash": "c3d2ade14c94e36713d825e997fc4c4e",
+    "semantic_hash": "c3d2ade14c94e36713d825e997fc4c4e"
+  },
+  "src/engine/dutching.ts": {
+    "mtime": 1789138539.559077,
+    "seen": 1789138700.5189517,
+    "ast_hash": "9f18301a0389da3d065dd3aa894474d4",
+    "semantic_hash": "9f18301a0389da3d065dd3aa894474d4"
+  },
+  "src/engine/harmony.ts": {
+    "mtime": 1789138539.6326232,
+    "seen": 1789138700.5189533,
+    "ast_hash": "6349cf7799a7c7facda8cc2648a3533a",
+    "semantic_hash": "6349cf7799a7c7facda8cc2648a3533a"
+  },
+  "src/engine/index.ts": {
+    "mtime": 1789138539.64221,
+    "seen": 1789138700.5189557,
+    "ast_hash": "1a34e464373ac4350095d8613d0fdb82",
+    "semantic_hash": "1a34e464373ac4350095d8613d0fdb82"
+  },
+  "src/engine/odds.ts": {
+    "mtime": 1789138539.658992,
+    "seen": 1789138700.5189588,
+    "ast_hash": "7fb7dc63f7f142279b27e8a35f2264c1",
+    "semantic_hash": "7fb7dc63f7f142279b27e8a35f2264c1"
+  },
+  "src/engine/oddsFeed.ts": {
+    "mtime": 1789138539.7236762,
+    "seen": 1789138700.518961,
+    "ast_hash": "b062efac422565e58057b6abc08a8d23",
+    "semantic_hash": "b062efac422565e58057b6abc08a8d23"
+  },
+  "src/engine/resultsFeed.ts": {
+    "mtime": 1789138539.7600777,
+    "seen": 1789138700.5189626,
+    "ast_hash": "2ce08b16b97b6fec5c5943f4fe6a043b",
+    "semantic_hash": "2ce08b16b97b6fec5c5943f4fe6a043b"
+  },
+  "src/engine/risk.ts": {
+    "mtime": 1788675517.1362019,
+    "seen": 1789138700.5189643,
+    "ast_hash": "ea858df3884e6621e39f1ce2a87eba9f",
+    "semantic_hash": "ea858df3884e6621e39f1ce2a87eba9f"
+  },
+  "src/engine/risk_internal.ts": {
+    "mtime": 1789138539.7782528,
+    "seen": 1789138700.5189657,
+    "ast_hash": "df90063861f570f3e2a620bf8937ce12",
+    "semantic_hash": "df90063861f570f3e2a620bf8937ce12"
+  },
+  "src/engine/slips.ts": {
+    "mtime": 1789138539.853188,
+    "seen": 1789138700.5189674,
+    "ast_hash": "02ed20b27adb2a7a60b78d0bcacf3402",
+    "semantic_hash": "02ed20b27adb2a7a60b78d0bcacf3402"
+  },
+  "src/engine/timeline.ts": {
+    "mtime": 1789138539.908327,
+    "seen": 1789138700.5189688,
+    "ast_hash": "ffa9a97c841a83771bbeceae833376b4",
+    "semantic_hash": "ffa9a97c841a83771bbeceae833376b4"
+  },
+  "src/hooks/useAuth.ts": {
+    "mtime": 1789138539.9537036,
+    "seen": 1789138700.5189707,
+    "ast_hash": "87aefe83e6b24569237a7884ff6b0a9b",
+    "semantic_hash": "87aefe83e6b24569237a7884ff6b0a9b"
+  },
+  "src/hooks/useBooks.ts": {
+    "mtime": 1789138540.0515702,
+    "seen": 1789138700.5189724,
+    "ast_hash": "43e771e36806fcdd67d8d034002bab0a",
+    "semantic_hash": "43e771e36806fcdd67d8d034002bab0a"
+  },
+  "src/hooks/useCycles.ts": {
+    "mtime": 1789138540.212192,
+    "seen": 1789138700.5189743,
+    "ast_hash": "a3a7fc04c426dc204273f319fcaec882",
+    "semantic_hash": "a3a7fc04c426dc204273f319fcaec882"
+  },
+  "src/hooks/useSavedSlips.ts": {
+    "mtime": 1789138540.294654,
+    "seen": 1789138700.5189757,
+    "ast_hash": "e5a925a65493b214809c18b6222d1697",
+    "semantic_hash": "e5a925a65493b214809c18b6222d1697"
+  },
+  "src/main.tsx": {
+    "mtime": 1789138540.3970885,
+    "seen": 1789138700.5189772,
+    "ast_hash": "b8d950a02fd013db6dd2caba265eacbb",
+    "semantic_hash": "b8d950a02fd013db6dd2caba265eacbb"
+  },
+  "src/services/ldlOddsApi.ts": {
+    "mtime": 1789138540.4785905,
+    "seen": 1789138700.5189788,
+    "ast_hash": "064a54481d3f0007508501ba317e708f",
+    "semantic_hash": "064a54481d3f0007508501ba317e708f"
+  },
+  "src/services/oddsApi.ts": {
+    "mtime": 1789138540.5211003,
+    "seen": 1789138700.5189805,
+    "ast_hash": "db05bb038bf900ea6485773fbbe0e885",
+    "semantic_hash": "db05bb038bf900ea6485773fbbe0e885"
+  },
+  "src/services/resultsApi.ts": {
+    "mtime": 1789138540.5453012,
+    "seen": 1789138700.5189822,
+    "ast_hash": "a506673a57af8d87d125359921aa6294",
+    "semantic_hash": "a506673a57af8d87d125359921aa6294"
+  },
+  "src/services/supabaseClient.ts": {
+    "mtime": 1789138540.5624552,
+    "seen": 1789138700.5189836,
+    "ast_hash": "fe414427e76201f0497abb59ff06d5a9",
+    "semantic_hash": "fe414427e76201f0497abb59ff06d5a9"
+  },
+  "src/types.ts": {
+    "mtime": 1789138540.5961213,
+    "seen": 1789138700.5189855,
+    "ast_hash": "fc5887f33c0ca2155718948f684c8d2a",
+    "semantic_hash": "fc5887f33c0ca2155718948f684c8d2a"
+  },
+  "src/types/cors.d.ts": {
+    "mtime": 1789138540.6178691,
+    "seen": 1789138700.518987,
+    "ast_hash": "72d3545a34f847cedb1bf17b59507099",
+    "semantic_hash": "72d3545a34f847cedb1bf17b59507099"
+  },
+  "src/types/lucide-react.d.ts": {
+    "mtime": 1789133352.3803353,
+    "seen": 1789138700.5189886,
+    "ast_hash": "b54e295c9d178907ea0d303fd9da28d6",
+    "semantic_hash": "b54e295c9d178907ea0d303fd9da28d6"
+  },
+  "src/utils/mathEngine.ts": {
+    "mtime": 1789138540.6623404,
+    "seen": 1789138700.5189905,
+    "ast_hash": "c5a53e2415315c138c5f4bebe4d825f1",
+    "semantic_hash": "c5a53e2415315c138c5f4bebe4d825f1"
+  },
+  "supabase/functions/ldl-odds/index.ts": {
+    "mtime": 1789138286.953475,
+    "seen": 1789138700.5189927,
+    "ast_hash": "cc025800397925bc774900271b62560e",
+    "semantic_hash": "cc025800397925bc774900271b62560e"
+  },
+  "supabase/functions/odds/index.ts": {
+    "mtime": 1789138286.953475,
+    "seen": 1789138700.518994,
+    "ast_hash": "cc73be98002eda17cc37739cce143c57",
+    "semantic_hash": "cc73be98002eda17cc37739cce143c57"
+  },
+  "supabase/functions/results/index.ts": {
+    "mtime": 1789138286.953475,
+    "seen": 1789138700.5189958,
+    "ast_hash": "5c64c7bdf161aab6425911ad5eda74e5",
+    "semantic_hash": "5c64c7bdf161aab6425911ad5eda74e5"
+  },
+  "supabase/migrations/20260907134515_create_books_and_bonus.sql": {
+    "mtime": 1788788908.2371695,
+    "seen": 1789138700.5189972,
+    "ast_hash": "7092a231c699323b74ae8638c37f97b7",
+    "semantic_hash": "7092a231c699323b74ae8638c37f97b7"
+  },
+  "supabase/migrations/20260907180000_create_cycles_and_tickets.sql": {
+    "mtime": 1788797471.5573509,
+    "seen": 1789138700.518999,
+    "ast_hash": "a6e345c90529b37f2e60cc1c82fc928d",
+    "semantic_hash": "a6e345c90529b37f2e60cc1c82fc928d"
+  },
+  "supabase/migrations/20260911120000_add_books_multi_days_limit.sql": {
+    "mtime": 1789122366.7644858,
+    "seen": 1789138700.519001,
+    "ast_hash": "7ed8e6839cc0dd620d6243bb067b5680",
+    "semantic_hash": "7ed8e6839cc0dd620d6243bb067b5680"
+  },
+  "supabase/migrations/20260911150000_create_saved_slips.sql": {
+    "mtime": 1789132945.0882027,
+    "seen": 1789138700.519003,
+    "ast_hash": "c6386c6cf12d5a36b42847c8f370dfe4",
+    "semantic_hash": "c6386c6cf12d5a36b42847c8f370dfe4"
+  },
+  "tailwind.config.ts": {
+    "mtime": 1788675673.5842023,
+    "seen": 1789138700.5190046,
+    "ast_hash": "7c1e536cafc4076c31610702cadda3fa",
+    "semantic_hash": "7c1e536cafc4076c31610702cadda3fa"
+  },
+  "tests/setup.ts": {
+    "mtime": 1788675471.5283563,
+    "seen": 1789138700.519007,
+    "ast_hash": "00e47f7b9836e8f731101981fa2bb2de",
+    "semantic_hash": "00e47f7b9836e8f731101981fa2bb2de"
+  },
+  "tests/unit/coverOddsFeed.test.ts": {
+    "mtime": 1789045804.3131068,
+    "seen": 1789138700.5190089,
+    "ast_hash": "aad50fae7f82b1c29f6cdabdd527ab9e",
+    "semantic_hash": "aad50fae7f82b1c29f6cdabdd527ab9e"
+  },
+  "tests/unit/cycles.test.ts": {
+    "mtime": 1788797501.917804,
+    "seen": 1789138700.5190103,
+    "ast_hash": "dbcc3d8ea26a75f61a6d86743bb4cb8c",
+    "semantic_hash": "dbcc3d8ea26a75f61a6d86743bb4cb8c"
+  },
+  "tests/unit/engine.test.ts": {
+    "mtime": 1788789417.6387575,
+    "seen": 1789138700.5190122,
+    "ast_hash": "264494f6b2ad5aef3b40dd24b9f87b35",
+    "semantic_hash": "264494f6b2ad5aef3b40dd24b9f87b35"
+  },
+  "tests/unit/harmony.test.ts": {
+    "mtime": 1788795334.031847,
+    "seen": 1789138700.5190141,
+    "ast_hash": "6175c8609e773c64bedecfc1978e1fcd",
+    "semantic_hash": "6175c8609e773c64bedecfc1978e1fcd"
+  },
+  "tests/unit/oddsFeed.test.ts": {
+    "mtime": 1788804646.9150524,
+    "seen": 1789138700.519016,
+    "ast_hash": "624d9b6a60b4c0e33ce1e15d12721425",
+    "semantic_hash": "624d9b6a60b4c0e33ce1e15d12721425"
+  },
+  "tests/unit/resultsFeed.test.ts": {
+    "mtime": 1788878829.4563828,
+    "seen": 1789138700.5190184,
+    "ast_hash": "bf3c071bed6ba0a32c60447a0a53c75f",
+    "semantic_hash": "bf3c071bed6ba0a32c60447a0a53c75f"
+  },
+  "tsconfig.json": {
+    "mtime": 1788676248.931564,
+    "seen": 1789138700.5190203,
+    "ast_hash": "60c0fedcad2be6dfb50b0a1d5ad4f3a4",
+    "semantic_hash": "60c0fedcad2be6dfb50b0a1d5ad4f3a4"
+  },
+  "vite.config.ts": {
+    "mtime": 1788675698.792653,
+    "seen": 1789138700.5190227,
+    "ast_hash": "a512a324a6b8faf0e23c8baf61978dcd",
+    "semantic_hash": "a512a324a6b8faf0e23c8baf61978dcd"
+  },
+  "vitest.config.ts": {
+    "mtime": 1788676736.473709,
+    "seen": 1789138700.5190244,
+    "ast_hash": "7c8edbdacf700643d9c0b5f38e24a589",
+    "semantic_hash": "7c8edbdacf700643d9c0b5f38e24a589"
+  }
+}
