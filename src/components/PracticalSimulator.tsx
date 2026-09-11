@@ -34,7 +34,7 @@ export const PracticalSimulator: React.FC = () => {
 
   // Update outcomes array when totalEvents changes
   const handleEventCountChange = (newCount: number) => {
-    const clamped = Math.max(3, Math.min(12, newCount));
+    const clamped = Math.max(3, Math.min(30, newCount));
     setParams((prev) => ({ ...prev, totalEvents: clamped }));
     setMatchOutcomes(Array(clamped).fill('UNDER'));
   };
@@ -184,7 +184,7 @@ export const PracticalSimulator: React.FC = () => {
               <input
                 type="number"
                 min="3"
-                max="12"
+                max="30"
                 value={params.totalEvents}
                 onChange={(e) => handleEventCountChange(parseInt(e.target.value) || 3)}
                 className="w-16 bg-[#0F1117] border border-[#2D3139] text-white font-mono text-base px-2 py-1 rounded-xs"
