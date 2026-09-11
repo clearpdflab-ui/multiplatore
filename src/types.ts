@@ -235,3 +235,24 @@ export interface CycleTicket {
   settledAt?: string | null;
 }
 
+// Schedina salvata: snapshot nominato della workbench LiveSlipTracker
+// (partite + parametri di Dutching), ricaricabile in qualsiasi momento.
+export interface SavedSlipParams {
+  baseStake: number;
+  targetProfit: number;
+  asymmetricMode: AsymmetricMode;
+  enableBooster: boolean;
+  boosterOdds: number;
+  bookmakerModel?: BookmakerModelId;
+  modelApplyScope?: 'pending' | 'all';
+}
+
+export interface SavedSlip {
+  id: string;
+  name: string;
+  matches: UserMatch[];
+  params: SavedSlipParams;
+  createdAt: string; // ISO
+  updatedAt: string; // ISO
+}
+

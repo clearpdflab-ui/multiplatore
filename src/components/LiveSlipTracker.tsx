@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { UserMatch, AsymmetricMode, GeneratedSlip, BookmakerModelId } from '../types';
+import { UserMatch, AsymmetricMode, GeneratedSlip, BookmakerModelId, SavedSlip } from '../types';
+import { useSavedSlips } from '../hooks/useSavedSlips';
 import {
   DEFAULT_SERIE_A_MATCHES,
   REAL_SERIE_A_3_MATCHES,
@@ -34,6 +35,9 @@ import {
   ArrowRight,
   Edit2,
   Calendar,
+  Save,
+  FolderOpen,
+  Upload,
 } from 'lucide-react';
 
 interface LiveSlipTrackerProps {
@@ -91,6 +95,14 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
 
   // Filter or active slip view in tickets view
   const [filterType, setFilterType] = useState<'all' | 'active_only' | 'mother'>('all');
+
+  // F10 — libreria schedine salvate (locale-first + sync cloud)
+  const {
+    slips, loading: slipsLoading, error: slipsError, usingFallback: slipsLocal,
+    saveSlip, overwriteSlip, deleteSlip,
+  } = useSavedSlips();
+  const [slipName, setSlipName] = useState('');
+  const [slipMsg, setSlipMsg] = useState<string | null>(null);
 
   // Compute live slips whenever matches or parameters change
   const slipsResult = useMemo(() => {
@@ -198,6 +210,65 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     } else if (preset === 'custom_5') {
       setMatches(DEFAULT_SERIE_A_MATCHES.slice(0, 5));
     }
+  };
+
+  const currentSlipParams = () => ({
+    baseStake,
+    targetProfit,
+    asymmetricMode,
+    enableBooster,
+    boosterOdds,
+    bookmakerModel: selectedBookmakerModel,
+    modelApplyScope,
+  });
+
+  const defaultSlipName = () => {
+    const d = new Date();
+    return `Schedina ${matches.length} eventi — ${d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })} ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+
+  const flashSlipMsg = (m: string) => {
+    setSlipMsg(m);
+    setTimeout(() => setSlipMsg(null), 3500);
+  };
+
+  const handleSaveSlip = async () => {
+    try {
+      const s = await saveSlip({ name: slipName.trim() || defaultSlipName(), matches, params: currentSlipParams() });
+      setSlipName('');
+      flashSlipMsg(`💾 "${s.name}" salvata (${s.matches.length} partite)`);
+    } catch (e) {
+      flashSlipMsg(`⚠ ${e instanceof Error ? e.message : 'Errore salvataggio'}`);
+    }
+  };
+
+  const handleOverwriteSlip = async (s: SavedSlip) => {
+    try {
+      await overwriteSlip(s.id, { name: s.name, matches, params: currentSlipParams() });
+      flashSlipMsg(`💾 "${s.name}" sovrascritta con la configurazione attuale`);
+    } catch (e) {
+      flashSlipMsg(`⚠ ${e instanceof Error ? e.message : 'Errore sovrascrittura'}`);
+    }
+  };
+
+  const handleLoadSlip = (s: SavedSlip) => {
+    if (!s.matches.length) return;
+    setMatches(s.matches.map((m, idx) => ({ ...m, order: idx + 1 })));
+    const p = s.params;
+    if (Number.isFinite(p.baseStake)) setBaseStake(p.baseStake);
+    if (Number.isFinite(p.targetProfit)) setTargetProfit(p.targetProfit);
+    if (p.asymmetricMode) setAsymmetricMode(p.asymmetricMode);
+    if (typeof p.enableBooster === 'boolean') setEnableBooster(p.enableBooster);
+    if (Number.isFinite(p.boosterOdds)) setBoosterOdds(p.boosterOdds);
+    if (p.bookmakerModel) setSelectedBookmakerModel(p.bookmakerModel);
+    if (p.modelApplyScope) setModelApplyScope(p.modelApplyScope);
+    flashSlipMsg(`📂 Caricata "${s.name}" (${s.matches.length} partite)`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteSlip = async (s: SavedSlip) => {
+    await deleteSlip(s.id);
+    flashSlipMsg(`🗑 "${s.name}" eliminata`);
   };
 
   const copySlipToClipboard = (slip: GeneratedSlip) => {
@@ -337,6 +408,82 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 La Schedina Madre è decaduta, ma la Copertura <strong>C{slipsResult.firstOverIndex + 1}</strong> è vincente e ripaga tutti i costi sostenuti.
               </span>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Libreria Schedine Salvate (F10) */}
+      <div className="bg-[#0F1117] border border-[#2D3139] p-4 rounded-sm space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <FolderOpen className="w-4 h-4 text-[#3B82F6]" />
+            <span className="text-xs uppercase font-mono text-white font-bold tracking-wider">Schedine Salvate</span>
+            <span className={`text-[10px] font-mono ${slipsLocal ? 'text-[#64748B]' : 'text-emerald-400'}`}>
+              {slipsLocal ? 'solo locale (login per sync cloud)' : 'sync cloud attiva'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <input
+              value={slipName}
+              onChange={(e) => setSlipName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void handleSaveSlip()}
+              placeholder={defaultSlipName()}
+              className="flex-1 sm:w-72 bg-[#1A1D26] border border-[#2D3139] rounded-xs px-2.5 py-1.5 text-xs font-mono text-white outline-none focus:border-[#3B82F6] min-w-0"
+            />
+            <button
+              onClick={() => void handleSaveSlip()}
+              disabled={!matches.length}
+              className="px-3 py-1.5 text-xs font-mono uppercase font-bold bg-[#3B82F6] hover:bg-blue-500 text-white rounded-xs flex items-center gap-1.5 disabled:opacity-40 shrink-0"
+              title="Salva la configurazione attuale (partite + parametri) nella libreria"
+            >
+              <Save className="w-3.5 h-3.5" /> Salva ora
+            </button>
+          </div>
+        </div>
+
+        {slipsError && <div className="text-[11px] font-mono text-red-300">{slipsError}</div>}
+        {slipMsg && <div className="text-[11px] font-mono text-emerald-300">{slipMsg}</div>}
+
+        {slipsLoading ? (
+          <div className="text-[11px] font-mono text-[#64748B]">Caricamento schedine…</div>
+        ) : slips.length === 0 ? (
+          <div className="text-[11px] font-mono text-[#64748B]">
+            Nessuna schedina salvata: configura le partite (o importale dal Calendario) e premi <strong className="text-[#94A3B8]">Salva ora</strong>.
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-2">
+            {slips.map((s) => (
+              <div key={s.id} className="border border-[#2D3139] bg-[#141824] rounded-xs p-2.5 flex flex-col gap-2">
+                <div className="min-w-0">
+                  <div className="text-white text-xs font-bold truncate" title={s.name}>{s.name}</div>
+                  <div className="text-[10px] font-mono text-[#64748B]">
+                    {s.matches.length} partite · madre €{s.params.baseStake} · target €{s.params.targetProfit} · {new Date(s.createdAt).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {s.updatedAt !== s.createdAt && ' · aggiornata'}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                  <button
+                    onClick={() => handleLoadSlip(s)}
+                    className="px-2 py-1 bg-blue-500/10 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 rounded-xs uppercase font-bold flex items-center gap-1"
+                  >
+                    <Upload className="w-3 h-3" /> Carica
+                  </button>
+                  <button
+                    onClick={() => void handleOverwriteSlip(s)}
+                    title="Sostituisci questa schedina con la configurazione attuale"
+                    className="px-2 py-1 bg-[#1A1D26] hover:bg-[#252A36] text-[#94A3B8] hover:text-white border border-[#2D3139] rounded-xs uppercase"
+                  >
+                    Sovrascrivi
+                  </button>
+                  <button
+                    onClick={() => void handleDeleteSlip(s)}
+                    className="px-2 py-1 text-red-400 hover:text-red-300 hover:bg-red-950/40 rounded-xs uppercase ml-auto flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3 h-3" /> Elimina
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
