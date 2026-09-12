@@ -516,17 +516,21 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   };
 
   // F19: lancia il motore di ricerca scale armonizzate sulla pool corrente.
-  async function runFinder() {
+  // F21: accetta override per i bottoni "riprova con..." (evita state staleness).
+  async function runFinder(overrides?: { lay?: string; minN?: string; maxN?: string }) {
     setFinderLoading(true);
     setFinderResult(null);
     try {
       // lascia dipingere lo spinner prima del calcolo sincrono (beam search)
       await new Promise((resolve) => setTimeout(resolve, 30));
-      const layNum = parseFloat(fLay.replace(',', '.'));
+      const layStr = overrides?.lay ?? fLay;
+      const layNum = parseFloat(layStr.replace(',', '.'));
       const layParam: 'prematch' | number = Number.isFinite(layNum) && layNum > 1 ? layNum : 'prematch';
       setFinderLayUsed(
         layParam === 'prematch' ? 'auto pre-match' : `@${layNum.toFixed(2)}`,
       );
+      const minStr = overrides?.minN ?? fMinN;
+      const maxStr = overrides?.maxN ?? fMaxN;
       const res = findHarmonizableLadders({
         rows,
         now: Date.now(),
@@ -535,8 +539,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         layCommissionPct: Math.min(20, Math.max(0, parseFloat(fComm.replace(',', '.')) || 0)),
         lay: layParam,
         oddsMin: Math.max(1, parsedOddsMin || 1),
-        minEvents: Math.max(2, parseInt(fMinN, 10) || 6),
-        maxEvents: Math.min(15, Math.max(2, parseInt(fMaxN, 10) || 9)),
+        minEvents: Math.max(2, parseInt(minStr, 10) || 6),
+        maxEvents: Math.min(15, Math.max(2, parseInt(maxStr, 10) || 9)),
         topK: 3,
       });
       setFinderResult(res);
@@ -545,6 +549,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         feasible: [],
         best: null,
         closestMaxLay: null,
+        fallback: null,
+        closest: null,
         poolSize: 0,
         evaluations: 0,
         budgetHit: false,
@@ -561,6 +567,124 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     setSelectedEventIds(c.eventIds);
     handleImportSelected(c.eventIds);
   };
+
+  // F21: card di una scala trovata (fattibile o fallback), con matrice.
+  const renderFinderCard = (
+    c: FinderCandidate,
+    idx: number,
+    badge: React.ReactNode,
+  ): React.ReactNode => {
+                const mKey = `${c.finaleMode}|${c.eventIds.join('|')}`;
+                const isLay = c.finaleMode === 'lay';
+                return (
+                <div
+                  key={mKey}
+                  className="bg-[#141824] border border-emerald-500/30 rounded-xs p-3"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <div className="font-mono text-xs font-bold text-white">
+                      <span className="text-emerald-400">#{idx + 1}</span> Scala {c.n} eventi{' '}
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-xs border ${
+                          isLay
+                            ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                            : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                        }`}
+                        title={
+                          isLay
+                            ? `Finale in banca: LAY Under ultimo match @${c.layQuote.toFixed(2)} (fee ${c.layCommissionPct}%)`
+                            : 'Finale in punta/punta: singola Over in bookmaker, dutching puro senza banca'
+                        }
+                      >
+                        {isLay ? `BANCA @${c.layQuote.toFixed(2)}` : 'PUNTA/PUNTA'}
+                      </span>{' '}
+                      — garantito{' '}
+                      <span className="text-emerald-400">≥ +€{(c.equalizedNet ?? 0).toFixed(2)}</span>{' '}
+                      su OGNI esito
+                      {badge}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setMatrixOpen(matrixOpen === mKey ? null : mKey)}
+                        className="px-3 py-1.5 bg-[#1A1D26] hover:bg-[#252A36] text-[#94A3B8] hover:text-white border border-[#2D3139] font-mono font-bold text-xs rounded-xs transition-colors"
+                        title="Mostra la matrice completa: per ogni ramo (S0, C1.., finale) stake, quota, payout e netto se vince"
+                      >
+                        {matrixOpen === mKey ? 'Nascondi matrice' : 'Matrice'}
+                      </button>
+                      <button
+                        onClick={() => importFinderCandidate(c)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-colors"
+                        title="Importa questa scala nel workbench (riarmonizzata con i tuoi parametri)"
+                      >
+                        Importa scala
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px] text-[#94A3B8] mb-2">
+                    {c.rows.map((r, i) => (
+                      <div key={r.eventId} className="truncate">
+                        <span className="text-[#64748B]">#{i + 1}</span> {r.home} - {r.away}{' '}
+                        <span className="text-[#64748B]">({formatKickoff(r.kickoff)})</span>
+                      </div>
+                    ))}
+                  </div>
+                    <div className="font-mono text-[11px] text-[#E0E2E7] flex flex-wrap gap-x-4 gap-y-1">
+                    <span title="Puntate bookmaker S0 + C1..: la scala dutcha a payout comune">
+                      Book €{c.bookStakes.toFixed(2)} ({c.stakes.slice(0, -1).join(' / ')})
+                    </span>
+                    {isLay ? (
+                      <span title="Bancata exchange dimensionata sul ramo peggiore">
+                        Banca €{c.stakes[c.stakes.length - 1].toFixed(2)} (resp €
+                        {c.liability.toFixed(2)} @{c.layQuote.toFixed(2)})
+                      </span>
+                    ) : (
+                      <span title="Singola finale Over in bookmaker (ultimo stake della dutched)">
+                        Singola €{c.stakes[c.stakes.length - 1].toFixed(2)}
+                      </span>
+                    )}
+                    <span>Esposizione €{c.exposure.toFixed(2)}</span>
+                    <span>Madre lorda €{c.motherGross.toFixed(2)}</span>
+                    <span title="Copertura con 1/quota più alta: la gamba che comanda la chiusura">
+                      Gamba critica C{c.bindingStep}
+                    </span>
+                    {isLay ? (
+                      <span>lay max @{c.maxLayQuote.toFixed(2)}</span>
+                    ) : (
+                      <span>Σ(1/quota) {c.sumInverse.toFixed(3)} &lt; 1 ✓</span>
+                    )}
+                    {matrixOpen === mKey && (
+                      <div className="mt-2 overflow-x-auto">
+                        <table className="w-full text-left font-mono text-[11px] border-collapse">
+                          <thead>
+                            <tr className="border-b border-[#2D3139] text-[#64748B] text-[10px] uppercase">
+                              <th className="p-1.5">Ramo vincente</th>
+                              <th className="p-1.5">Composizione</th>
+                              <th className="p-1.5 text-right">Quota</th>
+                              <th className="p-1.5 text-right">Puntata €</th>
+                              <th className="p-1.5 text-right">Payout €</th>
+                              <th className="p-1.5 text-right text-emerald-400">Netto €</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#20242C]">
+                            {c.legs.map((leg) => (
+                              <tr key={leg.code} className="hover:bg-[#1A1D26]/40">
+                                <td className="p-1.5 font-bold text-white">{leg.code}</td>
+                                <td className="p-1.5 text-[#94A3B8]">{leg.desc}</td>
+                                <td className="p-1.5 text-right text-white">{leg.mult.toFixed(2)}</td>
+                                <td className="p-1.5 text-right text-[#3B82F6]">{leg.stake.toFixed(2)}</td>
+                                <td className="p-1.5 text-right text-white">{leg.payout.toFixed(2)}</td>
+                                <td className="p-1.5 text-right font-bold text-emerald-400">+{leg.net.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                );
+  };
+
 
   const deselectAll = () => {
     setSelectedEventIds([]);
@@ -897,128 +1021,102 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               {finderResult.budgetHit ? ' (budget valutazioni esaurito)' : ''} · lay {finderLayUsed}
             </div>
             {finderResult.feasible.length === 0 ? (
-              <div className="bg-red-950/30 border border-red-500/40 p-3 rounded-xs font-mono text-xs text-red-200">
-                Nessuna scala da {fMinN}–{fMaxN} eventi chiude a lay {finderLayUsed}.
-                {finderResult.closestMaxLay !== null && (
-                  <>
-                    {' '}La più vicina servirebbe lay ≤{' '}
-                    <strong className="text-white">@{finderResult.closestMaxLay.toFixed(2)}</strong>:
-                    abbassa la quota lay (banca in-play quando l&apos;Under dell&apos;ultimo match
-                    scende) o accorcia la scala.
-                  </>
+              <div className="space-y-2.5">
+                <div className="bg-red-950/30 border border-red-500/40 p-3 rounded-xs font-mono text-xs text-red-200">
+                  Nessuna scala da {fMinN}–{fMaxN} eventi chiude a lay {finderLayUsed}.
+                  {finderResult.closestMaxLay !== null && (
+                    <>
+                      {' '}La più vicina servirebbe lay ≤{' '}
+                      <strong className="text-white">@{finderResult.closestMaxLay.toFixed(2)}</strong>:
+                      abbassa la quota lay (banca in-play quando l&apos;Under dell&apos;ultimo match
+                      scende) o accorcia la scala.
+                    </>
+                  )}
+                </div>
+                {finderResult.fallback && (
+                  <div className="space-y-2">
+                    <div className="font-mono text-xs text-amber-200">
+                      Sotto gli eventi richiesti invece CHIUDE — scala da{' '}
+                      {finderResult.fallback.n} eventi:
+                    </div>
+                    {renderFinderCard(
+                      finderResult.fallback,
+                      0,
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-xs bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        fallback N={finderResult.fallback.n}
+                      </span>,
+                    )}
+                    <button
+                      onClick={() => {
+                        const n = String(finderResult.fallback?.n ?? 4);
+                        setFMinN(n);
+                        setFMaxN(n);
+                        void runFinder({ minN: n, maxN: n });
+                      }}
+                      className="px-3 py-1.5 text-xs font-mono rounded-xs border transition-colors bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border-amber-500/40"
+                      title="Rilancia la ricerca fissata su questo numero di eventi"
+                    >
+                      Prova con N={finderResult.fallback.n} eventi
+                    </button>
+                  </div>
+                )}
+                {finderResult.closest && (
+                  <div className="bg-[#141824] border border-[#2D3139] rounded-xs p-3">
+                    <div className="font-mono text-xs font-bold text-white mb-2">
+                      La più vicina{' '}
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-xs bg-red-500/20 text-red-300 border border-red-500/40">
+                        NON CHIUDE
+                      </span>{' '}
+                      — sequenza e requisiti
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px] text-[#94A3B8] mb-2">
+                      {finderResult.closest.rows.map((r, i) => (
+                        <div key={r.eventId} className="truncate">
+                          <span className="text-[#64748B]">#{i + 1}</span> {r.home} - {r.away}{' '}
+                          <span className="text-[#64748B]">({formatKickoff(r.kickoff)})</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="font-mono text-[11px] text-[#E0E2E7] flex flex-wrap gap-x-4 gap-y-1 mb-2">
+                      {finderResult.closest.finaleMode === 'lay' ? (
+                        <span>
+                          Servirebbe lay ≤{' '}
+                          <strong className="text-white">
+                            @{finderResult.closest.maxLayQuote.toFixed(2)}
+                          </strong>{' '}
+                          (ora @{finderResult.closest.layQuote.toFixed(2)})
+                        </span>
+                      ) : (
+                        <span>
+                          Σ(1/quota) {finderResult.closest.sumInverse.toFixed(3)} (serve &lt; 1)
+                        </span>
+                      )}
+                      <span>
+                        Gamba critica C{finderResult.closest.bindingStep}
+                      </span>
+                      <span>Esposizione scala standard €{finderResult.closest.exposure.toFixed(2)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {finderResult.closest.finaleMode === 'lay' &&
+                        finderResult.closest.maxLayQuote > 0 && (
+                          <button
+                            onClick={() => {
+                              const v = finderResult.closest!.maxLayQuote.toFixed(2);
+                              setFLay(v);
+                              void runFinder({ lay: v });
+                            }}
+                            className="px-3 py-1.5 text-xs font-mono rounded-xs border transition-colors bg-violet-500/10 hover:bg-violet-500/25 text-violet-300 border-violet-500/40"
+                            title="Rilancia la ricerca con la quota lay che farebbe chiudere questa scala"
+                          >
+                            Imposta lay @{finderResult.closest.maxLayQuote.toFixed(2)} e ricerca
+                          </button>
+                        )}
+                    </div>
+                  </div>
                 )}
               </div>
             ) : (
-              finderResult.feasible.map((c, idx) => {
-                const mKey = `${c.finaleMode}|${c.eventIds.join('|')}`;
-                const isLay = c.finaleMode === 'lay';
-                return (
-                <div
-                  key={mKey}
-                  className="bg-[#141824] border border-emerald-500/30 rounded-xs p-3"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                    <div className="font-mono text-xs font-bold text-white">
-                      <span className="text-emerald-400">#{idx + 1}</span> Scala {c.n} eventi{' '}
-                      <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded-xs border ${
-                          isLay
-                            ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
-                            : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                        }`}
-                        title={
-                          isLay
-                            ? `Finale in banca: LAY Under ultimo match @${c.layQuote.toFixed(2)} (fee ${c.layCommissionPct}%)`
-                            : 'Finale in punta/punta: singola Over in bookmaker, dutching puro senza banca'
-                        }
-                      >
-                        {isLay ? `BANCA @${c.layQuote.toFixed(2)}` : 'PUNTA/PUNTA'}
-                      </span>{' '}
-                      — garantito{' '}
-                      <span className="text-emerald-400">≥ +€{(c.equalizedNet ?? 0).toFixed(2)}</span>{' '}
-                      su OGNI esito
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => setMatrixOpen(matrixOpen === mKey ? null : mKey)}
-                        className="px-3 py-1.5 bg-[#1A1D26] hover:bg-[#252A36] text-[#94A3B8] hover:text-white border border-[#2D3139] font-mono font-bold text-xs rounded-xs transition-colors"
-                        title="Mostra la matrice completa: per ogni ramo (S0, C1.., finale) stake, quota, payout e netto se vince"
-                      >
-                        {matrixOpen === mKey ? 'Nascondi matrice' : 'Matrice'}
-                      </button>
-                      <button
-                        onClick={() => importFinderCandidate(c)}
-                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-colors"
-                        title="Importa questa scala nel workbench (riarmonizzata con i tuoi parametri)"
-                      >
-                        Importa scala
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid sm:grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px] text-[#94A3B8] mb-2">
-                    {c.rows.map((r, i) => (
-                      <div key={r.eventId} className="truncate">
-                        <span className="text-[#64748B]">#{i + 1}</span> {r.home} - {r.away}{' '}
-                        <span className="text-[#64748B]">({formatKickoff(r.kickoff)})</span>
-                      </div>
-                    ))}
-                  </div>
-                    <div className="font-mono text-[11px] text-[#E0E2E7] flex flex-wrap gap-x-4 gap-y-1">
-                    <span title="Puntate bookmaker S0 + C1..: la scala dutcha a payout comune">
-                      Book €{c.bookStakes.toFixed(2)} ({c.stakes.slice(0, -1).join(' / ')})
-                    </span>
-                    {isLay ? (
-                      <span title="Bancata exchange dimensionata sul ramo peggiore">
-                        Banca €{c.stakes[c.stakes.length - 1].toFixed(2)} (resp €
-                        {c.liability.toFixed(2)} @{c.layQuote.toFixed(2)})
-                      </span>
-                    ) : (
-                      <span title="Singola finale Over in bookmaker (ultimo stake della dutched)">
-                        Singola €{c.stakes[c.stakes.length - 1].toFixed(2)}
-                      </span>
-                    )}
-                    <span>Esposizione €{c.exposure.toFixed(2)}</span>
-                    <span>Madre lorda €{c.motherGross.toFixed(2)}</span>
-                    <span title="Copertura con 1/quota più alta: la gamba che comanda la chiusura">
-                      Gamba critica C{c.bindingStep}
-                    </span>
-                    {isLay ? (
-                      <span>lay max @{c.maxLayQuote.toFixed(2)}</span>
-                    ) : (
-                      <span>Σ(1/quota) {c.sumInverse.toFixed(3)} &lt; 1 ✓</span>
-                    )}
-                    {matrixOpen === mKey && (
-                      <div className="mt-2 overflow-x-auto">
-                        <table className="w-full text-left font-mono text-[11px] border-collapse">
-                          <thead>
-                            <tr className="border-b border-[#2D3139] text-[#64748B] text-[10px] uppercase">
-                              <th className="p-1.5">Ramo vincente</th>
-                              <th className="p-1.5">Composizione</th>
-                              <th className="p-1.5 text-right">Quota</th>
-                              <th className="p-1.5 text-right">Puntata €</th>
-                              <th className="p-1.5 text-right">Payout €</th>
-                              <th className="p-1.5 text-right text-emerald-400">Netto €</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-[#20242C]">
-                            {c.legs.map((leg) => (
-                              <tr key={leg.code} className="hover:bg-[#1A1D26]/40">
-                                <td className="p-1.5 font-bold text-white">{leg.code}</td>
-                                <td className="p-1.5 text-[#94A3B8]">{leg.desc}</td>
-                                <td className="p-1.5 text-right text-white">{leg.mult.toFixed(2)}</td>
-                                <td className="p-1.5 text-right text-[#3B82F6]">{leg.stake.toFixed(2)}</td>
-                                <td className="p-1.5 text-right text-white">{leg.payout.toFixed(2)}</td>
-                                <td className="p-1.5 text-right font-bold text-emerald-400">+{leg.net.toFixed(2)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                );
-              })
+              finderResult.feasible.map((c, idx) => renderFinderCard(c, idx, null))
             )}
           </div>
         )}

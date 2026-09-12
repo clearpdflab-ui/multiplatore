@@ -195,4 +195,60 @@ describe('findHarmonizableLadders', () => {
       expect(c.layQuote).toBe(0);
     });
   });
+
+  it('F21: se nulla chiude in fascia, propone il fallback sotto minEvents', () => {
+    // Prime 3 ad Under alti (= madri corte ricche), ultime 4 ad Under bassi
+    // (= veleno per le scale lunghe: SOMMA esplode). min=6, max=7.
+    // Le scale da 6-7 non chiudono il dutch; quelle da 4 (es. [1,2,3,4])
+    // chiudono dutch E madre -> fallback.
+    const ks = kickoffs(7);
+    const odds: [number, number][] = [
+      [2.0, 2.75],
+      [2.0, 2.75],
+      [2.0, 2.75],
+      [1.35, 2.0],
+      [1.35, 2.0],
+      [1.35, 2.0],
+      [1.35, 2.0],
+    ];
+    const rows = odds.map(([u, o], i) => mkRow(`m${i + 1}`, ks[i], u, o));
+    const r = findHarmonizableLadders({
+      rows,
+      now: NOW,
+      baseStake: 20,
+      targetProfit: 45,
+      lay: 1.6,
+      minEvents: 6,
+      maxEvents: 7,
+    });
+    expect(r.feasible).toHaveLength(0);
+    expect(r.fallback).not.toBeNull();
+    expect(r.fallback!.n).toBeLessThan(6);
+    expect(r.fallback!.n).toBeGreaterThanOrEqual(2);
+    r.fallback!.branchNets.forEach((net) => expect(net).toBeGreaterThan(0));
+  });
+
+  it('F21: closest indica la sequenza infattibile piu vicina a chiudere', () => {
+    const ks = kickoffs(8);
+    const rows = ks.map((k, i) => mkRow(`m${i + 1}`, k, 1.5, 2.4));
+    const r = findHarmonizableLadders({
+      rows,
+      now: NOW,
+      baseStake: 20,
+      targetProfit: 45,
+      lay: 3.0,
+      minEvents: 5,
+      maxEvents: 8,
+    });
+    expect(r.best).toBeNull();
+    expect(r.closest).not.toBeNull();
+    expect(r.closest!.feasible).toBe(false);
+    expect(r.closest!.rows.length).toBeGreaterThanOrEqual(5);
+    expect(r.closest!.rows.length).toBeLessThanOrEqual(8);
+    // sequenza cronologica
+    const times = r.closest!.rows.map((x) => new Date(x.kickoff).getTime());
+    for (let i = 1; i < times.length; i++) {
+      expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
+    }
+  });
 });

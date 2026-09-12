@@ -70,6 +70,9 @@ export interface FinderResult {
   feasible: FinderCandidate[]; // topK fattibili: equalized desc, poi capitale asc
   best: FinderCandidate | null;
   closestMaxLay: number | null; // lay max piu' alta tra i candidati completi
+  // F21 — quando nulla chiude nella fascia richiesta:
+  fallback: FinderCandidate | null; // migliore scala fattibile SOTTO minEvents
+  closest: FinderCandidate | null; // infattibile in fascia col lay max piu' alto
   poolSize: number;
   evaluations: number;
   budgetHit: boolean;
@@ -198,16 +201,25 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
     if (!c) {
       return -1e18;
     }
-    // Fattibili per prime (garantito desc); parziali/infattibili: piu' vicini
-    // a chiudere (k*S piccolo in lay, S piccolo in book) per primi.
+    // Fattibili per prime (garantito desc, poi capitale asc per diversificare
+    // i prefissi); parziali/infattibili: piu' vicini a chiudere per primi.
     if (c.feasible) {
-      return 1e12 + (c.equalizedNet ?? 0);
+      return 1e12 + (c.equalizedNet ?? 0) - c.exposure / 1e6;
     }
     return -(c.finaleMode === 'lay' ? c.kFactor * c.sumInverse : c.sumInverse);
   };
 
+  const rankFeasible = (list: FinderCandidate[]): FinderCandidate[] =>
+    list
+      .filter((c) => c.feasible)
+      .sort((a, b) => (b.equalizedNet ?? 0) - (a.equalizedNet ?? 0) || a.exposure - b.exposure);
+
   const full: FinderCandidate[] = [];
   const seenFull = new Set<string>();
+  // F21: anche le scale complete SOTTO minEvents (gia' valutate nella beam)
+  // vengono raccolte: se nulla chiude in fascia, si propone il fallback.
+  const short: FinderCandidate[] = [];
+  const seenShort = new Set<string>();
   let beam: CoverOddsRow[][] = pool.map((r) => [r]);
   for (let len = 2; len <= maxEvents && beam.length > 0; len++) {
     const scored: { seq: CoverOddsRow[]; score: number }[] = [];
@@ -225,9 +237,14 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
         let bestScore = -1e18;
         for (const mode of modes) {
           const c = evaluateCached(seq, mode);
-          if (seq.length >= minEvents && c && !seenFull.has(`${mode}|${key}`)) {
+          const mkey = `${mode}|${key}`;
+          if (c && seq.length >= minEvents && !seenFull.has(mkey)) {
             full.push(c);
-            seenFull.add(`${mode}|${key}`);
+            seenFull.add(mkey);
+          }
+          if (c && seq.length >= 2 && seq.length < minEvents && !seenShort.has(mkey)) {
+            short.push(c);
+            seenShort.add(mkey);
           }
           bestScore = Math.max(bestScore, beamScore(c));
         }
@@ -243,15 +260,21 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
     beam = scored.slice(0, beamWidth).map((x) => x.seq);
   }
 
-  const feasible = full
-    .filter((c) => c.feasible)
-    .sort((a, b) => (b.equalizedNet ?? 0) - (a.equalizedNet ?? 0) || a.exposure - b.exposure)
-    .slice(0, topK);
+  const feasible = rankFeasible(full).slice(0, topK);
+  const fallbackList = rankFeasible(short).slice(0, topK);
+  // La piu' vicina a chiudere in fascia: distanza minima dalla soglia
+  // (lay: k*S -> 1; book: S -> 1).
+  const infeasibleFull = full.filter((c) => !c.feasible);
+  const closeDistance = (c: FinderCandidate): number =>
+    c.finaleMode === 'lay' ? c.kFactor * c.sumInverse - 1 : c.sumInverse - 1;
+  infeasibleFull.sort((a, b) => closeDistance(a) - closeDistance(b));
   const maxLays = full.map((c) => c.maxLayQuote).filter((v) => Number.isFinite(v) && v > 0);
   return {
     feasible,
     best: feasible[0] ?? null,
     closestMaxLay: maxLays.length ? Number(Math.max(...maxLays).toFixed(2)) : null,
+    fallback: fallbackList[0] ?? null,
+    closest: infeasibleFull[0] ?? null,
     poolSize: pool.length,
     evaluations,
     budgetHit,
