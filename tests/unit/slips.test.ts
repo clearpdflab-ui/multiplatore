@@ -349,3 +349,37 @@ describe('generateCustomSlips — ARMONIZZAZIONE regola mai-perdita (F15)', () =
     expect(r.harmonization).toBeNull();
   });
 });
+
+describe('generateCustomSlips — gambe SOLO 1° TEMPO (F17)', () => {
+  it('partita con firstHalfOnly: madre e coperture usano le etichette 1T', () => {
+    const matches = mkMatches(3, []);
+    matches[0].firstHalfOnly = true; // match 1 solo primo tempo
+    const r = generateCustomSlips(matches, 10, 45, 'flat', false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.3,
+    });
+    // madre: la gamba del match 1 e' Under 3.5 1T, le altre restano integrali
+    expect(r.motherSlip.items[0].market).toBe('UNDER 3.5 1T');
+    expect(r.motherSlip.items[1].market).toBe('UNDER 3.5');
+    // C1: prima gamba Over del match 1 -> OVER 3.5 1T
+    expect(r.coverageSlips[0].items[0].market).toBe('OVER 3.5 1T');
+    // C1 gambe successive (match 2,3 Under): integrali
+    expect(r.coverageSlips[0].items[1].market).toBe('UNDER 3.5');
+    // C2: prima gamba Over del match 2 integrale
+    expect(r.coverageSlips[1].items[0].market).toBe('OVER 3.5');
+    // banca finale (match 3 integrale): LAY UNDER 3.5
+    expect(r.coverageSlips[2].items[0].market).toBe('LAY UNDER 3.5');
+  });
+
+  it('ultimo match con firstHalfOnly: la banca finale e in 1T', () => {
+    const matches = mkMatches(3, []);
+    matches[2].firstHalfOnly = true; // ultimo match solo primo tempo
+    const r = generateCustomSlips(matches, 10, 45, 'flat', false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.3,
+    });
+    expect(r.coverageSlips[2].type).toBe('FINAL_LAY');
+    expect(r.coverageSlips[2].items[0].market).toBe('LAY UNDER 3.5 1T');
+    // le gambe Under del match 3 nelle coperture C1/C2 sono 1T
+    expect(r.coverageSlips[0].items[2].market).toBe('UNDER 3.5 1T');
+    expect(r.coverageSlips[1].items[1].market).toBe('UNDER 3.5 1T');
+  });
+});

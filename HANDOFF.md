@@ -688,3 +688,22 @@ manuale dell'utente.
   TRA le partite selezionate (alert se due selezionate sono a <2h di
   distanza). Non implementato finché l'utente non sceglie.
 - Test: **134/134**, tsc, lint 0 error, build OK.
+- **F17b — "Solo 1° tempo" (scelta utente: mercato 1T sulla gamba)**:
+  - Tipi: `UserMatch.firstHalfOnly?: boolean`; `GeneratedSlipItem.market` +=
+    `'UNDER 3.5 1T' | 'OVER 3.5 1T' | 'LAY UNDER 3.5 1T'`.
+  - Engine `slips.ts`: helper `legMarket()` — tutte le gambe di una partita
+    flagged (madre, prima gamba Over delle coperture, gambe Under nelle
+    coperture successive, banca finale) usano l'etichetta 1T. Le quote sono
+    quelle nei campi Under/Over del workbench (l'utente le aggiusta a mano
+    con le quote 1T: il feed LDL non le fornisce).
+  - Calendario: bottone "Solo 1° tempo" sulle righe <2h (attiva il flag +
+    seleziona); badge "N solo 1° tempo" nella barra selezione; deselezione
+    pulisce il flag; import passa `firstHalfOnly` + nota "solo 1° tempo";
+    messaggio dell'alert rimanda al bottone 1T.
+  - Workbench: colonna "Solo 1T" nella tabella partite (toggle per riga,
+    con tooltip esplicativo); chip di mercato per prefisso (OVER/BOOSTER/
+    LAY/UNDER) così le varianti 1T ereditano i colori.
+  - Persistenza automatica: `firstHalfOnly` viaggia dentro `UserMatch` →
+    localStorage + saved_slips (nessuna migration).
+  - Test +2 (etichette 1T su madre/coperture/banca, match intermedio e
+    ultimo) → **136/136**, tsc, lint 0 error, build OK.

@@ -40,6 +40,9 @@ export interface UserMatch {
   resultScore?: string;
   note?: string;
   kickoff?: string; // ISO kickoff (import LDL); per controllo spread limite giorni
+  // F17: partita inserita SOLO sul mercato del PRIMO TEMPO (es. Under/Over 3.5
+  // 1T): le gambe usano le quote 1T (inserite a mano nel workbench).
+  firstHalfOnly?: boolean;
 }
 
 export interface GeneratedSlipItem {
@@ -48,7 +51,14 @@ export interface GeneratedSlipItem {
   homeTeam: string;
   awayTeam: string;
   timeSlot: string;
-  market: 'UNDER 3.5' | 'OVER 3.5' | 'BOOSTER 1X/12' | 'LAY UNDER 3.5';
+  market:
+    | 'UNDER 3.5'
+    | 'OVER 3.5'
+    | 'BOOSTER 1X/12'
+    | 'LAY UNDER 3.5'
+    | 'UNDER 3.5 1T'
+    | 'OVER 3.5 1T'
+    | 'LAY UNDER 3.5 1T';
   odds: number;
 }
 

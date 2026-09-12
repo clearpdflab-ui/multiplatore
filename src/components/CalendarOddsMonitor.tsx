@@ -258,6 +258,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [hideStarted, setHideStarted] = useState<boolean>(true);
   // F17: alert se seleziono una partita a meno di 2 ore dall'avvio.
   const [selectionAlert, setSelectionAlert] = useState<string | null>(null);
+  // F17: eventi marcati "solo 1° tempo" (per partite troppo vicine che si
+  // decidono comunque di inserire, sul mercato del primo tempo).
+  const [firstHalfIds, setFirstHalfIds] = useState<string[]>([]);
   const [importNotification, setImportNotification] = useState<string | null>(null);
   const [ldlErrors, setLdlErrors] = useState<string[]>([]);
   // Coppia book per la ricerca /puntapunta: madre=book con Under 3.5 (sites1),
@@ -444,24 +447,55 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     setSelectedEventIds((prev) =>
       prev.includes(eventId) ? prev.filter((id) => id !== eventId) : [...prev, eventId],
     );
+    // Deselezionando si perde anche l'eventuale flag "solo 1° tempo".
+    if (wasSelected) {
+      setFirstHalfIds((prev) => prev.filter((id) => id !== eventId));
+      setSelectionAlert(null);
+      return;
+    }
     // F17: selezione di una partita troppo vicina (<2h) -> alert popup.
-    // La selezione resta (puoi decidere tu), ma devi saperlo subito.
-    if (!wasSelected && isKickoffTooSoon(row, Date.now(), MIN_HOURS_TO_KICKOFF)) {
+    // La selezione resta (puoi decidere tu), ma devi saperlo subito: se vuoi
+    // inserirla comunque, il bottone "Solo 1° tempo" sulla riga la porta sul
+    // mercato del primo tempo.
+    if (isKickoffTooSoon(row, Date.now(), MIN_HOURS_TO_KICKOFF)) {
       const minutes = Math.max(
         0,
         Math.round((new Date(row.kickoff).getTime() - Date.now()) / 60000),
       );
       setSelectionAlert(
         `⚠ ${row.home} - ${row.away} parte tra ${minutes} minuti (meno di ${MIN_HOURS_TO_KICKOFF} ore): ` +
-          `tempo insufficiente per piazzare madre e copertura con calma. Inseriscila solo se sai cosa stai facendo.`,
+          `tempo insufficiente per piazzare madre e copertura con calma. Se vuoi inserirla comunque, ` +
+          `usa il bottone "Solo 1° tempo" sulla riga: la partita entra sul mercato del primo tempo ` +
+          `(poi aggiorna le quote nel workbench).`,
       );
-      setTimeout(() => setSelectionAlert(null), 8000);
-    } else if (wasSelected) {
-      setSelectionAlert(null);
+      setTimeout(() => setSelectionAlert(null), 10000);
     }
   };
 
-  const deselectAll = () => setSelectedEventIds([]);
+  // F17: marca/demarca una partita troppo vicina come "solo 1° tempo" e la
+  // tiene selezionata per l'import.
+  const toggleFirstHalf = (row: CoverOddsRow) => {
+    const eventId = row.eventId;
+    const active = firstHalfIds.includes(eventId);
+    setFirstHalfIds((prev) =>
+      active ? prev.filter((id) => id !== eventId) : [...prev, eventId],
+    );
+    if (!active) {
+      setSelectedEventIds((prev) =>
+        prev.includes(eventId) ? prev : [...prev, eventId],
+      );
+      setSelectionAlert(
+        `⏱ ${row.home} - ${row.away} inserita SOLO sul 1° tempo: nel workbench aggiorna le quote ` +
+          `Under/Over di questa partita con quelle del primo tempo.`,
+      );
+      setTimeout(() => setSelectionAlert(null), 8000);
+    }
+  };
+
+  const deselectAll = () => {
+    setSelectedEventIds([]);
+    setFirstHalfIds([]);
+  };
 
   // Finestra effettiva: min(7gg, limite giorni multipla piu' restrittivo tra
   // i book madre selezionati (dal gestionale).
@@ -605,7 +639,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         outcome,
         resultScore: row.totalGoals !== null ? `${row.homeScore} - ${row.awayScore}` : undefined,
         kickoff: row.kickoff || undefined,
-        note: `${row.league} (U:${under.book} / O:${over.book})`,
+        firstHalfOnly: firstHalfIds.includes(row.eventId) || undefined,
+        note: `${row.league} (U:${under.book} / O:${over.book})${firstHalfIds.includes(row.eventId) ? ' · solo 1° tempo' : ''}`,
       });
     });
 
@@ -957,6 +992,11 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                     Bonus +{6 + (selectedEventIds.length - 5) * 6}% Attivo
                   </span>
                 )}
+                {firstHalfIds.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.2 bg-violet-500/20 text-violet-300 border border-violet-500/40 rounded-xs">
+                    {firstHalfIds.length} solo 1° tempo
+                  </span>
+                )}
               </div>
               <p className="text-xs text-[#94A3B8]">
                 Per ogni partita viene usata la quota migliore osservata tra i bookmaker coperti.
@@ -1039,12 +1079,31 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                       <Clock className="w-3 h-3" />
                       <span>{formatKickoff(row.kickoff)}</span>
                       {isKickoffTooSoon(row, Date.now(), MIN_HOURS_TO_KICKOFF) && (
-                        <span
-                          className="ml-1 px-1.5 py-0.2 rounded-xs bg-amber-950/60 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1"
-                          title={`Meno di ${MIN_HOURS_TO_KICKOFF} ore all'avvio: selezionandola avrai poco tempo per piazzare madre e copertura`}
-                        >
-                          <AlertTriangle className="w-2.5 h-2.5" />&lt;{MIN_HOURS_TO_KICKOFF}h
-                        </span>
+                        <>
+                          <span
+                            className="ml-1 px-1.5 py-0.2 rounded-xs bg-amber-950/60 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1"
+                            title={`Meno di ${MIN_HOURS_TO_KICKOFF} ore all'avvio: selezionandola avrai poco tempo per piazzare madre e copertura`}
+                          >
+                            <AlertTriangle className="w-2.5 h-2.5" />&lt;{MIN_HOURS_TO_KICKOFF}h
+                          </span>
+                          {/* F17: scelta "solo primo tempo" se si decide di
+                              inserire comunque la partita troppo vicina */}
+                          <button
+                            onClick={() => toggleFirstHalf(row)}
+                            className={`px-1.5 py-0.2 rounded-xs font-bold border transition-colors ${
+                              firstHalfIds.includes(row.eventId)
+                                ? 'bg-violet-500/20 text-violet-300 border-violet-500/50'
+                                : 'bg-[#1A1D26] text-[#94A3B8] border-[#2D3139] hover:text-white'
+                            }`}
+                            title={
+                              firstHalfIds.includes(row.eventId)
+                                ? 'Questa partita entra SOLO sul mercato del primo tempo (Under/Over 3.5 1T). Click per tornare al mercato integrale.'
+                                : `Meno di ${MIN_HOURS_TO_KICKOFF} ore: se vuoi inserirla comunque, portala SOLO sul primo tempo (le quote 1T le aggiusti poi nel workbench).`
+                            }
+                          >
+                            {firstHalfIds.includes(row.eventId) ? 'Solo 1° tempo ✓' : 'Solo 1° tempo'}
+                          </button>
+                        </>
                       )}
                       <span>•</span>
                       <span>{row.league}</span>

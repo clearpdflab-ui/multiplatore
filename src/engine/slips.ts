@@ -8,6 +8,12 @@ import {
 import { getBonusPercentage } from './bonus';
 import { roundToFiftyCents, getStepTargetProfit } from './dutching';
 
+// F17: partita con flag firstHalfOnly -> le sue gambe usano il mercato del
+// PRIMO TEMPO (le quote sono quelle inserite a mano nel workbench).
+function legMarket(m: UserMatch, base: 'UNDER 3.5' | 'OVER 3.5'): GeneratedSlipItem['market'] {
+  return m.firstHalfOnly ? (`${base} 1T` as GeneratedSlipItem['market']) : base;
+}
+
 export interface CustomSlipsResult {
   motherSlip: GeneratedSlip;
   coverageSlips: GeneratedSlip[];
@@ -94,7 +100,7 @@ export function generateCustomSlips(
     homeTeam: m.homeTeam,
     awayTeam: m.awayTeam,
     timeSlot: m.timeSlot,
-    market: 'UNDER 3.5',
+    market: legMarket(m, 'UNDER 3.5'),
     odds: Number(m.underOdds) || 1.3,
   }));
 
@@ -161,7 +167,7 @@ export function generateCustomSlips(
       homeTeam: currentMatch.homeTeam,
       awayTeam: currentMatch.awayTeam,
       timeSlot: currentMatch.timeSlot,
-      market: 'OVER 3.5',
+      market: legMarket(currentMatch, 'OVER 3.5'),
       odds: Number(currentMatch.overOdds) || 3.0,
     });
     for (let j = k; j < N; j++) {
@@ -172,7 +178,7 @@ export function generateCustomSlips(
         homeTeam: nextMatch.homeTeam,
         awayTeam: nextMatch.awayTeam,
         timeSlot: nextMatch.timeSlot,
-        market: 'UNDER 3.5',
+        market: legMarket(nextMatch, 'UNDER 3.5'),
         odds: Number(nextMatch.underOdds) || 1.3,
       });
     }
@@ -390,7 +396,7 @@ export function generateCustomSlips(
           homeTeam: finalMatch.homeTeam,
           awayTeam: finalMatch.awayTeam,
           timeSlot: finalMatch.timeSlot,
-          market: 'LAY UNDER 3.5',
+          market: finalMatch.firstHalfOnly ? 'LAY UNDER 3.5 1T' : 'LAY UNDER 3.5',
           odds: layQuote,
         },
       ],

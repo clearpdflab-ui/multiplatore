@@ -1187,6 +1187,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 <th className="p-2.5 min-w-[200px]">Squadra Casa - Squadra Ospite</th>
                 <th className="p-2.5 w-28 text-center text-emerald-400">Quota UNDER 3.5</th>
                 <th className="p-2.5 w-28 text-center text-amber-400">Quota OVER 3.5</th>
+                <th className="p-2.5 w-16 text-center text-violet-300">Solo 1T</th>
                 <th className="p-2.5 w-24 text-center text-[#94A3B8]">Aggio Book</th>
                 <th className="p-2.5 w-44 text-center">Esito Partita (Live)</th>
                 <th className="p-2.5 w-20 text-center">Ordina</th>
@@ -1294,6 +1295,27 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           className="w-20 text-center bg-[#1A1D26] border border-amber-500/40 text-amber-300 font-bold py-1 px-1.5 rounded-xs focus:border-amber-400 focus:outline-hidden"
                         />
                       </div>
+                    </td>
+
+                    {/* F17 — Solo Primo Tempo toggle */}
+                    <td className="p-2.5 text-center">
+                      <button
+                        onClick={() =>
+                          handleUpdateMatch(match.id, 'firstHalfOnly', !match.firstHalfOnly)
+                        }
+                        className={`px-1.5 py-1 rounded-xs border font-bold text-[10px] font-mono transition-colors ${
+                          match.firstHalfOnly
+                            ? 'bg-violet-500/20 text-violet-300 border-violet-500/50'
+                            : 'bg-[#1A1D26] text-[#64748B] border-[#2D3139] hover:text-white'
+                        }`}
+                        title={
+                          match.firstHalfOnly
+                            ? 'Questa partita entra SOLO sul mercato del primo tempo: le sue gambe usano le quote 1T che inserisci nei campi Under/Over. Click per tornare al mercato integrale.'
+                            : 'Inserisci questa partita SOLO sul primo tempo (Under/Over 3.5 1T): poi aggiorna a mano le quote nei campi Under/Over con quelle del 1T.'
+                        }
+                      >
+                        {match.firstHalfOnly ? '1T ✓' : '1T'}
+                      </button>
                     </td>
 
                     {/* Aggio Bookmaker Calculation Column */}
@@ -1553,11 +1575,11 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                       <div
                         key={`${item.matchId}-${idx}`}
                         className={`p-1.5 rounded-xs flex items-center justify-between text-xs font-mono ${
-                          item.market === 'OVER 3.5'
+                          item.market.startsWith('OVER')
                             ? 'bg-amber-500/10 border border-amber-500/30 text-amber-200'
-                            : item.market === 'BOOSTER 1X/12'
+                            : item.market.startsWith('BOOSTER')
                               ? 'bg-blue-500/10 border border-blue-500/30 text-blue-200'
-                              : item.market === 'LAY UNDER 3.5'
+                              : item.market.startsWith('LAY')
                                 ? 'bg-violet-500/10 border border-violet-500/30 text-violet-200'
                                 : 'bg-[#141824] border border-[#20242C] text-[#E0E2E7]'
                         }`}
@@ -1569,11 +1591,11 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           </span>
                           <span
                             className={`text-[10px] px-1 py-0.2 rounded-xs font-bold ${
-                              item.market === 'OVER 3.5'
+                              item.market.startsWith('OVER')
                                 ? 'bg-amber-500/20 text-amber-300'
-                                : item.market === 'BOOSTER 1X/12'
+                                : item.market.startsWith('BOOSTER')
                                   ? 'bg-blue-500/20 text-blue-300'
-                                  : item.market === 'LAY UNDER 3.5'
+                                  : item.market.startsWith('LAY')
                                     ? 'bg-violet-500/20 text-violet-300'
                                     : 'bg-emerald-500/10 text-emerald-400'
                             }`}
