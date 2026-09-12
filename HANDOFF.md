@@ -659,3 +659,32 @@ manuale dell'utente.
 - Test: +3 in `coverOddsFeed.test.ts` (crescente misto, kickoff vuoto/invalido
   in fondo, stabilità a pari orario) → **131/131**, tsc, lint 0 error,
   build OK.
+- **F16b — partite già iniziate escluse** (stessa richiesta utente): motore
+  `hasKickoffPassed(row, now)`; `filteredRows` nasconde di default le righe
+  con kickoff ≤ ora attuale (toggle "Solo future"/"Anche già iniziate" sulla
+  barra filtri, ricalcolo dell'ora a ogni refresh 60s); `autoFindMatches`
+  le filtra sempre (anche se il feed le mostra 'scheduled' per lentezza);
+  `handleImportSelected` guardia finale + nota "(N già iniziate escluse)".
+
+## F17 — Alert selezione partita a <2h dall'avvio (2026-09-12)
+
+- **Richiesta utente**: alert popup o tooltip se seleziona per errore un
+  evento a meno di 2 ore dall'avvio; + opzione "solo il primo tempo" se
+  decide comunque di inserirla (quest'ultima da chiarire, vedi sotto).
+- **Fatto (alert)**:
+  - Motore: `isKickoffTooSoon(row, now, hours=2)` — kickoff futuro ma entro
+    2 ore dall'ora attuale (+3 test: vicina/limite true, lontana false,
+    passata/mancante false).
+  - UI Calendario: badge ambra "⚠ <2h" con tooltip sulla riga (visibile
+    PRIMA di selezionare); popup/banner ambra dismissibile alla selezione
+    ("Home - Away parte tra N minuti (meno di 2 ore)...", auto-chiusura 8s,
+    la selezione resta valida — decide l'utente); Trova Partite conta le
+    too-soon selezionate nel messaggio ("⚠ N a meno di 2h dall'avvio").
+  - Costante `MIN_HOURS_TO_KICKOFF = 2`.
+- **Aperto (da chiarire con l'utente)**: "devo poter scegliere solo il primo
+  tempo" — letture possibili: (a) flag per gamba "Solo 1° tempo" (mercato
+  primo tempo, quote a mano — il feed LDL non ha quote 1T); (b) forza la
+  partita come PRIMA della scala (position 1); (c) regola di spacing ≥2h
+  TRA le partite selezionate (alert se due selezionate sono a <2h di
+  distanza). Non implementato finché l'utente non sceglie.
+- Test: **134/134**, tsc, lint 0 error, build OK.

@@ -4,6 +4,7 @@ import {
   buildSitesIndex,
   byKickoffAsc,
   collectInactiveSiteIds,
+  isKickoffTooSoon,
   normalizeCoverOdds,
   normalizeCoverOddsItems,
   normalizeEventsFeed,
@@ -345,5 +346,37 @@ describe('byKickoffAsc — ordine di proposta data/ora crescente (F16)', () => {
       'secondo',
       'terzo',
     ]);
+  });
+});
+
+describe('isKickoffTooSoon — regola 2 ore dall ora attuale (F17)', () => {
+  const now = new Date('2026-09-12T14:00:00').getTime();
+  const mk = (eventId: string, kickoff: string): CoverOddsRow => ({
+    eventId,
+    home: 'H',
+    away: 'A',
+    kickoff,
+    league: 'Serie A',
+    status: 'scheduled',
+    line: 3.5,
+    books: [],
+    homeScore: null,
+    awayScore: null,
+    totalGoals: null,
+    lineStatus: null,
+  });
+
+  it('futura ma a meno di 2h -> true (alert)', () => {
+    expect(isKickoffTooSoon(mk('vicina', '2026-09-12T15:30:00'), now, 2)).toBe(true);
+    expect(isKickoffTooSoon(mk('alLimite', '2026-09-12T16:00:00'), now, 2)).toBe(true);
+  });
+
+  it('futura a piu di 2h -> false (ok per la multipla)', () => {
+    expect(isKickoffTooSoon(mk('lontana', '2026-09-12T18:00:00'), now, 2)).toBe(false);
+  });
+
+  it('gia iniziata o kickoff mancante -> false (gestite da hasKickoffPassed)', () => {
+    expect(isKickoffTooSoon(mk('passata', '2026-09-12T13:00:00'), now, 2)).toBe(false);
+    expect(isKickoffTooSoon(mk('noMeta', ''), now, 2)).toBe(false);
   });
 });

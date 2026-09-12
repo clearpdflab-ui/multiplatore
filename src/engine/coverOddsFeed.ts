@@ -115,6 +115,23 @@ export function byKickoffAsc(a: CoverOddsRow, b: CoverOddsRow): number {
   return 0;
 }
 
+// F16b — una partita il cui kickoff e' gia' passato (ora attuale >= kickoff)
+// e' GIA' INIZIATA: non va proposta per una nuova multipla. Righe senza
+// kickoff valido non sono marcate come iniziate (non si puo' dire; restano
+// visibili e ordinate in fondo da byKickoffAsc).
+export function hasKickoffPassed(row: CoverOddsRow, now: number): boolean {
+  const t = new Date(row.kickoff).getTime();
+  return Number.isFinite(t) && t <= now;
+}
+
+// F17 — partita TROPPO VICINA: kickoff futuro ma a meno di `hours` dall'ora
+// attuale (default regola relay: 2 ore). Selezionarla per errore va segnalato:
+// resta poco tempo per piazzare madre e copertura prima dell'avvio.
+export function isKickoffTooSoon(row: CoverOddsRow, now: number, hours = 2): boolean {
+  const t = new Date(row.kickoff).getTime();
+  return Number.isFinite(t) && t > now && t - now <= hours * 3600_000;
+}
+
 function computeLineStatus(totalGoals: number | null, line: number): LineStatus | null {
   if (totalGoals === null) {
     return null;

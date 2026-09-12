@@ -3,6 +3,8 @@ import { UserMatch } from '../types';
 import {
   bestCoverSide,
   byKickoffAsc,
+  hasKickoffPassed,
+  isKickoffTooSoon,
   type CoverOddsRow,
   type LdlMatchStatus,
   type LineStatus,
@@ -16,6 +18,7 @@ import {
   Clock,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   RefreshCw,
   ArrowRight,
   Filter,
@@ -36,6 +39,9 @@ interface CalendarOddsMonitorProps {
 const REFRESH_INTERVAL_MS = 60000;
 const CALENDAR_WINDOW_DAYS = 7;
 const MAX_AUTO_PAGES = 3;
+// F17: regola relay — una partita selezionata deve avere almeno 2 ore di
+// margine dall'ora attuale (tempo per piazzare madre + copertura).
+const MIN_HOURS_TO_KICKOFF = 2;
 const STORE_MADRE = 'multiscale_cal_madre_sites_v1';
 const STORE_COPERTURA = 'multiscale_cal_copertura_sites_v1';
 
@@ -247,6 +253,11 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [activeStatusFilter, setActiveStatusFilter] = useState<
     'all' | 'scheduled' | 'live' | 'finished'
   >('all');
+  // F16b: le partite GIA' INIZIATE (kickoff <= ora attuale) non vengono
+  // proposte — niente lista, niente Trova Partite, niente import.
+  const [hideStarted, setHideStarted] = useState<boolean>(true);
+  // F17: alert se seleziono una partita a meno di 2 ore dall'avvio.
+  const [selectionAlert, setSelectionAlert] = useState<string | null>(null);
   const [importNotification, setImportNotification] = useState<string | null>(null);
   const [ldlErrors, setLdlErrors] = useState<string[]>([]);
   // Coppia book per la ricerca /puntapunta: madre=book con Under 3.5 (sites1),
@@ -408,8 +419,14 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const filteredRows = useMemo(() => {
     // F16: la lista e' proposta in ordine di data/ora di kickoff CRESCENTE
     // (prima le partite piu' vicine nel tempo), non per rating del feed.
+    // F16b: di default le partite gia' iniziate (kickoff <= ora attuale) non
+    // vengono menzionate; l'ora e' ricalcolata a ogni refresh dei dati (60s).
+    const now = Date.now();
     return rows
       .filter((r) => {
+        if (hideStarted && hasKickoffPassed(r, now)) {
+          return false;
+        }
         if (activeLeagueFilter !== 'all' && r.league !== activeLeagueFilter) {
           return false;
         }
@@ -419,12 +436,29 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         return true;
       })
       .sort(byKickoffAsc);
-  }, [rows, activeLeagueFilter, activeStatusFilter]);
+  }, [rows, activeLeagueFilter, activeStatusFilter, hideStarted]);
 
-  const toggleMatchSelection = (eventId: string) => {
+  const toggleMatchSelection = (row: CoverOddsRow) => {
+    const eventId = row.eventId;
+    const wasSelected = selectedEventIds.includes(eventId);
     setSelectedEventIds((prev) =>
       prev.includes(eventId) ? prev.filter((id) => id !== eventId) : [...prev, eventId],
     );
+    // F17: selezione di una partita troppo vicina (<2h) -> alert popup.
+    // La selezione resta (puoi decidere tu), ma devi saperlo subito.
+    if (!wasSelected && isKickoffTooSoon(row, Date.now(), MIN_HOURS_TO_KICKOFF)) {
+      const minutes = Math.max(
+        0,
+        Math.round((new Date(row.kickoff).getTime() - Date.now()) / 60000),
+      );
+      setSelectionAlert(
+        `⚠ ${row.home} - ${row.away} parte tra ${minutes} minuti (meno di ${MIN_HOURS_TO_KICKOFF} ore): ` +
+          `tempo insufficiente per piazzare madre e copertura con calma. Inseriscila solo se sai cosa stai facendo.`,
+      );
+      setTimeout(() => setSelectionAlert(null), 8000);
+    } else if (wasSelected) {
+      setSelectionAlert(null);
+    }
   };
 
   const deselectAll = () => setSelectedEventIds([]);
@@ -486,9 +520,14 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       // F16: la proposta e' in ordine di data/ora CRESCENTE — si selezionano
       // le partite idonee PIU' VICINE NEL TEMPO (il relay e' sequenziale), non
       // le meglio classificate per rating. Il resta visibile come badge.
+      // F16b: le partite gia' iniziate (kickoff <= ora attuale) mai proposte,
+      // anche se il feed le mostra ancora 'scheduled' (dato lento).
       const candidates = [...seen.values()]
         .filter((row) => {
           if (row.status !== 'scheduled') {
+            return false;
+          }
+          if (hasKickoffPassed(row, now)) {
             return false;
           }
           const under = bestCoverSide(row, 'under');
@@ -500,6 +539,13 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       setSelectedEventIds(candidates.map((r) => r.eventId));
 
       let msg = `Selezionate ${candidates.length}/${parsedTarget} partite (Under ≥ ${parsedOddsMin.toFixed(2)}, finestra ${motherWindowDays}gg, ordine data/ora ↑)`;
+      // F17: segnala se tra le selezionate ce n'e' qualcuna a <2h dall'avvio
+      const tooSoon = candidates.filter((r) =>
+        isKickoffTooSoon(r, now, MIN_HOURS_TO_KICKOFF),
+      );
+      if (tooSoon.length > 0) {
+        msg += ` · ⚠ ${tooSoon.length} a meno di ${MIN_HOURS_TO_KICKOFF}h dall'avvio`;
+      }
       if (candidates.length < parsedTarget) {
         msg += ' · nel calendario non ci sono altre partite idonee con questi filtri';
       }
@@ -522,7 +568,13 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   }
 
   const handleImportSelected = () => {
-    const matchesToImport = rows.filter((r) => selectedEventIds.includes(r.eventId));
+    // F16b: guardia finale — una partita gia' iniziata non entra mai nella
+    // multipla, nemmeno se selezionata a mano con il filtro "mostra" attivo.
+    const now = Date.now();
+    const matchesToImport = rows.filter(
+      (r) => selectedEventIds.includes(r.eventId) && !hasKickoffPassed(r, now),
+    );
+    const skippedStarted = selectedEventIds.length - matchesToImport.length;
     const sorted = [...matchesToImport].sort(
       (a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime(),
     );
@@ -563,7 +615,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
 
     onImportToTracker(userMatches);
     setImportNotification(
-      `✅ ${userMatches.length} partite importate con quote reali liberidalavoro.it! Reindirizzamento in corso...`,
+      `✅ ${userMatches.length} partite importate con quote reali liberidalavoro.it! Reindirizzamento in corso...` +
+        (skippedStarted > 0 ? ` (${skippedStarted} già iniziate escluse)` : ''),
     );
     setTimeout(() => {
       setImportNotification(null);
@@ -761,6 +814,21 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         </div>
       )}
 
+      {/* F17 — alert selezione partita troppo vicina (<2h all'avvio) */}
+      {selectionAlert && (
+        <div className="bg-amber-950/70 border border-amber-500/60 p-3 rounded-xs text-amber-200 font-mono text-xs flex items-start gap-2 animate-fade-in">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <span className="flex-1">{selectionAlert}</span>
+          <button
+            onClick={() => setSelectionAlert(null)}
+            className="px-1.5 text-amber-400 hover:text-white shrink-0"
+            title="Chiudi"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Selection Control Bar & Filter Tabs */}
       <div className="bg-[#0F1117] border border-[#2D3139] p-4 rounded-sm flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         {/* League & Status Filters */}
@@ -835,6 +903,24 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               }`}
             >
               Finite
+            </button>
+
+            {/* F16b: partite già iniziate nascoste di default (non proposte) */}
+            <button
+              onClick={() => setHideStarted((v) => !v)}
+              className={`px-2 py-1 rounded-xs flex items-center gap-1 ml-1 border transition-colors ${
+                hideStarted
+                  ? 'bg-[#2A2F3D] text-white font-bold border-[#3B82F6]/40'
+                  : 'text-amber-300 border-amber-500/40 hover:text-amber-200'
+              }`}
+              title={
+                hideStarted
+                  ? 'Le partite già iniziate non vengono mostrate né proposte (regola multipla). Click per mostrarle.'
+                  : 'Stai mostrando anche le partite già iniziate. Click per nasconderle.'
+              }
+            >
+              <Clock className="w-3 h-3" />
+              {hideStarted ? 'Solo future' : 'Anche già iniziate'}
             </button>
           </div>
         </div>
@@ -929,7 +1015,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                 >
                   {/* Checkbox */}
                   <button
-                    onClick={() => canSelect && toggleMatchSelection(row.eventId)}
+                    onClick={() => canSelect && toggleMatchSelection(row)}
                     disabled={!canSelect}
                     className="shrink-0 cursor-pointer text-[#3B82F6] hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                     title={
@@ -952,6 +1038,14 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                     <div className="flex items-center gap-1 text-[10px] text-[#64748B] mb-0.5">
                       <Clock className="w-3 h-3" />
                       <span>{formatKickoff(row.kickoff)}</span>
+                      {isKickoffTooSoon(row, Date.now(), MIN_HOURS_TO_KICKOFF) && (
+                        <span
+                          className="ml-1 px-1.5 py-0.2 rounded-xs bg-amber-950/60 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1"
+                          title={`Meno di ${MIN_HOURS_TO_KICKOFF} ore all'avvio: selezionandola avrai poco tempo per piazzare madre e copertura`}
+                        >
+                          <AlertTriangle className="w-2.5 h-2.5" />&lt;{MIN_HOURS_TO_KICKOFF}h
+                        </span>
+                      )}
                       <span>•</span>
                       <span>{row.league}</span>
                       {row.rating != null && (
