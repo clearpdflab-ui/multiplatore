@@ -48,7 +48,7 @@ export interface HarmonizationInfo {
   equalizedNet: number | null; // netto garantito su OGNI ramo (se feasible)
   baseUsed: number; // S0 effettivo (adeguato al minimo se serve)
   baseMinRequired: number; // S0 minimo per chiudere anche il ramo madre
-  reason: 'layQuote' | 'dutch' | 'mother' | null; // perche' non chiude (se infeasible)
+  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | null; // perche' non chiude (se infeasible)
 }
 
 export function generateCustomSlips(
@@ -304,12 +304,32 @@ export function generateCustomSlips(
   // Se la base utente non basta, S0 viene ADEGUATO al minimo che chiude
   // (riportato in harmonization + banner UI): e' un REQUISITO della puntata,
   // non una scelta. Se den <= 0 il ramo madre non chiude a nessuna base.
+  // F22 — regola min quota 1.25 sulle SINGOLE selezioni (madre +
+  // coperture, singola finale inclusa). Una Under 1.10 dentro una
+  // multipla resterebbe invisibile a un check sul prodotto: si guarda
+  // ogni quota gamba. Esclusi: gambe BOOSTER (riempitivo 1X a quota
+  // bassa per disegno) e item della banca lay (prezzo exchange).
+  const minLegOdds = [motherSlip, ...coverageSlips].reduce((m, s) => {
+    if (s.type === 'FINAL_LAY') {
+      return m;
+    }
+    return s.items.reduce(
+      (a, it) => (it.market === 'BOOSTER 1X/12' ? a : Math.min(a, Number(it.odds) || 0)),
+      m,
+    );
+  }, Number.POSITIVE_INFINITY);
+  const quotaOk = minLegOdds >= 1.25;
   let baseUsed = baseStake;
   let baseMinRequired = baseStake;
-  let harmReason: 'layQuote' | 'dutch' | 'mother' | null = null;
+  let harmReason: 'layQuote' | 'dutch' | 'mother' | 'quota' | null = null;
   let useLayDutch = false;
   let useBookDutch = false;
-  if (harmonizeRequested && N > 1) {
+  if ((harmonizeRequested && N > 1) || (finalHedgeMode === 'book_single' && Boolean(layOpts.harmonized) && coverageSlips.length > 0)) {
+    if (!quotaOk) {
+      harmReason = 'quota';
+    }
+  }
+  if (harmReason === null && harmonizeRequested && N > 1) {
     if (!(kFactorPlan > 1 && kFactorPlan * sumInverse < 0.99)) {
       harmReason = 'layQuote';
     } else {
@@ -326,6 +346,7 @@ export function generateCustomSlips(
       }
     }
   } else if (
+    harmReason === null &&
     finalHedgeMode === 'book_single' &&
     Boolean(layOpts.harmonized) &&
     coverageSlips.length > 0

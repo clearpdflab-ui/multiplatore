@@ -667,6 +667,15 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                     (moltiplicatore madre troppo basso per il target): aggiungi Under alti alla
                     madre, allunga la scala o abbassa il target.
                   </>
+                ) : slipsResult.harmonization.reason === 'quota' ? (
+                  <>
+                    <strong className="text-red-400">
+                      ARMONIZZAZIONE IMPOSSIBILE: quota sotto 1.25
+                    </strong>{' '}
+                    — la regola impone mai sotto quota 1.25 su OGNI selezione: una o più
+                    gambe della scala sono sotto soglia. Correggi le quote (workbench) o
+                    cambia le partite (Calendario).
+                  </>
                 ) : (
                   <>
                     <strong className="text-red-400">
@@ -688,6 +697,15 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                   </strong>{' '}
                   — neanche alzando S0 il payout madre coprirebbe il costo della scala in
                   dutching puro: aggiungi Under alti alla madre o abbassa il target.
+                </>
+              ) : slipsResult.harmonization.reason === 'quota' ? (
+                <>
+                  <strong className="text-red-400">
+                    ARMONIZZAZIONE IMPOSSIBILE: quota sotto 1.25
+                  </strong>{' '}
+                  — la regola impone mai sotto quota 1.25 su OGNI selezione: una o più
+                  gambe della scala sono sotto soglia. Correggi le quote (workbench) o
+                  cambia le partite (Calendario).
                 </>
               ) : (
                 <>

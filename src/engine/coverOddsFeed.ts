@@ -132,6 +132,27 @@ export function isKickoffTooSoon(row: CoverOddsRow, now: number, hours = 2): boo
   return Number.isFinite(t) && t > now && t - now <= hours * 3600_000;
 }
 
+// F22 — vincoli scala del finder:
+// - MIN_GAP_MS: gap minimo tra due kickoff consecutivi della STESSA scala
+//   (regola relay: servono ~2 ore tra un match e il successivo per piazzare
+//   la copertura dopo l'esito).
+// - dedupKey: stessa partita (squadre normalizzate + kickoff) anche se
+//   arriva da leghe/feed diversi o con eventId diverso -> una sola volta.
+export const MIN_GAP_MS = 2 * 3600_000;
+
+function normTeam(s: string): string {
+  return s.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+export function dedupKey(row: CoverOddsRow): string {
+  return `${normTeam(row.home)}|${normTeam(row.away)}|${row.kickoff}`;
+}
+
+// Gap in ms tra due kickoff; NaN se uno dei due non e' valido (non giudicabile).
+export function kickoffGapMs(a: CoverOddsRow, b: CoverOddsRow): number {
+  return new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime();
+}
+
 function computeLineStatus(totalGoals: number | null, line: number): LineStatus | null {
   if (totalGoals === null) {
     return null;

@@ -552,6 +552,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         fallback: null,
         closest: null,
         poolSize: 0,
+        skippedDuplicates: 0,
+        skippedGap: 0,
         evaluations: 0,
         budgetHit: false,
       });
@@ -1019,6 +1021,12 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
             <div className="text-[10px] font-mono text-[#64748B]">
               Pool {finderResult.poolSize} partite · {finderResult.evaluations} scale valutate
               {finderResult.budgetHit ? ' (budget valutazioni esaurito)' : ''} · lay {finderLayUsed}
+              {(finderResult.skippedDuplicates > 0 || finderResult.skippedGap > 0) && (
+                <>
+                  {' '}· scartate: {finderResult.skippedDuplicates} duplicate
+                  {finderResult.skippedGap > 0 && `, ${finderResult.skippedGap} con gap <2h`}
+                </>
+              )}
             </div>
             {finderResult.feasible.length === 0 ? (
               <div className="space-y-2.5">

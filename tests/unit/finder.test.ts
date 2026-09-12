@@ -228,8 +228,7 @@ describe('findHarmonizableLadders', () => {
     r.fallback!.branchNets.forEach((net) => expect(net).toBeGreaterThan(0));
   });
 
-  it('F21: closest indica la sequenza infattibile piu vicina a chiudere', () => {
-    const ks = kickoffs(8);
+  it('F21: closest indica la sequenza infattibile piu vicina a chiudere', () => {    const ks = kickoffs(8);
     const rows = ks.map((k, i) => mkRow(`m${i + 1}`, k, 1.5, 2.4));
     const r = findHarmonizableLadders({
       rows,
@@ -250,5 +249,77 @@ describe('findHarmonizableLadders', () => {
     for (let i = 1; i < times.length; i++) {
       expect(times[i]).toBeGreaterThanOrEqual(times[i - 1]);
     }
+  });
+
+  it('F22: stessa partita 2 volte in pool -> una sola in scala (dedup)', () => {
+    const rows = [
+      mkRow('e1', '2026-09-13T14:00:00Z', 1.6, 2.5),
+      // stessa partita, altro eventId (Serie B vs feed doppio)
+      { ...mkRow('e2', '2026-09-13T14:00:00Z', 1.6, 2.5), home: 'Home e1', away: 'Away e1' },
+      ...kickoffs(4).map((k, i) => mkRow(`ok${i + 1}`, k, 1.6, 2.5)),
+    ];
+    const r = findHarmonizableLadders({
+      rows,
+      now: NOW,
+      baseStake: 20,
+      targetProfit: 45,
+      lay: 1.3,
+      minEvents: 2,
+      maxEvents: 4,
+    });
+    // 6 righe - 1 duplicata = 5 in pool
+    expect(r.poolSize).toBe(5);
+    expect(r.skippedDuplicates).toBe(1);
+    // MAI entrambe le copie dentro la STESSA scala (scale diverse possono
+    // condividere partite legittimamente: e' il vincolo per-scala che conta)
+    const checkNoDupPair = (ids: string[]) => {
+      expect(ids.filter((id) => id === 'e1' || id === 'e2').length).toBeLessThanOrEqual(1);
+      expect(new Set(ids).size).toBe(ids.length);
+    };
+    r.feasible.forEach((c) => checkNoDupPair(c.eventIds));
+    if (r.fallback) {
+      checkNoDupPair(r.fallback.eventIds);
+    }
+    if (r.closest) {
+      checkNoDupPair(r.closest.eventIds);
+    }
+  });
+
+  it('F22: gap < 2h tra consecutive -> sequenza scartata', () => {
+    const rows = [
+      mkRow('a', '2026-09-13T14:00:00Z', 1.6, 2.5),
+      mkRow('b', '2026-09-13T15:00:00Z', 1.6, 2.5), // solo 1h dopo A
+      mkRow('c', '2026-09-13T18:00:00Z', 1.6, 2.5),
+      mkRow('d', '2026-09-13T21:00:00Z', 1.6, 2.5),
+    ];
+    const r = findHarmonizableLadders({
+      rows,
+      now: NOW,
+      baseStake: 20,
+      targetProfit: 45,
+      lay: 1.3,
+      minEvents: 2,
+      maxEvents: 4,
+    });
+    expect(r.poolSize).toBe(4);
+    expect(r.skippedGap).toBeGreaterThan(0);
+    const checkGap = (ids: string[]) => {
+      for (let i = 1; i < ids.length; i++) {
+        const prev = rows.find((x) => x.eventId === ids[i - 1])!;
+        const cur = rows.find((x) => x.eventId === ids[i])!;
+        const gap = new Date(cur.kickoff).getTime() - new Date(prev.kickoff).getTime();
+        expect(gap).toBeGreaterThanOrEqual(2 * 3600_000);
+      }
+    };
+    r.feasible.forEach((c) => checkGap(c.eventIds));
+    if (r.fallback) {
+      checkGap(r.fallback.eventIds);
+    }
+    // A e B mai adiacenti nella stessa scala
+    const hasAdjacentAB = [...r.feasible, ...(r.fallback ? [r.fallback] : [])].some((c) => {
+      const ids = c.eventIds;
+      return ids.some((id, i) => i > 0 && ((id === 'b' && ids[i - 1] === 'a') || (id === 'a' && ids[i - 1] === 'b')));
+    });
+    expect(hasAdjacentAB).toBe(false);
   });
 });

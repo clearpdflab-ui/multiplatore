@@ -433,4 +433,25 @@ describe('generateCustomSlips — ARMONIZZATO punta/punta (F20)', () => {
     expect(r.harmonization?.reason).toBe('dutch');
     expect(r.harmonization?.equalizedNet).toBeNull();
   });
+
+  it('F22 armonizzato: gamba sotto 1.25 -> rifiuto con reason quota', () => {
+    // Singola finale Over a 1.10 (< 1.25): regola min quota violata.
+    const matches = mkMatches(4, [], false);
+    matches[3].overOdds = 1.1;
+    const rBook = generateCustomSlips(matches, 20, 45, 'flat', false, 1.1, 4, 'book_single', {
+      harmonized: true,
+    });
+    expect(rBook.harmonization?.requested).toBe(true);
+    expect(rBook.harmonization?.feasible).toBe(false);
+    expect(rBook.harmonization?.reason).toBe('quota');
+    // Stessa violazione in lay: copertura con Under a 1.10
+    const matches2 = mkMatches(4, [], false);
+    matches2[1].underOdds = 1.1;
+    const rLay = generateCustomSlips(matches2, 20, 45, 'flat', false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.3,
+      harmonized: true,
+    });
+    expect(rLay.harmonization?.feasible).toBe(false);
+    expect(rLay.harmonization?.reason).toBe('quota');
+  });
 });

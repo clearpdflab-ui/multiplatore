@@ -1,7 +1,10 @@
 import {
   bestCoverSide,
   byKickoffAsc,
+  dedupKey,
   hasKickoffPassed,
+  kickoffGapMs,
+  MIN_GAP_MS,
   type CoverOddsRow,
 } from './coverOddsFeed';
 import { solveMatrix, type MatrixBranch } from './matrix';
@@ -64,6 +67,7 @@ export interface FinderCandidate {
   kFactor: number; // 1 in book
   sumInverse: number; // SOMMA 1/m (lay: solo coperture; book: + singola)
   bindingStep: number; // step (1-based) della copertura col 1/m max
+  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | null;
 }
 
 export interface FinderResult {
@@ -74,6 +78,9 @@ export interface FinderResult {
   fallback: FinderCandidate | null; // migliore scala fattibile SOTTO minEvents
   closest: FinderCandidate | null; // infattibile in fascia col lay max piu' alto
   poolSize: number;
+  // F22 — trasparenza scarti: duplicati e gap < 2h rimossi dalla ricerca.
+  skippedDuplicates: number;
+  skippedGap: number;
   evaluations: number;
   budgetHit: boolean;
 }
@@ -141,6 +148,7 @@ function evaluateSequence(
     kFactor: sol.kFactor,
     sumInverse: sol.sumInverse,
     bindingStep: sol.bindingStep,
+    reason: sol.reason,
   };
 }
 
@@ -156,6 +164,11 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
   const budget = params.evalBudget ?? 12000;
 
   // Pool idonea: scheduled, non iniziate, copertura U+O completa, Under minimo.
+  // F22: dedup stessa partita (squadre+kickoff normalizzati, oppure stesso
+  // eventId del feed) + conteggio scarti.
+  const seenPool = new Set<string>();
+  const seenIds = new Set<string>();
+  let skippedDuplicates = 0;
   const pool = params.rows
     .filter((r) => r.status === 'scheduled' && !hasKickoffPassed(r, params.now))
     .filter((r) => {
@@ -163,7 +176,17 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
       const over = bestCoverSide(r, 'over');
       return Boolean(under && over && (under?.odds ?? 0) >= oddsMin && (over?.odds ?? 0) >= oddsMin);
     })
-    .sort(byKickoffAsc);
+    .sort(byKickoffAsc)
+    .filter((r) => {
+      const k = dedupKey(r);
+      if (seenPool.has(k) || seenIds.has(r.eventId)) {
+        skippedDuplicates += 1;
+        return false;
+      }
+      seenPool.add(k);
+      seenIds.add(r.eventId);
+      return true;
+    });
 
   const evalCache = new Map<string, FinderCandidate | null>();
   let evaluations = 0;
@@ -220,6 +243,9 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
   // vengono raccolte: se nulla chiude in fascia, si propone il fallback.
   const short: FinderCandidate[] = [];
   const seenShort = new Set<string>();
+  // F22: gap minimo 2h tra kickoff consecutivi della STESSA scala (regola
+  // relay). Il prune avviene in espansione; skippedGap li conta.
+  let skippedGap = 0;
   let beam: CoverOddsRow[][] = pool.map((r) => [r]);
   for (let len = 2; len <= maxEvents && beam.length > 0; len++) {
     const scored: { seq: CoverOddsRow[]; score: number }[] = [];
@@ -231,6 +257,13 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
           budgetHit = true;
           stopped = true;
           break;
+        }
+        // F22: scarta l'estensione se il gap col precedente e' < 2h.
+        // kickoffGapMs NaN (kickoff mancante) = non giudicabile -> passa.
+        const gap = kickoffGapMs(s[s.length - 1], pool[i]);
+        if (Number.isFinite(gap) && gap < MIN_GAP_MS) {
+          skippedGap += 1;
+          continue;
         }
         const seq = [...s, pool[i]];
         const key = seq.map((r) => r.eventId).join('|');
@@ -276,6 +309,8 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
     fallback: fallbackList[0] ?? null,
     closest: infeasibleFull[0] ?? null,
     poolSize: pool.length,
+    skippedDuplicates,
+    skippedGap,
     evaluations,
     budgetHit,
   };

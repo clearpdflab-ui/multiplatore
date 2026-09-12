@@ -52,7 +52,7 @@ export interface MatrixSolution {
   stakes: number[]; // [S0, C1.., (B)]
   baseUsed: number; // S0 effettivo (adeguato al minimo se serve)
   baseMinRequired: number; // S0 minimo per chiudere anche il ramo madre
-  reason: 'layQuote' | 'dutch' | 'mother' | null;
+  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | null;
   maxLayQuote: number; // 0 = N/A in book
   kFactor: number; // 1 in book
   sumInverse: number; // SOMMA 1/m (lay: solo coperture; book: + singola)
