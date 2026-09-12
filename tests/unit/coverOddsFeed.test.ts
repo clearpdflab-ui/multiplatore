@@ -4,7 +4,10 @@ import {
   buildSitesIndex,
   byKickoffAsc,
   collectInactiveSiteIds,
+  dedupKey,
   isKickoffTooSoon,
+  kickoffGapMs,
+  MIN_GAP_MS,
   normalizeCoverOdds,
   normalizeCoverOddsItems,
   normalizeEventsFeed,
@@ -378,5 +381,55 @@ describe('isKickoffTooSoon — regola 2 ore dall ora attuale (F17)', () => {
   it('gia iniziata o kickoff mancante -> false (gestite da hasKickoffPassed)', () => {
     expect(isKickoffTooSoon(mk('passata', '2026-09-12T13:00:00'), now, 2)).toBe(false);
     expect(isKickoffTooSoon(mk('noMeta', ''), now, 2)).toBe(false);
+  });
+});
+
+describe('dedupKey + kickoffGapMs + MIN_GAP_MS (F22)', () => {
+  const mkFull = (
+    eventId: string,
+    home: string,
+    away: string,
+    kickoff: string,
+  ): CoverOddsRow => ({
+    eventId,
+    home,
+    away,
+    kickoff,
+    league: 'Serie A',
+    status: 'scheduled',
+    line: 3.5,
+    books: [],
+    homeScore: null,
+    awayScore: null,
+    totalGoals: null,
+    lineStatus: null,
+  });
+
+  it('stessa partita con nomi sporchi -> stessa chiave', () => {
+    const a = mkFull('e1', 'Inter', 'Milan', '2026-09-13T18:00:00Z');
+    const b = mkFull('e2', '  INTER  ', 'milan ', '2026-09-13T18:00:00Z');
+    expect(dedupKey(a)).toBe(dedupKey(b));
+  });
+
+  it('orario diverso -> chiave diversa', () => {
+    const a = mkFull('e1', 'Inter', 'Milan', '2026-09-13T18:00:00Z');
+    const b = mkFull('e2', 'Inter', 'Milan', '2026-09-13T20:45:00Z');
+    expect(dedupKey(a)).not.toBe(dedupKey(b));
+  });
+
+  it('MIN_GAP_MS vale 2 ore; gap sotto/sopra soglia', () => {
+    expect(MIN_GAP_MS).toBe(2 * 3600_000);
+    const a = mkFull('e1', 'H', 'A', '2026-09-13T14:00:00Z');
+    const b1 = mkFull('e2', 'H', 'B', '2026-09-13T15:00:00Z');
+    const b2 = mkFull('e3', 'H', 'C', '2026-09-13T16:00:00Z');
+    expect(kickoffGapMs(a, b1)).toBe(3600_000);
+    expect(kickoffGapMs(a, b1) < MIN_GAP_MS).toBe(true);
+    expect(kickoffGapMs(a, b2) >= MIN_GAP_MS).toBe(true);
+  });
+
+  it('kickoff mancante -> gap NaN (non giudicabile, passa)', () => {
+    const a = mkFull('e1', 'H', 'A', '');
+    const b = mkFull('e2', 'H', 'B', '2026-09-13T16:00:00Z');
+    expect(Number.isFinite(kickoffGapMs(a, b))).toBe(false);
   });
 });
