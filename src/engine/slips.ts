@@ -29,21 +29,26 @@ export interface CustomSlipsResult {
   harmonization: HarmonizationInfo | null;
 }
 
+// F15/F20 — armonizzazione regola mai-perdita (lay_exchange o book_single)
 export interface LayFinaleOptions {
   layOdds?: number; // null/undefined = auto (quota Under ultimo match)
-  layCommissionPct?: number; // default 5
+  layCommissionPct?: number; // default 4.5 (fee exchange utente)
   layStake?: number; // stake bancata manuale (>0), altrimenti sizing automatico
   harmonized?: boolean; // sizing armonizzato: OGNI esito finale >= 0
 }
 
 export interface HarmonizationInfo {
   requested: boolean; // armonizzazione richiesta (regola mai-perdita)
-  feasible: boolean; // chiude a questa quota lay? (k * SOMMA(1/m) < 1)
-  layQuoteUsed: number;
-  kFactor: number; // (L - c) / (1 - c)
-  sumInverseMultipliers: number; // SOMMA 1/m_k sulle coperture book
-  maxLayQuote: number; // quota lay massima per cui il dutching chiude
+  finaleMode: 'lay' | 'book'; // chiusura valutata
+  feasible: boolean; // chiude? lay: k*SOMMA(1/m) < 1 E ramo madre; book: SOMMA(1/m) < 1 E ramo madre
+  layQuoteUsed: number; // 0 in book (nessuna banca)
+  kFactor: number; // (L - c) / (1 - c); 1 in book
+  sumInverseMultipliers: number; // SOMMA 1/m_k (lay: solo coperture; book: + singola)
+  maxLayQuote: number; // quota lay massima per chiudere (0 = N/A in book)
   equalizedNet: number | null; // netto garantito su OGNI ramo (se feasible)
+  baseUsed: number; // S0 effettivo (adeguato al minimo se serve)
+  baseMinRequired: number; // S0 minimo per chiudere anche il ramo madre
+  reason: 'layQuote' | 'dutch' | 'mother' | null; // perche' non chiude (se infeasible)
 }
 
 export function generateCustomSlips(
@@ -107,8 +112,10 @@ export function generateCustomSlips(
   const motherRawMultiplier = motherItems.reduce((acc, it) => acc * it.odds, 1);
   const motherBonus = getBonusPercentage(N);
   const motherFinalMultiplier = Number((motherRawMultiplier * (1 + motherBonus / 100)).toFixed(2));
-  const motherGross = Number((baseStake * motherFinalMultiplier).toFixed(2));
-  const motherNet = Number((motherGross - baseStake).toFixed(2));
+  // F20b: S0 puo' essere ADEGUATO al minimo che chiude anche il ramo madre
+  // (vedi pass 2): motherGross/motherNet diventano let e vengono ricalcolati.
+  let motherGross = Number((baseStake * motherFinalMultiplier).toFixed(2));
+  let motherNet = Number((motherGross - baseStake).toFixed(2));
 
   const firstOverIdx = matches.findIndex((m) => m.outcome === 'OVER');
   const hasOver = firstOverIdx !== -1;
@@ -255,9 +262,9 @@ export function generateCustomSlips(
   // STANDARD (o fallback): recupero sequenziale, ogni C_k recupera il cumulato
   // + il suo target di step (curva asimmetrica compresa).
   //
-  // F15 — ARMONIZZATO (regola mai-perdita, solo lay_exchange): tutte le
-  // coperture pagano lo STESSO payout D, dimensionato cosi' che OGNI esito
-  // finale (madre, qualsiasi C_k, banca se esce Over) chiuda >= target:
+  // F15 — ARMONIZZATO lay (regola mai-perdita, finalHedgeMode lay_exchange):
+  // tutte le coperture pagano lo STESSO payout D, dimensionato cosi' che OGNI
+  // esito finale (madre, qualsiasi C_k, banca se esce Over) chiuda >= target:
   //   Under@k: D - I - B(L-1) >= t      Over: B(1-c) - I >= t
   // da cui (pareggiando il ramo peggiore) B = D/(L-c) e D = k*(I+t) con
   // k = (L-c)/(1-c) (il lock estrae solo (1-c)/(L-c) del payout).
@@ -267,6 +274,12 @@ export function generateCustomSlips(
   // (torna sizing standard + rami onesti). La quota lay massima ammessa e'
   // L_max = (1-c)/SOMMA(1/m_k) + c: sopra, serve bancare in-play quando
   // l'Under dell'ultimo match scende.
+  //
+  // F20 — ARMONIZZATO book (regola mai-perdita, finalHedgeMode book_single):
+  // dutching PURO senza banca: la singola finale C_N partecipa al payout
+  // comune D' insieme alle coperture. Ogni ramo chiude D' - I = t con
+  //   D' = (b+t)/(1 - SOMMA'(1/m)),  SOMMA' su C1..CN (singola inclusa),
+  // fattibile <=> SOMMA' < 1. Nessun haircut exchange (k = 1).
   const layOpts = lay ?? {};
   const manualLayStake = Number(layOpts.layStake) > 0 ? Number(layOpts.layStake) : null;
   const harmonizeRequested =
@@ -275,7 +288,7 @@ export function generateCustomSlips(
     Number(layOpts.layOdds) > 1
       ? Number(layOpts.layOdds)
       : Number(matches[N - 1].underOdds) || 1.3;
-  const commPlan = Math.min(0.2, Math.max(0, (Number(layOpts.layCommissionPct) || 5) / 100));
+  const commPlan = Math.min(0.2, Math.max(0, (Number(layOpts.layCommissionPct) || 4.5) / 100));
   const kFactorPlan = (layQuotePlan - commPlan) / (1 - commPlan);
   const sumInverse = coverageSlips.reduce(
     (acc, s) => acc + (s.finalMultiplier > 1 ? 1 / s.finalMultiplier : 0),
@@ -283,15 +296,84 @@ export function generateCustomSlips(
   );
   const maxLayQuote =
     sumInverse > 0 ? Number(((1 / sumInverse) * (1 - commPlan) + commPlan).toFixed(2)) : 0;
-  const harmonizedFeasible =
-    harmonizeRequested && kFactorPlan > 1 && kFactorPlan * sumInverse < 0.99;
+  // F20b — vincolo RAMO MADRE: anche la madre deve chiudere >= t, e la madre
+  // paga b*m_0 con stake b fissato dall'utente. Con I(b), B(b) funzioni di b:
+  //   lay:  b*m_0 - I - B(L-1) >= t  <=>  b >= t*(1+A2)/denM,
+  //         A2 = (L-1)/(1-c), denM = m_0*Q - 1 - A2, Q = 1-kS
+  //   book: b*m_0 - I >= t           <=>  b >= t/[(1-S')*m_0 - 1]
+  // Se la base utente non basta, S0 viene ADEGUATO al minimo che chiude
+  // (riportato in harmonization + banner UI): e' un REQUISITO della puntata,
+  // non una scelta. Se den <= 0 il ramo madre non chiude a nessuna base.
+  let baseUsed = baseStake;
+  let baseMinRequired = baseStake;
+  let harmReason: 'layQuote' | 'dutch' | 'mother' | null = null;
+  let useLayDutch = false;
+  let useBookDutch = false;
+  if (harmonizeRequested && N > 1) {
+    if (!(kFactorPlan > 1 && kFactorPlan * sumInverse < 0.99)) {
+      harmReason = 'layQuote';
+    } else {
+      const A2 = (layQuotePlan - 1) / (1 - commPlan);
+      const Qc = 1 - kFactorPlan * sumInverse;
+      const denM = motherFinalMultiplier * Qc - 1 - A2;
+      if (!(denM > 0)) {
+        harmReason = 'mother';
+      } else {
+        const bMinM = (targetProfit * (1 + A2)) / denM;
+        baseMinRequired = Number(bMinM.toFixed(2));
+        baseUsed = Math.max(baseStake, roundToFiftyCents(bMinM));
+        useLayDutch = true;
+      }
+    }
+  } else if (
+    finalHedgeMode === 'book_single' &&
+    Boolean(layOpts.harmonized) &&
+    coverageSlips.length > 0
+  ) {
+    if (!(sumInverse < 0.99)) {
+      harmReason = 'dutch';
+    } else {
+      const denB = (1 - sumInverse) * motherFinalMultiplier - 1;
+      if (!(denB > 0)) {
+        harmReason = 'mother';
+      } else {
+        const bMinB = targetProfit / denB;
+        baseMinRequired = Number(bMinB.toFixed(2));
+        baseUsed = Math.max(baseStake, roundToFiftyCents(bMinB));
+        useBookDutch = true;
+      }
+    }
+  }
 
-  let runningCumulativeCost = baseStake;
-  if (harmonizedFeasible) {
-    const totalBook = (baseStake + kFactorPlan * targetProfit * sumInverse) / (1 - kFactorPlan * sumInverse);
+  // S0 adeguato -> ricalcola la madre (stake, lordo, netto) e il cumulato.
+  if (baseUsed !== baseStake) {
+    motherGross = Number((baseUsed * motherFinalMultiplier).toFixed(2));
+    motherNet = Number((motherGross - baseUsed).toFixed(2));
+    motherSlip.stake = baseUsed;
+    motherSlip.cumulativeCost = baseUsed;
+    motherSlip.potentialGrossPayout = motherGross;
+    motherSlip.potentialNetProfit = motherNet;
+    motherSlip.targetProfit = motherNet;
+  }
+
+  let runningCumulativeCost = baseUsed;
+  if (useLayDutch) {
+    const totalBook = (baseUsed + kFactorPlan * targetProfit * sumInverse) / (1 - kFactorPlan * sumInverse);
     const commonPayout = kFactorPlan * (totalBook + targetProfit);
     coverageSlips.forEach((s) => {
       s.stake = roundToFiftyCents(commonPayout / s.finalMultiplier);
+      s.cumulativeCost = Number(runningCumulativeCost.toFixed(2));
+      s.potentialGrossPayout = Number((s.stake * s.finalMultiplier).toFixed(2));
+      s.potentialNetProfit = Number(
+        (s.potentialGrossPayout - (runningCumulativeCost + s.stake)).toFixed(2),
+      );
+      s.targetProfit = targetProfit;
+      runningCumulativeCost = Number((runningCumulativeCost + s.stake).toFixed(2));
+    });
+  } else if (useBookDutch) {
+    const commonPayoutBook = (baseUsed + targetProfit) / (1 - sumInverse);
+    coverageSlips.forEach((s) => {
+      s.stake = roundToFiftyCents(commonPayoutBook / s.finalMultiplier);
       s.cumulativeCost = Number(runningCumulativeCost.toFixed(2));
       s.potentialGrossPayout = Number((s.stake * s.finalMultiplier).toFixed(2));
       s.potentialNetProfit = Number(
@@ -352,7 +434,7 @@ export function generateCustomSlips(
     const worstCoveragePayout = coverageSlips.length
       ? Math.min(...coverageSlips.map((s) => s.potentialGrossPayout))
       : motherGross;
-    const activePayout = harmonizedFeasible
+    const activePayout = useLayDutch
       ? worstCoveragePayout
       : activeOverIdx !== -1
         ? coverageSlips[activeOverIdx].potentialGrossPayout
@@ -422,14 +504,18 @@ export function generateCustomSlips(
       const motherBranchNet = motherGross - bookStakesTotal - layLiability;
       harmonization = {
         requested: true,
-        feasible: harmonizedFeasible,
+        finaleMode: 'lay',
+        feasible: useLayDutch,
         layQuoteUsed: layQuote,
         kFactor: Number(kFactorPlan.toFixed(4)),
         sumInverseMultipliers: Number(sumInverse.toFixed(4)),
         maxLayQuote,
-        equalizedNet: harmonizedFeasible
+        equalizedNet: useLayDutch
           ? Number(Math.min(overNet, worstUnderNet, motherBranchNet).toFixed(2))
           : null,
+        baseUsed,
+        baseMinRequired,
+        reason: useLayDutch ? null : harmReason,
       };
     }
   }
@@ -448,7 +534,7 @@ export function generateCustomSlips(
     // (vince la banca): solo le puntate bookmaker.
     const laySlip = coverageSlips[coverageSlips.length - 1];
     const layPlaced = Boolean(laySlip && laySlip.status !== 'PENDING');
-    const layLiabilityIfPlaced = layPlaced || harmonizedFeasible ? layLiability : 0;
+    const layLiabilityIfPlaced = layPlaced || useLayDutch ? layLiability : 0;
     motherSlip.realizedNetIfWon = Number(
       (motherSlip.potentialGrossPayout - (bookStakesTotal + layLiabilityIfPlaced)).toFixed(2),
     );
@@ -467,12 +553,35 @@ export function generateCustomSlips(
     coverageSlips.forEach((s) => {
       s.realizedNetIfWon = Number((s.potentialGrossPayout - runningCumulativeCost).toFixed(2));
     });
+    // F20 — verdetto armonizzazione book: in dutching puro ogni ramo (madre +
+    // C1..CN singola inclusa) chiude D' - I = t; realizedNetIfWon sopra e'
+    // gia' payout - esposizione totale, quindi il minimo e' il garantito.
+    // (Siamo nel ramo else = book_single: basta il flag harmonized.)
+    if (Boolean(layOpts.harmonized) && coverageSlips.length > 0) {
+      const branchNets = [
+        motherSlip.realizedNetIfWon,
+        ...coverageSlips.map((s) => s.realizedNetIfWon),
+      ];
+      harmonization = {
+        requested: true,
+        finaleMode: 'book',
+        feasible: useBookDutch,
+        layQuoteUsed: 0,
+        kFactor: 1,
+        sumInverseMultipliers: Number(sumInverse.toFixed(4)),
+        maxLayQuote: 0,
+        equalizedNet: useBookDutch ? Number(Math.min(...branchNets).toFixed(2)) : null,
+        baseUsed,
+        baseMinRequired,
+        reason: useBookDutch ? null : harmReason,
+      };
+    }
   }
 
   // Capitale effettivo: puntate bookmaker piazzate + (banca piazzata? la sua
   // responsabilita' a rischio). La responsabilita' NON e' una puntata persa
   // se poi esce Over, quindi il ramo Over usa solo la parte bookmaker.
-  let bookInvestedSoFar = baseStake;
+  let bookInvestedSoFar = baseUsed;
   let layAtRisk = 0;
   coverageSlips.forEach((s) => {
     if (s.status === 'WON' || s.status === 'LOST' || s.status === 'ACTIVE') {

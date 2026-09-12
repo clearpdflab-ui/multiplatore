@@ -278,10 +278,12 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [fMinN, setFMinN] = useState('6');
   const [fMaxN, setFMaxN] = useState('9');
   const [fLay, setFLay] = useState(''); // '' = auto (Under ultimo match scala)
-  const [fComm, setFComm] = useState('5');
+  const [fComm, setFComm] = useState('4.5');
   const [finderLoading, setFinderLoading] = useState(false);
   const [finderResult, setFinderResult] = useState<FinderResult | null>(null);
   const [finderLayUsed, setFinderLayUsed] = useState<string>('auto');
+  // F20 — matrice per-ramo espandibile per candidato (chiave modo+eventi).
+  const [matrixOpen, setMatrixOpen] = useState<string | null>(null);
   const [importNotification, setImportNotification] = useState<string | null>(null);
   const [ldlErrors, setLdlErrors] = useState<string[]>([]);
   // Coppia book per la ricerca /puntapunta: madre=book con Under 3.5 (sites1),
@@ -856,9 +858,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           <div className="flex flex-wrap items-center gap-2 font-mono text-xs shrink-0">
             <label className="flex items-center gap-1 text-[#94A3B8]" title="Numero eventi della scala (min-max, bonus da 5)">
               Eventi
-              <input type="number" min="2" max="15" value={fMinN} onChange={(e) => setFMinN(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+              <input type="number" min="2" max="30" value={fMinN} onChange={(e) => setFMinN(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
               <span>–</span>
-              <input type="number" min="2" max="15" value={fMaxN} onChange={(e) => setFMaxN(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+              <input type="number" min="2" max="30" value={fMaxN} onChange={(e) => setFMaxN(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
             </label>
             <label className="flex items-center gap-1 text-[#94A3B8]" title="Puntata base S0 usata nella ricerca">
               Base €
@@ -907,24 +909,51 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                 )}
               </div>
             ) : (
-              finderResult.feasible.map((c, idx) => (
+              finderResult.feasible.map((c, idx) => {
+                const mKey = `${c.finaleMode}|${c.eventIds.join('|')}`;
+                const isLay = c.finaleMode === 'lay';
+                return (
                 <div
-                  key={c.eventIds.join('|')}
+                  key={mKey}
                   className="bg-[#141824] border border-emerald-500/30 rounded-xs p-3"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                     <div className="font-mono text-xs font-bold text-white">
-                      <span className="text-emerald-400">#{idx + 1}</span> Scala {c.n} eventi —{' '}
-                      garantito <span className="text-emerald-400">≥ +€{(c.equalizedNet ?? 0).toFixed(2)}</span>{' '}
+                      <span className="text-emerald-400">#{idx + 1}</span> Scala {c.n} eventi{' '}
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-xs border ${
+                          isLay
+                            ? 'bg-violet-500/20 text-violet-300 border-violet-500/40'
+                            : 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                        }`}
+                        title={
+                          isLay
+                            ? `Finale in banca: LAY Under ultimo match @${c.layQuote.toFixed(2)} (fee ${c.layCommissionPct}%)`
+                            : 'Finale in punta/punta: singola Over in bookmaker, dutching puro senza banca'
+                        }
+                      >
+                        {isLay ? `BANCA @${c.layQuote.toFixed(2)}` : 'PUNTA/PUNTA'}
+                      </span>{' '}
+                      — garantito{' '}
+                      <span className="text-emerald-400">≥ +€{(c.equalizedNet ?? 0).toFixed(2)}</span>{' '}
                       su OGNI esito
                     </div>
-                    <button
-                      onClick={() => importFinderCandidate(c)}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-colors shrink-0"
-                      title="Importa questa scala nel workbench (riarmonizzata con i tuoi parametri)"
-                    >
-                      Importa scala
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setMatrixOpen(matrixOpen === mKey ? null : mKey)}
+                        className="px-3 py-1.5 bg-[#1A1D26] hover:bg-[#252A36] text-[#94A3B8] hover:text-white border border-[#2D3139] font-mono font-bold text-xs rounded-xs transition-colors"
+                        title="Mostra la matrice completa: per ogni ramo (S0, C1.., finale) stake, quota, payout e netto se vince"
+                      >
+                        {matrixOpen === mKey ? 'Nascondi matrice' : 'Matrice'}
+                      </button>
+                      <button
+                        onClick={() => importFinderCandidate(c)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-colors"
+                        title="Importa questa scala nel workbench (riarmonizzata con i tuoi parametri)"
+                      >
+                        Importa scala
+                      </button>
+                    </div>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px] text-[#94A3B8] mb-2">
                     {c.rows.map((r, i) => (
@@ -934,23 +963,62 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                       </div>
                     ))}
                   </div>
-                  <div className="font-mono text-[11px] text-[#E0E2E7] flex flex-wrap gap-x-4 gap-y-1">
+                    <div className="font-mono text-[11px] text-[#E0E2E7] flex flex-wrap gap-x-4 gap-y-1">
                     <span title="Puntate bookmaker S0 + C1..: la scala dutcha a payout comune">
                       Book €{c.bookStakes.toFixed(2)} ({c.stakes.slice(0, -1).join(' / ')})
                     </span>
-                    <span title="Bancata exchange dimensionata sul ramo peggiore">
-                      Banca €{c.stakes[c.stakes.length - 1].toFixed(2)} (resp €{c.liability.toFixed(2)} @
-                      {c.layQuote.toFixed(2)})
-                    </span>
+                    {isLay ? (
+                      <span title="Bancata exchange dimensionata sul ramo peggiore">
+                        Banca €{c.stakes[c.stakes.length - 1].toFixed(2)} (resp €
+                        {c.liability.toFixed(2)} @{c.layQuote.toFixed(2)})
+                      </span>
+                    ) : (
+                      <span title="Singola finale Over in bookmaker (ultimo stake della dutched)">
+                        Singola €{c.stakes[c.stakes.length - 1].toFixed(2)}
+                      </span>
+                    )}
                     <span>Esposizione €{c.exposure.toFixed(2)}</span>
                     <span>Madre lorda €{c.motherGross.toFixed(2)}</span>
                     <span title="Copertura con 1/quota più alta: la gamba che comanda la chiusura">
                       Gamba critica C{c.bindingStep}
                     </span>
-                    <span>lay max @{c.maxLayQuote.toFixed(2)}</span>
+                    {isLay ? (
+                      <span>lay max @{c.maxLayQuote.toFixed(2)}</span>
+                    ) : (
+                      <span>Σ(1/quota) {c.sumInverse.toFixed(3)} &lt; 1 ✓</span>
+                    )}
+                    {matrixOpen === mKey && (
+                      <div className="mt-2 overflow-x-auto">
+                        <table className="w-full text-left font-mono text-[11px] border-collapse">
+                          <thead>
+                            <tr className="border-b border-[#2D3139] text-[#64748B] text-[10px] uppercase">
+                              <th className="p-1.5">Ramo vincente</th>
+                              <th className="p-1.5">Composizione</th>
+                              <th className="p-1.5 text-right">Quota</th>
+                              <th className="p-1.5 text-right">Puntata €</th>
+                              <th className="p-1.5 text-right">Payout €</th>
+                              <th className="p-1.5 text-right text-emerald-400">Netto €</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#20242C]">
+                            {c.legs.map((leg) => (
+                              <tr key={leg.code} className="hover:bg-[#1A1D26]/40">
+                                <td className="p-1.5 font-bold text-white">{leg.code}</td>
+                                <td className="p-1.5 text-[#94A3B8]">{leg.desc}</td>
+                                <td className="p-1.5 text-right text-white">{leg.mult.toFixed(2)}</td>
+                                <td className="p-1.5 text-right text-[#3B82F6]">{leg.stake.toFixed(2)}</td>
+                                <td className="p-1.5 text-right text-white">{leg.payout.toFixed(2)}</td>
+                                <td className="p-1.5 text-right font-bold text-emerald-400">+{leg.net.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         )}

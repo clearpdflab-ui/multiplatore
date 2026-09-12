@@ -147,4 +147,52 @@ describe('findHarmonizableLadders', () => {
       expect(c.eventIds).not.toContain('live');
     });
   });
+
+  it('regola min quota 1.25: selezioni sotto soglia escluse dalla pool', () => {
+    const ks = kickoffs(7);
+    const rows = [
+      mkRow('underBasso', ks[0], 1.2, 2.6), // Under < 1.25
+      mkRow('overBasso', ks[1], 1.5, 1.1), // Over < 1.25
+      ...ks.slice(2).map((k, i) => mkRow(`ok${i + 1}`, k, 1.5, 2.4)),
+    ];
+    const r = findHarmonizableLadders({
+      rows,
+      now: NOW,
+      baseStake: 20,
+      targetProfit: 45,
+      lay: 1.3,
+      minEvents: 5,
+      maxEvents: 5,
+    });
+    expect(r.poolSize).toBe(5);
+    (r.best ? [r.best, ...r.feasible] : []).forEach((c) => {
+      expect(c.eventIds).not.toContain('underBasso');
+      expect(c.eventIds).not.toContain('overBasso');
+    });
+  });
+
+  it('modo book: il motore valuta anche la singola punta/punta', () => {
+    const ks = kickoffs(8);
+    const rows = ks.map((k, i) =>
+      mkRow(`m${i + 1}`, k, 1.5 + (i % 3) * 0.1, 2.2 + (i % 4) * 0.15),
+    );
+    const r = findHarmonizableLadders({
+      rows,
+      now: NOW,
+      baseStake: 20,
+      targetProfit: 45,
+      lay: 1.3,
+      minEvents: 5,
+      maxEvents: 6,
+      finaleModes: ['book'],
+    });
+    // ogni candidato valutato e' in modo book (con o senza fattibilita')
+    expect(r.evaluations).toBeGreaterThan(0);
+    const seen = r.feasible.length > 0 ? r.feasible : [];
+    seen.forEach((c) => {
+      expect(c.finaleMode).toBe('book');
+      expect(c.liability).toBe(0);
+      expect(c.layQuote).toBe(0);
+    });
+  });
 });

@@ -4,28 +4,28 @@ import {
   hasKickoffPassed,
   type CoverOddsRow,
 } from './coverOddsFeed';
-import { generateCustomSlips } from './slips';
+import { solveMatrix, type MatrixBranch } from './matrix';
 import type { UserMatch } from '../types';
 
-// F19 — MOTORE DI RICERCA SCALE ARMONIZZATE ("finder").
+// F19/F20 — MOTORE DI RICERCA SCALE ARMONIZZATE ("finder").
 //
 // Data la pool di partite del calendario (kickoff + quote U/O reali), trova
 // le SEQUENZE cronologiche di N eventi la cui scala chiude la regola
-// MAI-PERDITA: OGNI esito finale (madre, qualsiasi copertura, banca se esce
-// Over) con netto >= target.
+// MAI-PERDITA: OGNI esito finale con netto >= target. Il motore sceglie lui:
+// numero eventi N, stake S0, payout comune D e SINGOLA FINALE (banca lay
+// exchange con fee utente, oppure punta/punta) — vince la configurazione
+// fattibile col miglior garantito / minor capitale.
 //
-// Matematica (stessa di slips.ts, F15): per coperture con moltiplicatori
-// m_1..m_{N-1}, quota lay L, commissione c, base b, target t:
-//
-//   k = (L-c)/(1-c);   S = SOMMA_j 1/m_j
-//   fattibile  <=>  k*S < 1
-//   I = (b + k*t*S)/(1-k*S)        (puntate book totali)
-//   D = k*(I+t)                    (payout comune = dutching)
-//   s_j = D/m_j ;  B = D/(L-c)     (bancata sul ramo peggiore)
+// Matematica (stessa di slips.ts, F15/F20):
+//   lay:  k = (L-c)/(1-c); S = SOMMA_j 1/m_j (solo coperture)
+//         fattibile <=> k*S < 1; I = (b+k*t*S)/(1-k*S); D = k*(I+t)
+//         s_j = D/m_j ; B = D/(L-c) (bancata sul ramo peggiore)
+//   book: dutching puro, singola inclusa: S' su C1..CN
+//         fattibile <=> S' < 1; D' = (b+t)/(1-S')
 //
 // La ricerca e' una beam search cronologica (l'ordine e' fissato dal
 // kickoff): ogni candidato viene valutato ESATTAMENTE riusando
-// generateCustomSlips con lay+harmonized, cosi' i numeri proposti sono gli
+// generateCustomSlips con harmonized, cosi' i numeri proposti sono gli
 // stessi che il workbench ricalcola all'import.
 
 export interface FinderParams {
@@ -33,11 +33,12 @@ export interface FinderParams {
   now: number;
   baseStake: number;
   targetProfit: number;
-  layCommissionPct?: number; // default 5
+  layCommissionPct?: number; // default 4.5 (fee exchange utente)
   lay: 'prematch' | number; // 'prematch' = Under dell'ultimo match della scala
-  oddsMin?: number; // Under minimo per entrare in pool (default 1.0)
+  oddsMin?: number; // minimo quota OGNI selezione (regola: mai sotto 1.25)
   minEvents?: number; // default 5 (da qui il bonus)
-  maxEvents?: number; // default 9
+  maxEvents?: number; // default 9 (fino a 30, madre standard)
+  finaleModes?: ('lay' | 'book')[]; // default entrambi: decide il motore
   topK?: number; // default 3
   beamWidth?: number; // default 30
   evalBudget?: number; // valutazioni esatte massime (default 12000)
@@ -47,19 +48,21 @@ export interface FinderCandidate {
   eventIds: string[];
   rows: CoverOddsRow[]; // sequenza cronologica
   n: number;
-  layQuote: number;
+  finaleMode: 'lay' | 'book'; // scelta del motore per questa scala
+  layQuote: number; // 0 in book (nessuna banca)
   layCommissionPct: number;
   feasible: boolean;
   equalizedNet: number | null;
-  branchNets: number[]; // netto "se vince": [madre, C1..C_{N-1}, banca]
+  branchNets: number[]; // netto "se vince": [madre, C1.., (banca)]
+  legs: MatrixBranch[]; // matrice: una riga per ramo (S0, C1.., FINALE)
   bookStakes: number; // I
-  liability: number; // responsabilita' banca
+  liability: number; // responsabilita' banca (0 in book)
   exposure: number; // I + liability
   motherGross: number;
-  stakes: number[]; // [S0, C1..C_{N-1}, B]
-  maxLayQuote: number;
-  kFactor: number;
-  sumInverse: number; // SOMMA 1/m_k sulle coperture book
+  stakes: number[]; // [S0, C1.., (B)]
+  maxLayQuote: number; // 0 = N/A in book
+  kFactor: number; // 1 in book
+  sumInverse: number; // SOMMA 1/m (lay: solo coperture; book: + singola)
   bindingStep: number; // step (1-based) della copertura col 1/m max
 }
 
@@ -96,74 +99,55 @@ function evaluateSequence(
   targetProfit: number,
   layCommissionPct: number,
   layQuote: number,
+  mode: 'lay' | 'book',
 ): FinderCandidate | null {
-  if (rows.length < 2 || !(layQuote > 1)) {
+  if (rows.length < 2) {
     return null;
   }
-  const r = generateCustomSlips(
-    rowsToMatches(rows),
+  if (mode === 'lay' && !(layQuote > 1)) {
+    return null;
+  }
+  const sol = solveMatrix({
+    matches: rowsToMatches(rows),
     baseStake,
     targetProfit,
-    'flat',
-    false,
-    1.1,
-    4,
-    'lay_exchange',
-    {
-      layOdds: layQuote,
-      layCommissionPct,
-      harmonized: true,
-    },
-  );
-  const h = r.harmonization;
-  if (!h) {
+    layCommissionPct,
+    layQuote,
+    finaleModes: [mode],
+  });
+  if (!sol || sol.finaleMode !== mode) {
     return null;
   }
-  const layCard = r.coverageSlips[r.coverageSlips.length - 1];
-  const bookSlips = r.coverageSlips.slice(0, -1);
-  const sumInverse = bookSlips.reduce(
-    (acc, s) => acc + (s.finalMultiplier > 1 ? 1 / s.finalMultiplier : 0),
-    0,
-  );
-  let bindingStep = 1;
-  let worstInv = -1;
-  bookSlips.forEach((s) => {
-    const inv = s.finalMultiplier > 1 ? 1 / s.finalMultiplier : 0;
-    if (inv > worstInv) {
-      worstInv = inv;
-      bindingStep = s.step;
-    }
-  });
   return {
     eventIds: rows.map((x) => x.eventId),
     rows,
     n: rows.length,
-    layQuote,
-    layCommissionPct,
-    feasible: h.feasible,
-    equalizedNet: h.equalizedNet,
-    branchNets: [
-      r.motherSlip.realizedNetIfWon,
-      ...bookSlips.map((s) => s.realizedNetIfWon),
-      layCard.realizedNetIfWon,
-    ],
-    bookStakes: Number((r.maxPotentialExposure - (layCard.liability ?? 0)).toFixed(2)),
-    liability: layCard.liability ?? 0,
-    exposure: r.maxPotentialExposure,
-    motherGross: r.motherSlip.potentialGrossPayout,
-    stakes: [r.motherSlip.stake, ...bookSlips.map((s) => s.stake), layCard.stake],
-    maxLayQuote: h.maxLayQuote,
-    kFactor: h.kFactor,
-    sumInverse: Number(sumInverse.toFixed(4)),
-    bindingStep,
+    finaleMode: sol.finaleMode,
+    layQuote: sol.layQuote,
+    layCommissionPct: sol.layCommissionPct,
+    feasible: sol.feasible,
+    equalizedNet: sol.equalizedNet,
+    branchNets: sol.branchNets,
+    legs: sol.branches,
+    bookStakes: sol.bookStakes,
+    liability: sol.liability,
+    exposure: sol.exposure,
+    motherGross: sol.motherGross,
+    stakes: sol.stakes,
+    maxLayQuote: sol.maxLayQuote,
+    kFactor: sol.kFactor,
+    sumInverse: sol.sumInverse,
+    bindingStep: sol.bindingStep,
   };
 }
 
 export function findHarmonizableLadders(params: FinderParams): FinderResult {
-  const comm = params.layCommissionPct ?? 5;
-  const oddsMin = params.oddsMin ?? 1.0;
-  const minEvents = Math.max(2, Math.min(params.minEvents ?? 5, 15));
-  const maxEvents = Math.max(minEvents, Math.min(params.maxEvents ?? 9, 15));
+  const comm = params.layCommissionPct ?? 4.5;
+  // Regola metodo: mai sotto quota 1.25 su OGNI selezione (madre e coperture).
+  const oddsMin = Math.max(1.25, params.oddsMin ?? 1.25);
+  const minEvents = Math.max(2, Math.min(params.minEvents ?? 5, 30));
+  const maxEvents = Math.max(minEvents, Math.min(params.maxEvents ?? 9, 30));
+  const modes = params.finaleModes ?? (['lay', 'book'] as ('lay' | 'book')[]);
   const topK = params.topK ?? 3;
   const beamWidth = params.beamWidth ?? 30;
   const budget = params.evalBudget ?? 12000;
@@ -174,15 +158,15 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
     .filter((r) => {
       const under = bestCoverSide(r, 'under');
       const over = bestCoverSide(r, 'over');
-      return Boolean(under && over && (under?.odds ?? 0) >= oddsMin);
+      return Boolean(under && over && (under?.odds ?? 0) >= oddsMin && (over?.odds ?? 0) >= oddsMin);
     })
     .sort(byKickoffAsc);
 
   const evalCache = new Map<string, FinderCandidate | null>();
   let evaluations = 0;
   let budgetHit = false;
-  const evaluateCached = (seq: CoverOddsRow[]): FinderCandidate | null => {
-    const key = seq.map((r) => r.eventId).join('|');
+  const evaluateCached = (seq: CoverOddsRow[], mode: 'lay' | 'book'): FinderCandidate | null => {
+    const key = `${mode}|${seq.map((r) => r.eventId).join('|')}`;
     const hit = evalCache.get(key);
     if (hit !== undefined) {
       return hit;
@@ -204,6 +188,7 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
       params.targetProfit,
       comm,
       layQuote,
+      mode,
     );
     evalCache.set(key, c);
     return c;
@@ -214,18 +199,18 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
       return -1e18;
     }
     // Fattibili per prime (garantito desc); parziali/infattibili: piu' vicini
-    // a chiudere (k*S piccolo) per primi.
+    // a chiudere (k*S piccolo in lay, S piccolo in book) per primi.
     if (c.feasible) {
       return 1e12 + (c.equalizedNet ?? 0);
     }
-    return -(c.kFactor * c.sumInverse);
+    return -(c.finaleMode === 'lay' ? c.kFactor * c.sumInverse : c.sumInverse);
   };
 
   const full: FinderCandidate[] = [];
   const seenFull = new Set<string>();
   let beam: CoverOddsRow[][] = pool.map((r) => [r]);
   for (let len = 2; len <= maxEvents && beam.length > 0; len++) {
-    const scored: { seq: CoverOddsRow[]; c: FinderCandidate | null; score: number }[] = [];
+    const scored: { seq: CoverOddsRow[]; score: number }[] = [];
     let stopped = false;
     for (const s of beam) {
       const lastIdx = pool.indexOf(s[s.length - 1]);
@@ -237,13 +222,17 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
         }
         const seq = [...s, pool[i]];
         const key = seq.map((r) => r.eventId).join('|');
-        const c = evaluateCached(seq);
-        if (seq.length >= minEvents && c && !seenFull.has(key)) {
-          full.push(c);
-          seenFull.add(key);
+        let bestScore = -1e18;
+        for (const mode of modes) {
+          const c = evaluateCached(seq, mode);
+          if (seq.length >= minEvents && c && !seenFull.has(`${mode}|${key}`)) {
+            full.push(c);
+            seenFull.add(`${mode}|${key}`);
+          }
+          bestScore = Math.max(bestScore, beamScore(c));
         }
         if (seq.length < maxEvents) {
-          scored.push({ seq, c, score: beamScore(c) });
+          scored.push({ seq, score: bestScore });
         }
       }
       if (stopped) {

@@ -183,9 +183,9 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
     expect(C8.status).toBe('LOST'); // esce Under: la banca perde la responsabilita'
 
     // stake banca = payout attiva / (L - c) = payout C7 / (1.3 - 0.05)
-    expect(C8.stake).toBeCloseTo(C7.potentialGrossPayout / 1.25, 0);
+    expect(C8.stake).toBeCloseTo(C7.potentialGrossPayout / 1.255, 0);
     expect(C8.liability).toBeCloseTo(C8.stake * 0.3, 2);
-    expect(C8.commissionPct).toBe(5);
+    expect(C8.commissionPct).toBe(4.5);
 
     // F14 rivisto: sizing STANDARD su tutta la scala (niente gonfio su C7:
     // con quote lay alte esplodeva, es. 34 -> 93 sui dati reali utente)
@@ -215,7 +215,7 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
   it('tutti UNDER risolti: vince la madre, la banca è dimensionata sul payout madre', () => {
     const r = genLay([]);
     const C8 = r.coverageSlips[7];
-    expect(C8.stake).toBeCloseTo(r.motherSlip.potentialGrossPayout / 1.25, 0);
+    expect(C8.stake).toBeCloseTo(r.motherSlip.potentialGrossPayout / 1.255, 0);
     expect(r.overallStatus).toBe('WON_MOTHER');
     expect(r.netGainRealized).toBeCloseTo(r.motherSlip.realizedNetIfWon, 2);
   });
@@ -227,9 +227,9 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
     const r = generateCustomSlips(mkMatches(8, [], false), 20, 45, 'flat', false, 1.1, 4, 'lay_exchange', { layOdds: 1.3 });
     const C7 = r.coverageSlips[6];
     const C8 = r.coverageSlips[7];
-    expect(C8.stake).toBeCloseTo(C7.potentialGrossPayout / 1.25, 0);
-    // NON dimensionata sulla madre ( sarebbe motherGross/1.25 ~ 186, non 136.5 )
-    expect(Math.abs(C8.stake - r.motherSlip.potentialGrossPayout / 1.25)).toBeGreaterThan(10);
+    expect(C8.stake).toBeCloseTo(C7.potentialGrossPayout / 1.255, 0);
+    // NON dimensionata sulla madre ( sarebbe motherGross/1.255 ~ 185, non 136 )
+    expect(Math.abs(C8.stake - r.motherSlip.potentialGrossPayout / 1.255)).toBeGreaterThan(10);
     // banca NON ancora piazzata: il netto se vince C7 non sconta la
     // responsabilita' (e' il "atteso" puro del relay = target)
     expect(C7.realizedNetIfWon).toBeCloseTo(C7.potentialNetProfit, 2);
@@ -257,8 +257,8 @@ describe('generateCustomSlips — finale in banca (LAY exchange, green-up)', () 
     // ramo Under (vince C7): 170.28 - 125 - 12
     expect(C7.realizedNetIfWon).toBeCloseTo(170.28 - 125 - 12, 2);
     expect(r.netGainRealized).toBeCloseTo(C7.realizedNetIfWon, 2);
-    // ramo Over (vince la banca): 40*0.95 - 125 — mostrato onesto in rosso
-    expect(C8.realizedNetIfWon).toBeCloseTo(40 * 0.95 - 125, 2);
+    // ramo Over (vince la banca): 40*0.955 - 125 — mostrato onesto in rosso
+    expect(C8.realizedNetIfWon).toBeCloseTo(40 * 0.955 - 125, 2);
     expect(C8.realizedNetIfWon).toBeLessThan(0);
   });
 
@@ -381,5 +381,56 @@ describe('generateCustomSlips — gambe SOLO 1° TEMPO (F17)', () => {
     // le gambe Under del match 3 nelle coperture C1/C2 sono 1T
     expect(r.coverageSlips[0].items[2].market).toBe('UNDER 3.5 1T');
     expect(r.coverageSlips[1].items[1].market).toBe('UNDER 3.5 1T');
+  });
+});
+
+describe('generateCustomSlips — ARMONIZZATO punta/punta (F20)', () => {
+  const mkBook = (odds: [number, number][]): UserMatch[] =>
+    odds.map(([u, o], i) => ({
+      id: `b${i + 1}`,
+      order: i + 1,
+      timeSlot: `t${i}`,
+      homeTeam: `H${i + 1}`,
+      awayTeam: `A${i + 1}`,
+      underOdds: u,
+      overOdds: o,
+      outcome: 'PENDING' as const,
+    }));
+
+  it('dutching puro chiude se SOMMA(1/m) < 1: OGNI ramo positivo', () => {
+    const r = generateCustomSlips(
+      mkBook([
+        [1.9, 3.5],
+        [1.9, 3.5],
+        [1.9, 3.5],
+        [1.9, 3.5],
+      ]),
+      20,
+      45,
+      'flat',
+      false,
+      1.1,
+      4,
+      'book_single',
+      { harmonized: true },
+    );
+    expect(r.harmonization?.requested).toBe(true);
+    expect(r.harmonization?.finaleMode).toBe('book');
+    expect(r.harmonization?.feasible).toBe(true);
+    expect(r.coverageSlips[3].type).toBe('FINAL_SINGLE');
+    [r.motherSlip, ...r.coverageSlips].forEach((s) => {
+      expect(s.realizedNetIfWon).toBeGreaterThan(0);
+    });
+    expect(r.harmonization?.equalizedNet ?? 0).toBeGreaterThan(40);
+  });
+
+  it('dutching puro impossibile (margine book): fallback standard + reason', () => {
+    const r = generateCustomSlips(mkMatches(8, [7]), 20, 45, 'flat', false, 1.1, 4, 'book_single', {
+      harmonized: true,
+    });
+    expect(r.harmonization?.finaleMode).toBe('book');
+    expect(r.harmonization?.feasible).toBe(false);
+    expect(r.harmonization?.reason).toBe('dutch');
+    expect(r.harmonization?.equalizedNet).toBeNull();
   });
 });

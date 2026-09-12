@@ -99,7 +99,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   // F13 — finale in banca: LAY Under 3.5 su exchange (Betfair) con green-up
   const [finalHedgeMode, setFinalHedgeMode] = useState<FinalHedgeMode>('lay_exchange');
   const [layOdds, setLayOdds] = useState<number | null>(null); // null = auto (Under ultimo match)
-  const [layCommissionPct, setLayCommissionPct] = useState<number>(5);
+  const [layCommissionPct, setLayCommissionPct] = useState<number>(4.5);
   const [layStake, setLayStake] = useState<number | null>(null); // null = sizing green-up automatico
   // F15 — regola mai-perdita: sizing armonizzato (dutching a payout comune)
   const [harmonized, setHarmonized] = useState<boolean>(true);
@@ -610,36 +610,94 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
             )}
             <div className="text-[#E0E2E7]">
               {slipsResult.harmonization.feasible ? (
+                slipsResult.harmonization.finaleMode === 'lay' ? (
+                  <>
+                    <strong className="text-emerald-400">Scala ARMONIZZATA — regola mai-perdita:</strong>{' '}
+                    OGNI esito finale (madre, qualsiasi copertura, banca se esce Over) chiude ≥{' '}
+                    <strong>{fmtGain(slipsResult.harmonization.equalizedNet)}</strong>. Puntate book €
+                    {slipsResult.maxPotentialExposure !== undefined
+                      ? (
+                          slipsResult.maxPotentialExposure -
+                          (slipsResult.coverageSlips[slipsResult.coverageSlips.length - 1]?.liability ??
+                            0)
+                        ).toFixed(2)
+                      : '—'}{' '}
+                    + responsabilità banca €
+                    {(
+                      slipsResult.coverageSlips[slipsResult.coverageSlips.length - 1]?.liability ?? 0
+                    ).toFixed(2)}{' '}
+                    (lay @{slipsResult.harmonization.layQuoteUsed.toFixed(2)}, fattore k×
+                    {slipsResult.harmonization.kFactor.toFixed(2)}).
+                    {slipsResult.harmonization.baseUsed > baseStake + 1e-9 && (
+                      <>
+                        {' '}S0 adeguato a{' '}
+                        <strong>€{slipsResult.harmonization.baseUsed.toFixed(2)}</strong> (minimo €
+                        {slipsResult.harmonization.baseMinRequired.toFixed(2)} per chiudere anche
+                        il ramo madre).
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-emerald-400">
+                      Scala ARMONIZZATA (punta/punta) — regola mai-perdita:
+                    </strong>{' '}
+                    OGNI esito finale (madre, qualsiasi copertura, singola finale) chiude ≥{' '}
+                    <strong>{fmtGain(slipsResult.harmonization.equalizedNet)}</strong>. Capitale book €
+                    {slipsResult.maxPotentialExposure.toFixed(2)} a payout comune (Σ(1/quota) ={' '}
+                    {slipsResult.harmonization.sumInverseMultipliers.toFixed(3)} &lt; 1, nessun
+                    haircut exchange).
+                    {slipsResult.harmonization.baseUsed > baseStake + 1e-9 && (
+                      <>
+                        {' '}S0 adeguato a{' '}
+                        <strong>€{slipsResult.harmonization.baseUsed.toFixed(2)}</strong> (minimo €
+                        {slipsResult.harmonization.baseMinRequired.toFixed(2)} per chiudere anche
+                        il ramo madre).
+                      </>
+                    )}
+                  </>
+                )
+              ) : slipsResult.harmonization.finaleMode === 'lay' ? (
+                slipsResult.harmonization.reason === 'mother' ? (
+                  <>
+                    <strong className="text-red-400">
+                      ARMONIZZAZIONE IMPOSSIBILE: ramo MADRE fuori portata
+                    </strong>{' '}
+                    — neanche alzando S0 il payout madre coprirebbe il costo della scala
+                    (moltiplicatore madre troppo basso per il target): aggiungi Under alti alla
+                    madre, allunga la scala o abbassa il target.
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-red-400">
+                      ARMONIZZAZIONE IMPOSSIBILE a lay @{slipsResult.harmonization.layQuoteUsed.toFixed(2)}
+                    </strong>{' '}
+                    — il dutching non chiude (k×Σ(1/quota coperture) ={' '}
+                    {(slipsResult.harmonization.kFactor * slipsResult.harmonization.sumInverseMultipliers).toFixed(2)}{' '}
+                    ≥ 1). Con queste quote serve una quota lay ≤{' '}
+                    <strong>@{slipsResult.harmonization.maxLayQuote.toFixed(2)}</strong>: in pratica,
+                    bancare IN-PLAY quando l&apos;Under dell&apos;ultimo match scende. Fintanto che la
+                    quota e&apos; questa, la scala standard mostrata ha rami negativi (evidenziati
+                    onesti in rosso).
+                  </>
+                )
+              ) : slipsResult.harmonization.reason === 'mother' ? (
                 <>
-                  <strong className="text-emerald-400">Scala ARMONIZZATA — regola mai-perdita:</strong>{' '}
-                  OGNI esito finale (madre, qualsiasi copertura, banca se esce Over) chiude ≥{' '}
-                  <strong>{fmtGain(slipsResult.harmonization.equalizedNet)}</strong>. Puntate book €
-                  {slipsResult.maxPotentialExposure !== undefined
-                    ? (
-                        slipsResult.maxPotentialExposure -
-                        (slipsResult.coverageSlips[slipsResult.coverageSlips.length - 1]?.liability ??
-                          0)
-                      ).toFixed(2)
-                    : '—'}{' '}
-                  + responsabilità banca €
-                  {(
-                    slipsResult.coverageSlips[slipsResult.coverageSlips.length - 1]?.liability ?? 0
-                  ).toFixed(2)}{' '}
-                  (lay @{slipsResult.harmonization.layQuoteUsed.toFixed(2)}, fattore k×
-                  {slipsResult.harmonization.kFactor.toFixed(2)}).
+                  <strong className="text-red-400">
+                    ARMONIZZAZIONE IMPOSSIBILE: ramo MADRE fuori portata
+                  </strong>{' '}
+                  — neanche alzando S0 il payout madre coprirebbe il costo della scala in
+                  dutching puro: aggiungi Under alti alla madre o abbassa il target.
                 </>
               ) : (
                 <>
                   <strong className="text-red-400">
-                    ARMONIZZAZIONE IMPOSSIBILE a lay @{slipsResult.harmonization.layQuoteUsed.toFixed(2)}
+                    ARMONIZZAZIONE IMPOSSIBILE in punta/punta
                   </strong>{' '}
-                  — il dutching non chiude (k×Σ(1/quota coperture) ={' '}
-                  {(slipsResult.harmonization.kFactor * slipsResult.harmonization.sumInverseMultipliers).toFixed(2)}{' '}
-                  ≥ 1). Con queste quote serve una quota lay ≤{' '}
-                  <strong>@{slipsResult.harmonization.maxLayQuote.toFixed(2)}</strong>: in pratica,
-                  bancare IN-PLAY quando l&apos;Under dell&apos;ultimo match scende. Fintanto che la
-                  quota e&apos; questa, la scala standard mostrata ha rami negativi (evidenziati
-                  onesti in rosso).
+                  — il dutching puro non chiude (Σ(1/quota) ={' '}
+                  {slipsResult.harmonization.sumInverseMultipliers.toFixed(2)} ≥ 1): prova la
+                  finale in banca exchange, oppure accorcia la scala / cerca quote migliori.
+                  La scala standard mostrata ha rami negativi (evidenziati onesti in rosso).
                 </>
               )}
             </div>
@@ -961,13 +1019,16 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 </div>
               )}
 
-              {/* F15 — toggle armonizzazione regola mai-perdita (solo banca) */}
-              {finalHedgeMode === 'lay_exchange' && (
-                <div
-                  className="flex items-center gap-1.5 select-none cursor-pointer pl-2 border-l border-[#2D3139]"
-                  onClick={() => setHarmonized(!harmonized)}
-                  title="Dutching a payout comune: OGNI esito finale (madre, qualsiasi copertura, banca) chiude >= 0. Chiude solo se la quota lay e' abbastanza bassa: altrimenti l'app lo dichiara."
-                >
+              {/* F15/F20 — toggle armonizzazione regola mai-perdita (banca o punta/punta) */}
+              <div
+                className="flex items-center gap-1.5 select-none cursor-pointer pl-2 border-l border-[#2D3139]"
+                onClick={() => setHarmonized(!harmonized)}
+                title={
+                  finalHedgeMode === 'lay_exchange'
+                    ? "Dutching a payout comune + banca sul ramo peggiore: OGNI esito finale (madre, qualsiasi copertura, banca) chiude >= 0. Chiude solo se la quota lay e' abbastanza bassa: altrimenti l'app lo dichiara."
+                    : "Dutching puro a payout comune (singola finale inclusa): OGNI esito finale chiude >= 0. Chiude solo se SOMMA(1/quota) < 1: altrimenti l'app lo dichiara."
+                }
+              >
                   <ShieldCheck
                     className={`w-3.5 h-3.5 ${harmonized ? 'text-emerald-400' : 'text-[#64748B]'}`}
                   />
@@ -982,7 +1043,6 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                     {harmonized ? 'OBBLIGO ATTIVO' : 'OFF'}
                   </span>
                 </div>
-              )}
             </div>
           </div>
         </div>
