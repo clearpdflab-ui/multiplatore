@@ -94,6 +94,27 @@ export interface CoverOddsRow {
   rating?: number | null; // da /bestevents e /puntapunta (qualita' copertura)
 }
 
+// F16 — ordine di proposta del Calendario/Trova Partite: data e orario di
+// kickoff CRESCENTI (il relay e' sequenziale nel tempo). Righe senza kickoff
+// valido (metadati /events mancanti -> '') finiscono in fondo; sort stabile
+// per pari data (l'ordine di arrivo del feed resta dentro la stessa fascia).
+export function byKickoffAsc(a: CoverOddsRow, b: CoverOddsRow): number {
+  const ta = new Date(a.kickoff).getTime();
+  const tb = new Date(b.kickoff).getTime();
+  const aOk = Number.isFinite(ta);
+  const bOk = Number.isFinite(tb);
+  if (aOk && bOk) {
+    return ta - tb;
+  }
+  if (aOk) {
+    return -1;
+  }
+  if (bOk) {
+    return 1;
+  }
+  return 0;
+}
+
 function computeLineStatus(totalGoals: number | null, line: number): LineStatus | null {
   if (totalGoals === null) {
     return null;

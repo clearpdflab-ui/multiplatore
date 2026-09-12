@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { UserMatch } from '../types';
 import {
   bestCoverSide,
+  byKickoffAsc,
   type CoverOddsRow,
   type LdlMatchStatus,
   type LineStatus,
@@ -405,15 +406,19 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   );
 
   const filteredRows = useMemo(() => {
-    return rows.filter((r) => {
-      if (activeLeagueFilter !== 'all' && r.league !== activeLeagueFilter) {
-        return false;
-      }
-      if (activeStatusFilter !== 'all' && r.status !== activeStatusFilter) {
-        return false;
-      }
-      return true;
-    });
+    // F16: la lista e' proposta in ordine di data/ora di kickoff CRESCENTE
+    // (prima le partite piu' vicine nel tempo), non per rating del feed.
+    return rows
+      .filter((r) => {
+        if (activeLeagueFilter !== 'all' && r.league !== activeLeagueFilter) {
+          return false;
+        }
+        if (activeStatusFilter !== 'all' && r.status !== activeStatusFilter) {
+          return false;
+        }
+        return true;
+      })
+      .sort(byKickoffAsc);
   }, [rows, activeLeagueFilter, activeStatusFilter]);
 
   const toggleMatchSelection = (eventId: string) => {
@@ -478,7 +483,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           break;
         }
       }
-      // seen e' gia' ordinato per rating (sort server-side del feed).
+      // F16: la proposta e' in ordine di data/ora CRESCENTE — si selezionano
+      // le partite idonee PIU' VICINE NEL TEMPO (il relay e' sequenziale), non
+      // le meglio classificate per rating. Il resta visibile come badge.
       const candidates = [...seen.values()]
         .filter((row) => {
           if (row.status !== 'scheduled') {
@@ -488,10 +495,11 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           const over = bestCoverSide(row, 'over');
           return Boolean(under && over && under.odds >= parsedOddsMin);
         })
+        .sort(byKickoffAsc)
         .slice(0, parsedTarget);
       setSelectedEventIds(candidates.map((r) => r.eventId));
 
-      let msg = `Selezionate ${candidates.length}/${parsedTarget} partite (Under ≥ ${parsedOddsMin.toFixed(2)}, finestra ${motherWindowDays}gg, ordine rating)`;
+      let msg = `Selezionate ${candidates.length}/${parsedTarget} partite (Under ≥ ${parsedOddsMin.toFixed(2)}, finestra ${motherWindowDays}gg, ordine data/ora ↑)`;
       if (candidates.length < parsedTarget) {
         msg += ' · nel calendario non ci sono altre partite idonee con questi filtri';
       }

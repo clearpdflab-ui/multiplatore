@@ -630,3 +630,32 @@ manuale dell'utente.
 - Test: +4 (fattibile @1.4 ogni ramo > 0 e payout comune; impossibile @1.95
   con maxLayQuote ~1.75 e fallback C7=34; null in book; null se non
   richiesto) → **128/128**, tsc, lint 0 error, build OK.
+
+## F16 — Calendario/Trova Partite: proposta in ordine di data/ora crescente (2026-09-12)
+
+- **Richiesta utente**: quando crea una nuova multipla e cerca le partite, la
+  proposta deve essere in ordine di data e orario crescente (il relay e'
+  sequenziale nel tempo).
+- **Com'era**: il feed puntapunta arriva ordinato per RATING (server
+  `order=rating` + sort client in `ldlOddsApi`), il Calendario mostrava le
+  righe in quell'ordine e "Trova Partite" selezionava le top-rated. Solo
+  l'import nella multipla ordinava per kickoff.
+- **Scelta utente (confermata)**: "prima le più vicine nel tempo" — la
+  selezione automatica prende le N idonee con kickoff più vicino, non le
+  meglio classificate.
+- **Fix**:
+  - `src/engine/coverOddsFeed.ts`: comparatore esportato `byKickoffAsc`
+    (kickoff crescente; righe senza kickoff valido in coda; stabile a pari
+    fascia).
+  - `CalendarOddsMonitor.tsx`: `filteredRows` = filtro lega/stato → sort
+    `byKickoffAsc` (lista proposta in ordine cronologico);
+    `autoFindMatches` ordina i candidati per kickoff PRIMA del
+    `.slice(0, target)` e il messaggio ora dice "ordine data/ora ↑". Il
+    rating resta visibile come badge su ogni riga ma non decide la
+    selezione. L'import ordina già per kickoff (doppio sort innocuo).
+  - NON toccato: sort rating a livello servizio (`fetchCoverSuggestions`):
+    il pannello "Coperture suggerite" di CyclesDashboard continua a vedere
+    l'ordine rating. Nessun `order=date` server (non documentato).
+- Test: +3 in `coverOddsFeed.test.ts` (crescente misto, kickoff vuoto/invalido
+  in fondo, stabilità a pari orario) → **131/131**, tsc, lint 0 error,
+  build OK.

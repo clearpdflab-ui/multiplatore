@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   bestCoverSide,
   buildSitesIndex,
+  byKickoffAsc,
   collectInactiveSiteIds,
   normalizeCoverOdds,
   normalizeCoverOddsItems,
   normalizeEventsFeed,
   normalizeLdlStatus,
   parseCoverType,
+  type CoverOddsRow,
   type RawLdlCoverOddsEntry,
   type RawLdlCoverOddsItem,
   type RawLdlEvent,
@@ -289,5 +291,59 @@ describe('normalizeEventsFeed (shape reale /events + /odds?eventId)', () => {
       oddsByEventId: odds,
     });
     expect(row.books).toEqual([{ book: 'Lottomatica', under: 1.35, over: null }]);
+  });
+});
+
+describe('byKickoffAsc — ordine di proposta data/ora crescente (F16)', () => {
+  const mkRow = (eventId: string, kickoff: string): CoverOddsRow => ({
+    eventId,
+    home: `Home ${eventId}`,
+    away: `Away ${eventId}`,
+    kickoff,
+    league: 'Serie A',
+    status: 'scheduled',
+    line: 3.5,
+    books: [],
+    homeScore: null,
+    awayScore: null,
+    totalGoals: null,
+    lineStatus: null,
+  });
+
+  it('ordina per kickoff crescente indipendentemente dall ordine di arrivo', () => {
+    const rows = [
+      mkRow('c', '2026-09-13T20:45:00'),
+      mkRow('a', '2026-09-12T14:00:00'),
+      mkRow('b', '2026-09-12T18:30:00'),
+    ];
+    expect([...rows].sort(byKickoffAsc).map((r) => r.eventId)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('righe senza kickoff valido finiscono in fondo', () => {
+    const rows = [
+      mkRow('noMeta', ''),
+      mkRow('tardi', '2026-09-14T14:00:00'),
+      mkRow('invalid', 'non-una-data'),
+      mkRow('presto', '2026-09-12T14:00:00'),
+    ];
+    expect([...rows].sort(byKickoffAsc).map((r) => r.eventId)).toEqual([
+      'presto',
+      'tardi',
+      'noMeta',
+      'invalid',
+    ]);
+  });
+
+  it('stessa fascia oraria: ordine stabile (ordine di arrivo preservato)', () => {
+    const rows = [
+      mkRow('primo', '2026-09-12T18:45:00'),
+      mkRow('secondo', '2026-09-12T18:45:00'),
+      mkRow('terzo', '2026-09-12T18:45:00'),
+    ];
+    expect([...rows].sort(byKickoffAsc).map((r) => r.eventId)).toEqual([
+      'primo',
+      'secondo',
+      'terzo',
+    ]);
   });
 });
