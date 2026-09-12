@@ -707,3 +707,19 @@ manuale dell'utente.
     localStorage + saved_slips (nessuna migration).
   - Test +2 (etichette 1T su madre/coperture/banca, match intermedio e
     ultimo) → **136/136**, tsc, lint 0 error, build OK.
+
+## F18 — Formato data/ora "12-09 - 12:30" + date visibili (2026-09-12)
+
+- **Richiesta utente**: il campo data/ora non deve essere "sab 12 set, 15:30"
+  ma "12-09 - 12:30", e le date/ore devono essere visibili (al momento non
+  lo sono).
+- **Fix**:
+  - `formatKickoff` (Calendario): formato compatto `gg-mm - hh:mm` locale
+    ("12-09 - 12:30"); kickoff invalido → "—". Essendo la fonte del
+    `timeSlot` all'import, le nuove schedine importate arrivano già così
+    (le schedine già salvate mantengono le stringhe vecchie, campo libero).
+  - Workbench: colonna "Data - Ora" allargata (w-24 → w-36, prima il testo
+    lungo veniva tagliato), placeholder/title con esempio del formato.
+  - Card schedine: ogni gamba ora mostra anche il suo `timeSlot` in piccolo
+    (prima le gambe non mostravano data/ora, solo la tempistica in testata).
+- Test: **136/136** (nessun nuovo test: UI pura), tsc, lint 0 error, build OK.

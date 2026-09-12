@@ -168,13 +168,18 @@ function BookMultiSelect({
 
 function formatKickoff(iso: string): string {
   try {
-    return new Intl.DateTimeFormat('it-IT', {
-      weekday: 'short',
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(iso));
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      return iso || '—';
+    }
+    // F18: formato compatto richiesto dall'utente: "12-09 - 12:30"
+    // (giorno-mese - ora:minuto, ora locale), leggibile anche nelle colonne
+    // strette del workbench e sulle card delle schedine.
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}-${mm} - ${hh}:${mi}`;
   } catch {
     return iso;
   }

@@ -1183,7 +1183,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
             <thead>
               <tr className="border-b border-[#2D3139] text-[#64748B] text-[10px] uppercase bg-[#141824]">
                 <th className="p-2.5 w-12 text-center">#</th>
-                <th className="p-2.5 w-24">Orario / Data</th>
+                <th className="p-2.5 w-36">Data - Ora</th>
                 <th className="p-2.5 min-w-[200px]">Squadra Casa - Squadra Ospite</th>
                 <th className="p-2.5 w-28 text-center text-emerald-400">Quota UNDER 3.5</th>
                 <th className="p-2.5 w-28 text-center text-amber-400">Quota OVER 3.5</th>
@@ -1229,7 +1229,8 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                         type="text"
                         value={match.timeSlot}
                         onChange={(e) => handleUpdateMatch(match.id, 'timeSlot', e.target.value)}
-                        placeholder="15:00"
+                        placeholder="12-09 - 12:30"
+                        title="Data e ora del kickoff: formato gg-mm - hh:mm (es. 12-09 - 12:30)"
                         className="w-full bg-[#1A1D26] border border-[#2D3139] px-2 py-1 text-white rounded-xs text-xs font-mono"
                       />
                     </td>
@@ -1602,6 +1603,11 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           >
                             {item.market}
                           </span>
+                          {item.timeSlot && (
+                            <span className="text-[9px] text-[#64748B] shrink-0 font-mono">
+                              {item.timeSlot}
+                            </span>
+                          )}
                         </div>
                         <span className="font-bold shrink-0 ml-2">{item.odds.toFixed(2)}</span>
                       </div>
