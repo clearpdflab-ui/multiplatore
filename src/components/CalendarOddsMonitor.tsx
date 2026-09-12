@@ -10,6 +10,11 @@ import {
   type LineStatus,
 } from '../engine/coverOddsFeed';
 import { fetchCoverFeed, fetchCoverSuggestions, fetchLdlBookmakers } from '../services/ldlOddsApi';
+import {
+  findHarmonizableLadders,
+  type FinderCandidate,
+  type FinderResult,
+} from '../engine/finder';
 import { findRegistryBook } from '../engine/oddsFeed';
 import { useBooks } from '../hooks/useBooks';
 import { calculateBookmakerAggio } from '../utils/mathEngine';
@@ -28,6 +33,7 @@ import {
   CheckSquare,
   Square,
   ChevronDown,
+  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 
@@ -266,6 +272,16 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   // F17: eventi marcati "solo 1° tempo" (per partite troppo vicine che si
   // decidono comunque di inserire, sul mercato del primo tempo).
   const [firstHalfIds, setFirstHalfIds] = useState<string[]>([]);
+  // F19 — motore ricerca scale armonizzate: parametri + risultato.
+  const [fBase, setFBase] = useState('40');
+  const [fTarget, setFTarget] = useState('45');
+  const [fMinN, setFMinN] = useState('6');
+  const [fMaxN, setFMaxN] = useState('9');
+  const [fLay, setFLay] = useState(''); // '' = auto (Under ultimo match scala)
+  const [fComm, setFComm] = useState('5');
+  const [finderLoading, setFinderLoading] = useState(false);
+  const [finderResult, setFinderResult] = useState<FinderResult | null>(null);
+  const [finderLayUsed, setFinderLayUsed] = useState<string>('auto');
   const [importNotification, setImportNotification] = useState<string | null>(null);
   const [ldlErrors, setLdlErrors] = useState<string[]>([]);
   // Coppia book per la ricerca /puntapunta: madre=book con Under 3.5 (sites1),
@@ -497,6 +513,53 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     }
   };
 
+  // F19: lancia il motore di ricerca scale armonizzate sulla pool corrente.
+  async function runFinder() {
+    setFinderLoading(true);
+    setFinderResult(null);
+    try {
+      // lascia dipingere lo spinner prima del calcolo sincrono (beam search)
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      const layNum = parseFloat(fLay.replace(',', '.'));
+      const layParam: 'prematch' | number = Number.isFinite(layNum) && layNum > 1 ? layNum : 'prematch';
+      setFinderLayUsed(
+        layParam === 'prematch' ? 'auto pre-match' : `@${layNum.toFixed(2)}`,
+      );
+      const res = findHarmonizableLadders({
+        rows,
+        now: Date.now(),
+        baseStake: Math.max(1, parseFloat(fBase.replace(',', '.')) || 40),
+        targetProfit: Math.max(5, parseFloat(fTarget.replace(',', '.')) || 45),
+        layCommissionPct: Math.min(20, Math.max(0, parseFloat(fComm.replace(',', '.')) || 0)),
+        lay: layParam,
+        oddsMin: Math.max(1, parsedOddsMin || 1),
+        minEvents: Math.max(2, parseInt(fMinN, 10) || 6),
+        maxEvents: Math.min(15, Math.max(2, parseInt(fMaxN, 10) || 9)),
+        topK: 3,
+      });
+      setFinderResult(res);
+    } catch (e) {
+      setFinderResult({
+        feasible: [],
+        best: null,
+        closestMaxLay: null,
+        poolSize: 0,
+        evaluations: 0,
+        budgetHit: false,
+      });
+      setAutoMsg(`⚠ Motore scale: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setFinderLoading(false);
+    }
+  }
+
+  // F19: importa nel tracker la scala trovata dal motore (riusa il percorso
+  // di import standard: sort kickoff, guardie started/1T).
+  const importFinderCandidate = (c: FinderCandidate) => {
+    setSelectedEventIds(c.eventIds);
+    handleImportSelected(c.eventIds);
+  };
+
   const deselectAll = () => {
     setSelectedEventIds([]);
     setFirstHalfIds([]);
@@ -606,14 +669,17 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     }
   }
 
-  const handleImportSelected = () => {
+  // F19: accetta gli id espliciti (import diretto di una scala trovata dal
+  // motore) oppure usa la selezione corrente.
+  const handleImportSelected = (ids?: string[]) => {
+    const sel = ids ?? selectedEventIds;
     // F16b: guardia finale — una partita gia' iniziata non entra mai nella
     // multipla, nemmeno se selezionata a mano con il filtro "mostra" attivo.
     const now = Date.now();
     const matchesToImport = rows.filter(
-      (r) => selectedEventIds.includes(r.eventId) && !hasKickoffPassed(r, now),
+      (r) => sel.includes(r.eventId) && !hasKickoffPassed(r, now),
     );
-    const skippedStarted = selectedEventIds.length - matchesToImport.length;
+    const skippedStarted = sel.length - matchesToImport.length;
     const sorted = [...matchesToImport].sort(
       (a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime(),
     );
@@ -767,6 +833,127 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* F19 — Motore ricerca scale armonizzate (regola mai-perdita) */}
+      <div className="bg-[#0F1117] border border-emerald-500/30 p-4 rounded-sm space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              Trova Scala Armonizzata
+              <span className="text-[10px] px-1.5 py-0.2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded-xs">
+                mai perdita
+              </span>
+            </h3>
+            <p className="text-xs text-[#94A3B8] mt-0.5 max-w-3xl">
+              Il motore prova le sequenze cronologiche della pool e propone solo scale dove{' '}
+              <strong className="text-white">OGNI esito finale</strong> (madre, qualsiasi
+              copertura, banca) chiude ≥ target. I numeri vengono riarmonizzati nel workbench
+              con i tuoi parametri all&apos;import.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 font-mono text-xs shrink-0">
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Numero eventi della scala (min-max, bonus da 5)">
+              Eventi
+              <input type="number" min="2" max="15" value={fMinN} onChange={(e) => setFMinN(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+              <span>–</span>
+              <input type="number" min="2" max="15" value={fMaxN} onChange={(e) => setFMaxN(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Puntata base S0 usata nella ricerca">
+              Base €
+              <input type="number" step="1" min="1" value={fBase} onChange={(e) => setFBase(e.target.value)} className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Utile garantito richiesto su ogni esito">
+              Target €
+              <input type="number" step="5" min="5" value={fTarget} onChange={(e) => setFTarget(e.target.value)} className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-emerald-400 font-bold" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Quota lay Under ultimo match: vuoto = auto pre-match (Under dell'ultimo match della scala), numero = prezzo a cui conti di bancare (es. in-play)">
+              Lay @
+              <input type="number" step="0.01" min="1.01" value={fLay} onChange={(e) => setFLay(e.target.value)} placeholder="auto" className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-violet-300" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Commissione exchange %">
+              Comm %
+              <input type="number" step="0.5" min="0" max="20" value={fComm} onChange={(e) => setFComm(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+            </label>
+            <button
+              onClick={() => void runFinder()}
+              disabled={finderLoading || loading || rows.length === 0}
+              className="px-3 py-1.5 text-xs font-mono font-bold rounded-xs border flex items-center gap-1.5 transition-colors bg-emerald-500/10 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/40 disabled:opacity-50"
+              title="Cerca tra le partite del calendario le scale cronologiche che chiudono la regola mai-perdita al target"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${finderLoading ? 'animate-pulse' : ''}`} />
+              <span>{finderLoading ? 'Cerco…' : 'Trova scale'}</span>
+            </button>
+          </div>
+        </div>
+
+        {finderResult && (
+          <div className="space-y-2.5">
+            <div className="text-[10px] font-mono text-[#64748B]">
+              Pool {finderResult.poolSize} partite · {finderResult.evaluations} scale valutate
+              {finderResult.budgetHit ? ' (budget valutazioni esaurito)' : ''} · lay {finderLayUsed}
+            </div>
+            {finderResult.feasible.length === 0 ? (
+              <div className="bg-red-950/30 border border-red-500/40 p-3 rounded-xs font-mono text-xs text-red-200">
+                Nessuna scala da {fMinN}–{fMaxN} eventi chiude a lay {finderLayUsed}.
+                {finderResult.closestMaxLay !== null && (
+                  <>
+                    {' '}La più vicina servirebbe lay ≤{' '}
+                    <strong className="text-white">@{finderResult.closestMaxLay.toFixed(2)}</strong>:
+                    abbassa la quota lay (banca in-play quando l&apos;Under dell&apos;ultimo match
+                    scende) o accorcia la scala.
+                  </>
+                )}
+              </div>
+            ) : (
+              finderResult.feasible.map((c, idx) => (
+                <div
+                  key={c.eventIds.join('|')}
+                  className="bg-[#141824] border border-emerald-500/30 rounded-xs p-3"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <div className="font-mono text-xs font-bold text-white">
+                      <span className="text-emerald-400">#{idx + 1}</span> Scala {c.n} eventi —{' '}
+                      garantito <span className="text-emerald-400">≥ +€{(c.equalizedNet ?? 0).toFixed(2)}</span>{' '}
+                      su OGNI esito
+                    </div>
+                    <button
+                      onClick={() => importFinderCandidate(c)}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-colors shrink-0"
+                      title="Importa questa scala nel workbench (riarmonizzata con i tuoi parametri)"
+                    >
+                      Importa scala
+                    </button>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px] text-[#94A3B8] mb-2">
+                    {c.rows.map((r, i) => (
+                      <div key={r.eventId} className="truncate">
+                        <span className="text-[#64748B]">#{i + 1}</span> {r.home} - {r.away}{' '}
+                        <span className="text-[#64748B]">({formatKickoff(r.kickoff)})</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="font-mono text-[11px] text-[#E0E2E7] flex flex-wrap gap-x-4 gap-y-1">
+                    <span title="Puntate bookmaker S0 + C1..: la scala dutcha a payout comune">
+                      Book €{c.bookStakes.toFixed(2)} ({c.stakes.slice(0, -1).join(' / ')})
+                    </span>
+                    <span title="Bancata exchange dimensionata sul ramo peggiore">
+                      Banca €{c.stakes[c.stakes.length - 1].toFixed(2)} (resp €{c.liability.toFixed(2)} @
+                      {c.layQuote.toFixed(2)})
+                    </span>
+                    <span>Esposizione €{c.exposure.toFixed(2)}</span>
+                    <span>Madre lorda €{c.motherGross.toFixed(2)}</span>
+                    <span title="Copertura con 1/quota più alta: la gamba che comanda la chiusura">
+                      Gamba critica C{c.bindingStep}
+                    </span>
+                    <span>lay max @{c.maxLayQuote.toFixed(2)}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Token LDL problematico: procedura di rinnovo (non e' un guasto di rete) */}
@@ -1010,7 +1197,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           </div>
 
           <button
-            onClick={handleImportSelected}
+            onClick={() => handleImportSelected()}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xs flex items-center gap-2 transition-all shadow-md shadow-emerald-600/30 cursor-pointer"
           >
             <span>Genera Schedine S0 &amp; Coperture</span>

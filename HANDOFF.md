@@ -631,6 +631,35 @@ manuale dell'utente.
   con maxLayQuote ~1.75 e fallback C7=34; null in book; null se non
   richiesto) → **128/128**, tsc, lint 0 error, build OK.
 
+## F19 — MOTORE ricerca scale armonizzate + pannello "Trova Scala" (2026-09-12)
+
+- **Richiesta/sfida utente**: "crea un motore intelligente che trova le partite
+  che servono per le multiple e che il risultato dell'armonizzatore sia solo
+  positivo; calcola requisiti puntata, numero di eventi utili, risultato
+  finale sempre positivo".
+- **Motore `src/engine/finder.ts`** (beam search cronologica — l'ordine è
+  fissato dal kickoff): pool idonea (scheduled, non iniziate, U+O completi,
+  Under ≥ min) → beam width 30, eventi 5–9 default (max 15), budget 12k
+  valutazioni esatte. OGNI candidato valutato riusando `generateCustomSlips`
+  con lay+harmonized (stessi numeri che il workbench ricalcola all'import).
+  Ranking fattibili: equalized desc, poi capitale asc (garanzia più economica
+  prima). Ritorna topK + closestMaxLay (lay max più alta tra i candidati →
+  il prezzo a cui la migliore chiuderebbe). Output per scala: sequenza,
+  N, lay usata/max, equalizedNet, TUTTI i branchNets, book/resp/esposizione,
+  madre lorda, stakes, bindingStep (copertura col 1/m max = gamba critica).
+- **Numeri (dati reali)**: lay @1.40 → scala fattibile tutta verde ≥ +43;
+  lay @1.95 pre-match → nessuna fattibile, closestMaxLay ≈ 1.75 con messaggio
+  operativo ("abbassa la quota lay in-play o accorcia la scala").
+- **UI Calendario**: pannello "Trova Scala Armonizzata" (Eventi min–max,
+  Base €, Target €, Quota lay auto|manuale, Comm %) + risultati top-3 con
+  dettaglio completo e bottone "Importa scala" (riusa l'import standard:
+  sort kickoff + guardie). `handleImportSelected(ids?)` per l'import diretto.
+  I numeri vengono riarmonizzati nel workbench con i tuoi parametri.
+- Test `tests/unit/finder.test.ts` (+4: sintetica fattibile tutta verde +
+  cronologia; lay 3.0 impossibile con closestMaxLay; regressione quote reali
+  utente @1.40; pool esclude iniziate/live) → **140/140**, tsc, lint 0 error,
+  build OK.
+
 ## F16 — Calendario/Trova Partite: proposta in ordine di data/ora crescente (2026-09-12)
 
 - **Richiesta utente**: quando crea una nuova multipla e cerca le partite, la
