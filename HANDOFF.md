@@ -826,3 +826,21 @@ manuale dell'utente.
   `normalizeEventsFeed`; `dedupKey` robusta (squadre ordinate + kickoff
   al minuto); filtro leghe per lega+nazione; badge nazione in riga e nota.
 - Test +4 -> 172/172, tsc, lint 0 error, build OK.
+
+## F25 - Orari feed letti come UTC, non ora locale (2026-09-13)
+
+- **Segnalazione utente**: orari proposti 2 ore indietro (sospetto UTC corretto).
+- **Diagnosi su API live**: LDL manda wall-time UTC senza timezone
+  ("2026-09-13T16:00:00", "MM/DD/YYYY HH:mm:ss"); prova decisiva:
+  Cucuta-Millonarios 01:15 (impossibile come ora locale, sono le 20:15 in
+  Colombia = 01:15 UTC) e Roma-Inter "16:00" (slot non esistente in Serie A;
+  16:00 UTC = 18:00 Roma). Il parser li leggeva come ora locale -> -2h su
+  display, hideStarted anticipato e alert <2h prematuro.
+- **Fix**: `parseLdlDateTime()` in `coverOddsFeed.ts` (naive ISO/US -> UTC,
+  stringhe con timezone invariate, resto fallback); usato in `byKickoffAsc`,
+  `hasKickoffPassed`, `isKickoffTooSoon`, `dedupKey`, `kickoffGapMs`,
+  `formatKickoff`, conteggio minuti alert, spread e sort import.
+  Display resta in ora locale browser. Mock invariati (stringhe intatte).
+- Test +6 (epoch UTC, formati, TZ-aware, NaN, caso reale Roma-Inter) +
+  fix `now` assoluto nei vecchi test F17 -> **172/172**, tsc, lint 0 error,
+  build OK.
