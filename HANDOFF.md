@@ -752,3 +752,77 @@ manuale dell'utente.
   - Card schedine: ogni gamba ora mostra anche il suo `timeSlot` in piccolo
     (prima le gambe non mostravano data/ora, solo la tempistica in testata).
 - Test: **136/136** (nessun nuovo test: UI pura), tsc, lint 0 error, build OK.
+
+## F19 — Motore ricerca scale armonizzate + pannello Trova Scala (4314b7c)
+
+- `src/engine/finder.ts` (NUOVO): beam search cronologica sulla pool
+  (scheduled, non iniziate, U+O completi, Under minimo); ogni candidato
+  valutato esattamente riusando `generateCustomSlips` con lay+harmonized;
+  ranking equalized desc poi capitale asc; `closestMaxLay` per il messaggio
+  operativo. UI Calendario: pannello Trova Scala (eventi min-max, base,
+  target, quota lay auto|manuale, commissione, budget) + top-3 con dettaglio
+  e bottone Importa scala (riusa import standard).
+
+## F20 — Matrici mai-perdita + S0 minimo + finale lay/book (1d55275)
+
+- `src/engine/matrix.ts` (NUOVO): `solveMatrix()` per sequenza (prova
+  lay+book, tiene il migliore), matrice per-ramo `branches[]`
+  (S0, C1.., FINALE: code/desc/mult/stake/payout/net).
+- `slips.ts`: dutching puro book (`D=(b+t)/(1-S)`, singola inclusa);
+  vincolo RAMO MADRE in entrambi i modi (lay: `b>=t(1+A2)/denM`, book:
+  `b>=t/denB`): S0 adeguato al minimo, impossibile a ogni base =>
+  `reason: mother`. Fee default 4.5%.
+- `HarmonizationInfo` += `finaleMode/baseUsed/baseMinRequired/reason`.
+
+## F21 — Finder utile quando nulla chiude (d6fb9bd)
+
+- `FinderResult` += `fallback` (migliore fattibile sotto minEvents) +
+  `closest` (infattibile in fascia piu vicina); card estratta in
+  `renderFinderCard`; UI: blocco fallback con Importa + "Prova con N=k",
+  blocco closest con requisiti e "Imposta lay @X e ricerca";
+  `runFinder` con override (niente state staleness); beamScore con
+  tiebreak capitale.
+
+## F22 — Finder: dedup, gap 2h, min quota 1.25 (d6a0796, 89530f8)
+
+- `coverOddsFeed.ts`: `MIN_GAP_MS` (2h), `dedupKey` (squadre+kickoff
+  normalizzati), `kickoffGapMs` (NaN se non giudicabile).
+- `finder.ts`: dedup pool squadre/kickoff + eventId (+ contatori
+  `skippedDuplicates`/`skippedGap` in UI); prune beam se gap < 2h;
+  filtro U/O >= 1.25 (default oddsMin 1.25).
+- `slips.ts` armonizzato: early-reject se una SINGOLA quota gamba
+  (madre/coperture/singola, esclusi booster e item lay) < 1.25 ->
+  `reason: quota` + banner dedicato.
+
+## F23 — Sizing BUDGET + target congruo t* (3fa66d0)
+
+- `LayFinaleOptions.budget` (I_tot): OGNI copertura paga P = I_tot + t
+  (s_k da budget, non dutch); S0 minimo dai costi reali; verifica esplicita
+  ogni ramo + tetto spesa 10% -> `reason: budget` con messaggio operativo.
+- `matrix.ts`: `proposeTarget()` spazza t 5..60, tiene max verificato (t*);
+  `requiredCapital` (capitale dutched per +t) quando il budget non basta.
+- UI: input Budget nel finder + workbench (persistito in
+  `SavedSlipParams.budget`); bottone "Proponi target" nel workbench.
+
+## F24 — Scala ideale inversa q0+target (891d97a)
+
+- `src/engine/synth.ts` (NUOVO): `generateIdealLadders()` prova N su
+  nMin..nMax (default 5..30) con unders uniformi a q0 e over uniformi;
+  ogni N valutato esattamente via `solveMatrix`; ranking margine 1-kS
+  desc poi esposizione asc; top-3 + best. Unico obbligo: clamp >= 1.25
+  (segnalato). Base default 1 con auto-bump.
+- UI Calendario: pannello "Scala Ideale" (q0, target, base, over, N
+  min/max, lay/comm) + card per scala + "Usa come filtro" (imposta
+  oddsMin del Trova Partite e rilancia).
+- Test synth +4 -> 172/172 con tutto verde.
+
+## F23b — Trova Partite: no duplicati, lega con nazione (a9dae92)
+
+- **Diagnosi su API live** (token OK, parsing OK): il feed LDL **duplica
+  partite** (Flamengo-Bragantino id 168702+168881, stesso kickoff) e la
+  lega **"Serie A" mescola Italia e Brasile** (solo `country` distingue).
+- **Fix**: `CoverOddsRow.country` dal feed; `dedupeRows()` (una riga per
+  chiave: piu book, poi rating, poi primo) in `normalizeCoverOddsItems` +
+  `normalizeEventsFeed`; `dedupKey` robusta (squadre ordinate + kickoff
+  al minuto); filtro leghe per lega+nazione; badge nazione in riga e nota.
+- Test +4 -> 172/172, tsc, lint 0 error, build OK.
