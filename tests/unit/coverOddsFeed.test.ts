@@ -6,9 +6,11 @@ import {
   collectInactiveSiteIds,
   dedupeRows,
   dedupKey,
+  hasKickoffPassed,
   isKickoffTooSoon,
   kickoffGapMs,
   MIN_GAP_MS,
+  parseLdlDateTime,
   normalizeCoverOdds,
   normalizeCoverOddsItems,
   normalizeEventsFeed,
@@ -355,7 +357,8 @@ describe('byKickoffAsc — ordine di proposta data/ora crescente (F16)', () => {
 });
 
 describe('isKickoffTooSoon — regola 2 ore dall ora attuale (F17)', () => {
-  const now = new Date('2026-09-12T14:00:00').getTime();
+  // F25: now assoluto in UTC (i kickoff naive del feed sono wall-time UTC).
+  const now = Date.UTC(2026, 8, 12, 14, 0, 0);
   const mk = (eventId: string, kickoff: string): CoverOddsRow => ({
     eventId,
     home: 'H',

@@ -95,13 +95,42 @@ export interface CoverOddsRow {
   rating?: number | null; // da /bestevents e /puntapunta (qualita' copertura)
 }
 
+// F25 — l'API LDL manda wall-time UTC SENZA timezone ("2026-09-13T16:00:00"
+// oppure "09/13/2026 16:00:00" MM/DD/YYYY): vanno letti come UTC, altrimenti
+// in Italia (UTC+2) risultano 2 ore INDIETRO su display, hideStarted e alert.
+// Stringhe con timezone esplicita (Z / offset) passano invariate.
+const ISO_NAIVE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/;
+const US_NAIVE_RE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+const TZ_AWARE_RE = /(?:[zZ]|[+-]\d{2}:?\d{2})$/;
+
+export function parseLdlDateTime(v: string | null | undefined): number {
+  if (v === null || v === undefined) {
+    return NaN;
+  }
+  const s = String(v).trim();
+  if (!s) {
+    return NaN;
+  }
+  if (TZ_AWARE_RE.test(s)) {
+    return new Date(s).getTime();
+  }
+  if (ISO_NAIVE_RE.test(s)) {
+    return new Date(`${s}Z`).getTime();
+  }
+  const m = US_NAIVE_RE.exec(s);
+  if (m) {
+    return Date.UTC(+m[3], +m[1] - 1, +m[2], +m[4], +m[5], +(m[6] ?? 0));
+  }
+  return new Date(s).getTime(); // fallback: formati non previsti
+}
+
 // F16 — ordine di proposta del Calendario/Trova Partite: data e orario di
 // kickoff CRESCENTI (il relay e' sequenziale nel tempo). Righe senza kickoff
 // valido (metadati /events mancanti -> '') finiscono in fondo; sort stabile
 // per pari data (l'ordine di arrivo del feed resta dentro la stessa fascia).
 export function byKickoffAsc(a: CoverOddsRow, b: CoverOddsRow): number {
-  const ta = new Date(a.kickoff).getTime();
-  const tb = new Date(b.kickoff).getTime();
+  const ta = parseLdlDateTime(a.kickoff);
+  const tb = parseLdlDateTime(b.kickoff);
   const aOk = Number.isFinite(ta);
   const bOk = Number.isFinite(tb);
   if (aOk && bOk) {
@@ -121,7 +150,7 @@ export function byKickoffAsc(a: CoverOddsRow, b: CoverOddsRow): number {
 // kickoff valido non sono marcate come iniziate (non si puo' dire; restano
 // visibili e ordinate in fondo da byKickoffAsc).
 export function hasKickoffPassed(row: CoverOddsRow, now: number): boolean {
-  const t = new Date(row.kickoff).getTime();
+  const t = parseLdlDateTime(row.kickoff);
   return Number.isFinite(t) && t <= now;
 }
 
@@ -129,7 +158,7 @@ export function hasKickoffPassed(row: CoverOddsRow, now: number): boolean {
 // attuale (default regola relay: 2 ore). Selezionarla per errore va segnalato:
 // resta poco tempo per piazzare madre e copertura prima dell'avvio.
 export function isKickoffTooSoon(row: CoverOddsRow, now: number, hours = 2): boolean {
-  const t = new Date(row.kickoff).getTime();
+  const t = parseLdlDateTime(row.kickoff);
   return Number.isFinite(t) && t > now && t - now <= hours * 3600_000;
 }
 
@@ -149,14 +178,14 @@ export function dedupKey(row: CoverOddsRow): string {
   // Squadre ordinate (un duplicato puo' invertirle) + kickoff al minuto
   // (stesso istante in formati diversi resta uguale).
   const teams = [normTeam(row.home), normTeam(row.away)].sort();
-  const t = new Date(row.kickoff).getTime();
+  const t = parseLdlDateTime(row.kickoff);
   const when = Number.isFinite(t) ? String(Math.floor(t / 60000)) : row.kickoff;
   return `${teams[0]}|${teams[1]}|${when}`;
 }
 
 // Gap in ms tra due kickoff; NaN se uno dei due non e' valido (non giudicabile).
 export function kickoffGapMs(a: CoverOddsRow, b: CoverOddsRow): number {
-  return new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime();
+  return parseLdlDateTime(b.kickoff) - parseLdlDateTime(a.kickoff);
 }
 
 // F23 — il feed LDL duplica partite reali (stesso match, eventId diversi:

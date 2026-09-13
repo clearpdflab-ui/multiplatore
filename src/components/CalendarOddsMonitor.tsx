@@ -5,6 +5,7 @@ import {
   byKickoffAsc,
   hasKickoffPassed,
   isKickoffTooSoon,
+  parseLdlDateTime,
   type CoverOddsRow,
   type LdlMatchStatus,
   type LineStatus,
@@ -175,10 +176,13 @@ function BookMultiSelect({
 
 function formatKickoff(iso: string): string {
   try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) {
+    // F25: kickoff interpretato come UTC (vedi parseLdlDateTime), mostrato in
+    // ora locale del browser.
+    const t = parseLdlDateTime(iso);
+    if (!Number.isFinite(t)) {
       return iso || '—';
     }
+    const d = new Date(t);
     // F18: formato compatto richiesto dall'utente: "12-09 - 12:30"
     // (giorno-mese - ora:minuto, ora locale), leggibile anche nelle colonne
     // strette del workbench e sulle card delle schedine.
@@ -512,7 +516,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     if (isKickoffTooSoon(row, Date.now(), MIN_HOURS_TO_KICKOFF)) {
       const minutes = Math.max(
         0,
-        Math.round((new Date(row.kickoff).getTime() - Date.now()) / 60000),
+        Math.round((parseLdlDateTime(row.kickoff) - Date.now()) / 60000),
       );
       setSelectionAlert(
         `⚠ ${row.home} - ${row.away} parte tra ${minutes} minuti (meno di ${MIN_HOURS_TO_KICKOFF} ore): ` +
@@ -852,7 +856,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         msg += ' · nel calendario non ci sono altre partite idonee con questi filtri';
       }
       const times = candidates
-        .map((r) => new Date(r.kickoff).getTime())
+        .map((r) => parseLdlDateTime(r.kickoff))
         .filter(Number.isFinite)
         .sort((a, b) => a - b);
       if (times.length > 1) {
@@ -881,7 +885,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     );
     const skippedStarted = sel.length - matchesToImport.length;
     const sorted = [...matchesToImport].sort(
-      (a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime(),
+      (a, b) => parseLdlDateTime(a.kickoff) - parseLdlDateTime(b.kickoff),
     );
 
     const userMatches: UserMatch[] = [];
