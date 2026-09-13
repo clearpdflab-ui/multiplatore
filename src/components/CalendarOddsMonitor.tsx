@@ -15,6 +15,7 @@ import {
   type FinderCandidate,
   type FinderResult,
 } from '../engine/finder';
+import { generateIdealLadders, type SynthResult } from '../engine/synth';
 import { findRegistryBook } from '../engine/oddsFeed';
 import { useBooks } from '../hooks/useBooks';
 import { calculateBookmakerAggio } from '../utils/mathEngine';
@@ -284,6 +285,17 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [finderLoading, setFinderLoading] = useState(false);
   const [finderResult, setFinderResult] = useState<FinderResult | null>(null);
   const [finderLayUsed, setFinderLayUsed] = useState<string>('auto');
+  // F24 — Scala Ideale inversa: tu dai q0 + target, il motore propone N* e quote.
+  const [sQ0, setSQ0] = useState('1.40');
+  const [sTarget, setSTarget] = useState('45');
+  const [sBase, setSBase] = useState('1');
+  const [sOver, setSOver] = useState('2.75');
+  const [sLay, setSLay] = useState('');
+  const [sComm, setSComm] = useState('4.5');
+  const [sMinN, setSMinN] = useState('5');
+  const [sMaxN, setSMaxN] = useState('30');
+  const [synthLoading, setSynthLoading] = useState(false);
+  const [synthResult, setSynthResult] = useState<SynthResult | null>(null);
   // F20 — matrice per-ramo espandibile per candidato (chiave modo+eventi).
   const [matrixOpen, setMatrixOpen] = useState<string | null>(null);
   const [importNotification, setImportNotification] = useState<string | null>(null);
@@ -519,7 +531,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
 
   // F19: lancia il motore di ricerca scale armonizzate sulla pool corrente.
   // F21: accetta override per i bottoni "riprova con..." (evita state staleness).
-  async function runFinder(overrides?: { lay?: string; minN?: string; maxN?: string }) {
+  async function runFinder(overrides?: { lay?: string; minN?: string; maxN?: string; oddsMin?: string }) {
     setFinderLoading(true);
     setFinderResult(null);
     try {
@@ -534,6 +546,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       const minStr = overrides?.minN ?? fMinN;
       const maxStr = overrides?.maxN ?? fMaxN;
       const budgetNum = parseFloat(fBudget.replace(',', '.'));
+      const oddsStr = overrides?.oddsMin ?? oddsMin;
+      const oddsNum = parseFloat(oddsStr.replace(',', '.'));
       const res = findHarmonizableLadders({
         rows,
         now: Date.now(),
@@ -541,7 +555,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         targetProfit: Math.max(5, parseFloat(fTarget.replace(',', '.')) || 45),
         layCommissionPct: Math.min(20, Math.max(0, parseFloat(fComm.replace(',', '.')) || 0)),
         lay: layParam,
-        oddsMin: Math.max(1, parsedOddsMin || 1),
+        oddsMin: Math.max(1, Number.isFinite(oddsNum) ? oddsNum : 1),
         minEvents: Math.max(2, parseInt(minStr, 10) || 6),
         maxEvents: Math.min(15, Math.max(2, parseInt(maxStr, 10) || 9)),
         topK: 3,
@@ -572,6 +586,45 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const importFinderCandidate = (c: FinderCandidate) => {
     setSelectedEventIds(c.eventIds);
     handleImportSelected(c.eventIds);
+  };
+
+  // F24: lancia il generatore di scala ideale (q0 + target -> N* e quote).
+  async function runSynth() {
+    setSynthLoading(true);
+    setSynthResult(null);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      const num = (v: string, fb: number) => {
+        const n = parseFloat(v.replace(',', '.'));
+        return Number.isFinite(n) ? n : fb;
+      };
+      const layStr = sLay.trim();
+      const layNum = parseFloat(layStr.replace(',', '.'));
+      setSynthResult(
+        generateIdealLadders({
+          q0: Math.max(1, num(sQ0, 1.4)),
+          targetProfit: Math.max(5, num(sTarget, 45)),
+          baseStake: Math.max(1, num(sBase, 1)),
+          overQ: Math.max(1.25, num(sOver, 2.75)),
+          layCommissionPct: Math.min(20, Math.max(0, num(sComm, 4.5))),
+          layQuote: layStr === '' || !(Number.isFinite(layNum) && layNum > 1) ? undefined : layNum,
+          nMin: Math.max(2, Math.floor(num(sMinN, 5)) || 5),
+          nMax: Math.min(30, Math.max(2, Math.floor(num(sMaxN, 30)) || 30)),
+          topK: 3,
+        }),
+      );
+    } catch (e) {
+      setAutoMsg(`⚠ Scala ideale: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSynthLoading(false);
+    }
+  }
+
+  // F24: usa le quote ideali come filtro per la ricerca reale (oddsMin + rerun).
+  const applyIdealAsFilter = (underQ: number) => {
+    const v = underQ.toFixed(2).replace('.', ',');
+    setOddsMin(v);
+    void runFinder({ oddsMin: v });
   };
 
   // F21: card di una scala trovata (fattibile o fallback), con matrice.
@@ -965,6 +1018,111 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
             </button>
           </div>
         </div>
+      </div>
+
+      {/* F24 — Scala Ideale inversa: dai q0 + target, il motore propone N* e quote */}
+      <div className="bg-[#0F1117] border border-violet-500/30 p-4 rounded-sm space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-violet-400" />
+              Scala Ideale
+              <span className="text-[10px] px-1.5 py-0.2 bg-violet-500/20 text-violet-300 border border-violet-500/40 rounded-xs">
+                q0 + target → N* e quote
+              </span>
+            </h3>
+            <p className="text-xs text-[#94A3B8] mt-0.5 max-w-3xl">
+              Tu dai <strong className="text-white">quota iniziale</strong> e{' '}
+              <strong className="text-white">target finale</strong>: il motore propone numero
+              eventi e quote ideali (mai sotto 1.25) che chiudono in positivo su ogni ramo.
+              Poi cerchi i mercati reali più vicini.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 font-mono text-xs shrink-0">
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Quota iniziale di riferimento (Under madre)">
+              q0
+              <input type="number" step="0.01" min="1.25" value={sQ0} onChange={(e) => setSQ0(e.target.value)} className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Netto garantito voluto su ogni ramo">
+              Target €
+              <input type="number" step="5" min="5" value={sTarget} onChange={(e) => setSTarget(e.target.value)} className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-emerald-400 font-bold" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Puntata base S0 (anche 1€)">
+              Base €
+              <input type="number" step="1" min="1" value={sBase} onChange={(e) => setSBase(e.target.value)} className="w-14 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Quota Over uniforme di riferimento">
+              Over
+              <input type="number" step="0.05" min="1.25" value={sOver} onChange={(e) => setSOver(e.target.value)} className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Eventi min-max da provare (tetto bonus 30)">
+              N
+              <input type="number" min="2" max="30" value={sMinN} onChange={(e) => setSMinN(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+              <span>–</span>
+              <input type="number" min="2" max="30" value={sMaxN} onChange={(e) => setSMaxN(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+            </label>
+            <button
+              onClick={() => void runSynth()}
+              disabled={synthLoading}
+              className="px-3 py-1.5 text-xs font-mono font-bold rounded-xs border flex items-center gap-1.5 transition-colors bg-violet-500/10 hover:bg-violet-500/25 text-violet-300 border-violet-500/40 disabled:opacity-50"
+              title="Genera le scale ideali: per ogni N valuta la matrice completa e tiene le migliori"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${synthLoading ? 'animate-pulse' : ''}`} />
+              <span>{synthLoading ? 'Calcolo…' : 'Genera'}</span>
+            </button>
+          </div>
+        </div>
+
+        {synthResult && (
+          <div className="space-y-2.5">
+            <div className="text-[10px] font-mono text-[#64748B]">
+              {synthResult.evaluated} N valutati · q0 {synthResult.q0used.toFixed(2)}
+              {synthResult.clamped ? ' (clampato a min 1.25)' : ''} · Over {synthResult.overUsed.toFixed(2)}
+            </div>
+            {synthResult.best === null ? (
+              <div className="bg-red-950/30 border border-red-500/40 p-3 rounded-xs font-mono text-xs text-red-200">
+                Nessun N chiude con queste quote/target: alza q0 o over, abbassa il target o la base.
+              </div>
+            ) : (
+              synthResult.ladders.map((l, idx) => (
+                <div key={l.n} className="bg-[#141824] border border-violet-500/30 rounded-xs p-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <div className="font-mono text-xs font-bold text-white">
+                      <span className="text-violet-300">#{idx + 1}</span> N={l.n} eventi — Under ~
+                      {l.unders[0].toFixed(2)} / Over ~{l.overs[0].toFixed(2)} — garantito{' '}
+                      <span className="text-emerald-400">
+                        ≥ +€{(l.sol.equalizedNet ?? 0).toFixed(2)}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => applyIdealAsFilter(l.unders[0])}
+                      className="px-3 py-1.5 bg-violet-600 hover:bg-violet-500 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xs transition-colors shrink-0"
+                      title="Imposta la quota minima del Trova Partite e cerca partite reali vicine a queste quote"
+                    >
+                      Usa come filtro
+                    </button>
+                  </div>
+                  <div className="font-mono text-[11px] text-[#E0E2E7] flex flex-wrap gap-x-4 gap-y-1">
+                    <span>
+                      Stake S0 €{l.sol.stakes[0]?.toFixed(2) ?? '—'} → C{l.n - 1} €
+                      {l.sol.stakes[l.sol.stakes.length - (l.sol.finaleMode === 'lay' ? 2 : 1)]?.toFixed(2) ?? '—'}
+                    </span>
+                    <span>Esposizione €{l.exposure.toFixed(2)}</span>
+                    <span>Madre lorda €{l.sol.motherGross.toFixed(2)}</span>
+                    <span>
+                      {l.sol.finaleMode === 'lay'
+                        ? `Banca (lay @${l.sol.layQuote.toFixed(2)}, resp €${l.sol.liability.toFixed(2)}, lay max @${l.sol.maxLayQuote.toFixed(2)})`
+                        : 'Punta/punta (dutching puro)'}
+                    </span>
+                    <span className="text-[#64748B]">
+                      margine {(l.margin * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* F19 — Motore ricerca scale armonizzate (regola mai-perdita) */}
