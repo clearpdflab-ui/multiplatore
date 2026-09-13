@@ -322,4 +322,30 @@ describe('findHarmonizableLadders', () => {
     });
     expect(hasAdjacentAB).toBe(false);
   });
+
+  it('F23: budget passato al motore, candidati con payout da budget', () => {
+    const ks = kickoffs(6);
+    const rows = ks.map((k, i) => mkRow(`m${i + 1}`, k, 1.9, 3.5));
+    const r = findHarmonizableLadders({
+      rows,
+      now: NOW,
+      baseStake: 20,
+      targetProfit: 30,
+      lay: 1.5,
+      minEvents: 5,
+      maxEvents: 5,
+      budget: 150,
+    });
+    expect(r.evaluations).toBeGreaterThan(0);
+    expect(r.best).not.toBeNull();
+    expect(r.best!.feasible).toBe(true);
+    // coperture pagano >= budget+target
+    for (const leg of r.best!.legs) {
+      if (leg.code === 'S0' || leg.desc.startsWith('LAY ')) {
+        continue;
+      }
+      expect(leg.payout).toBeGreaterThanOrEqual(180);
+    }
+    r.best!.branchNets.forEach((net) => expect(net).toBeGreaterThanOrEqual(29));
+  });
 });

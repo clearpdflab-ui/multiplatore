@@ -42,6 +42,9 @@ export interface FinderParams {
   minEvents?: number; // default 5 (da qui il bonus)
   maxEvents?: number; // default 9 (fino a 30, madre standard)
   finaleModes?: ('lay' | 'book')[]; // default entrambi: decide il motore
+  // F23 — budget totale ipotetico I_tot (es. 200): OGNI copertura paga
+  // P = I_tot + t. Senza budget = sizing dutch (capitale risolto dal target).
+  budget?: number;
   topK?: number; // default 3
   beamWidth?: number; // default 30
   evalBudget?: number; // valutazioni esatte massime (default 12000)
@@ -54,6 +57,7 @@ export interface FinderCandidate {
   finaleMode: 'lay' | 'book'; // scelta del motore per questa scala
   layQuote: number; // 0 in book (nessuna banca)
   layCommissionPct: number;
+  targetUsed: number; // t valutato (== targetProfit richiesto)
   feasible: boolean;
   equalizedNet: number | null;
   branchNets: number[]; // netto "se vince": [madre, C1.., (banca)]
@@ -67,7 +71,7 @@ export interface FinderCandidate {
   kFactor: number; // 1 in book
   sumInverse: number; // SOMMA 1/m (lay: solo coperture; book: + singola)
   bindingStep: number; // step (1-based) della copertura col 1/m max
-  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | null;
+  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | null;
 }
 
 export interface FinderResult {
@@ -110,6 +114,7 @@ function evaluateSequence(
   layCommissionPct: number,
   layQuote: number,
   mode: 'lay' | 'book',
+  budget?: number,
 ): FinderCandidate | null {
   if (rows.length < 2) {
     return null;
@@ -124,6 +129,7 @@ function evaluateSequence(
     layCommissionPct,
     layQuote,
     finaleModes: [mode],
+    budget,
   });
   if (!sol || sol.finaleMode !== mode) {
     return null;
@@ -135,6 +141,7 @@ function evaluateSequence(
     finaleMode: sol.finaleMode,
     layQuote: sol.layQuote,
     layCommissionPct: sol.layCommissionPct,
+    targetUsed: sol.targetUsed,
     feasible: sol.feasible,
     equalizedNet: sol.equalizedNet,
     branchNets: sol.branchNets,
@@ -215,6 +222,7 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
       comm,
       layQuote,
       mode,
+      params.budget,
     );
     evalCache.set(key, c);
     return c;

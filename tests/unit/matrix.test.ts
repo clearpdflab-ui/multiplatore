@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { solveMatrix, type MatrixInput } from '../../src/engine/matrix';
+import { proposeTarget, solveMatrix, type MatrixInput } from '../../src/engine/matrix';
 import type { UserMatch } from '../../src/types';
 
 // Quote reali della "multipla prova" utente (Under 1.33-1.95, base 40).
@@ -112,5 +112,97 @@ describe('solveMatrix — motore a matrici mai-perdita (F20)', () => {
   it('N < 2 o lay invalida: nessuna soluzione', () => {
     expect(solveMatrix({ ...BASE_INPUT, matches: mkReal().slice(0, 1) })).toBeNull();
     expect(solveMatrix({ ...BASE_INPUT, layQuote: 0.9, finaleModes: ['lay'] })).toBeNull();
+  });
+});
+
+describe('solveMatrix — MODO BUDGET F23 (P = I_tot + t su ogni copertura)', () => {
+  const EASY: [number, number][] = [
+    [1.9, 3.5],
+    [1.9, 3.5],
+    [1.9, 3.5],
+    [1.9, 3.5],
+    [1.9, 3.5],
+  ];
+  const mkEasy = (): UserMatch[] =>
+    EASY.map(([u, o], i) => ({
+      id: `e${i + 1}`,
+      order: i + 1,
+      timeSlot: `t${i}`,
+      homeTeam: `H${i + 1}`,
+      awayTeam: `A${i + 1}`,
+      underOdds: u,
+      overOdds: o,
+      outcome: 'PENDING' as const,
+    }));
+
+  it('budget 150 + t30 su scala facile: OGNI copertura paga >= 180, rami verificati', () => {
+    const sol = solveMatrix({
+      matches: mkEasy(),
+      baseStake: 20,
+      targetProfit: 30,
+      layCommissionPct: 4.5,
+      layQuote: 1.5,
+      finaleModes: ['lay'],
+      budget: 150,
+    });
+    expect(sol).not.toBeNull();
+    expect(sol!.feasible).toBe(true);
+    expect(sol!.reason).toBeNull();
+    // formula utente LITERALE: payout lordo >= budget + target su OGNI copertura
+    // book (la banca lay ha payout = utile, resta verificata nei branchNets)
+    for (const b of sol!.branches) {
+      if (b.code === 'S0' || b.desc.startsWith('LAY ')) {
+        continue;
+      }
+      expect(b.payout).toBeGreaterThanOrEqual(180);
+    }
+    sol!.branchNets.forEach((net) => expect(net).toBeGreaterThanOrEqual(29));
+    expect(sol!.equalizedNet ?? 0).toBeGreaterThanOrEqual(29);
+  });
+
+  it('budget 200 + t45 su quote reali utente: NON verifica (reason budget + requiredCapital)', () => {
+    const sol = solveMatrix({
+      ...BASE_INPUT,
+      layQuote: 1.4,
+      targetProfit: 45,
+      budget: 200,
+    });
+    expect(sol).not.toBeNull();
+    expect(sol!.feasible).toBe(false);
+    expect(sol!.reason).toBe('budget');
+    expect(sol!.equalizedNet).toBeNull();
+    // confronto onesto: per +45 servirebbe il capitale dutched (~540)
+    expect(sol!.requiredCapital ?? 0).toBeGreaterThan(200);
+  });
+
+  it('proposeTarget: propone il max t verificato col budget dato', () => {
+    const prop = proposeTarget({
+      matches: mkEasy(),
+      baseStake: 20,
+      layCommissionPct: 4.5,
+      layQuote: 1.5,
+      finaleModes: ['lay'],
+      budget: 150,
+      tMin: 5,
+      tMax: 60,
+      tStep: 5,
+    });
+    expect(prop.tStar).not.toBeNull();
+    expect(prop.tStar!).toBeGreaterThanOrEqual(30);
+    // la riga t* verifica davvero
+    const row = prop.rows.find((r) => r.t === prop.tStar)!;
+    expect(row.feasible).toBe(true);
+  });
+
+  it('proposeTarget: nessun t verifica su scala impossibile -> tStar null', () => {
+    const prop = proposeTarget({
+      matches: mkReal(),
+      baseStake: 40,
+      layCommissionPct: 4.5,
+      layQuote: 1.4,
+      finaleModes: ['lay'],
+      budget: 200,
+    });
+    expect(prop.tStar).toBeNull();
   });
 });

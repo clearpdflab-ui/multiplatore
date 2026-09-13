@@ -455,3 +455,71 @@ describe('generateCustomSlips — ARMONIZZATO punta/punta (F20)', () => {
     expect(rLay.harmonization?.reason).toBe('quota');
   });
 });
+
+describe('generateCustomSlips — MODO BUDGET F23 (P = I_tot + t)', () => {
+  const mkBudget = (): UserMatch[] =>
+    [1, 2, 3, 4].map((i) => ({
+      id: `b${i}`,
+      order: i,
+      timeSlot: `t${i}`,
+      homeTeam: `H${i}`,
+      awayTeam: `A${i}`,
+      underOdds: 1.9,
+      overOdds: 3.5,
+      outcome: 'PENDING' as const,
+    }));
+
+  const BUDGET_OPTS = { layOdds: 1.5, layCommissionPct: 4.5, harmonized: true, budget: 150 };
+
+  it('lay + budget 150 + t30: stake da (180)/m, ogni ramo verificato', () => {
+    const r = generateCustomSlips(mkBudget(), 20, 30, 'flat', false, 1.1, 4, 'lay_exchange', BUDGET_OPTS);
+    expect(r.harmonization?.requested).toBe(true);
+    expect(r.harmonization?.feasible).toBe(true);
+    expect(r.harmonization?.reason).toBeNull();
+    expect(r.harmonization?.budgetUsed).toBe(150);
+    // OGNI copertura book paga >= 180 (la banca ha payout = utile)
+    for (const s of r.coverageSlips) {
+      if (s.type === 'FINAL_LAY') {
+        continue;
+      }
+      expect(s.potentialGrossPayout).toBeGreaterThanOrEqual(180);
+    }
+    // S0=20 basta: nessun bump (madre ricca)
+    expect(r.motherSlip.stake).toBe(20);
+    [r.motherSlip.realizedNetIfWon, ...r.coverageSlips.map((s) => s.realizedNetIfWon)].forEach(
+      (net) => expect(net).toBeGreaterThanOrEqual(29),
+    );
+    expect(r.harmonization?.equalizedNet ?? 0).toBeGreaterThanOrEqual(29);
+  });
+
+  it('budget + base 1: S0 adeguato al minimo, rami comunque verificati', () => {
+    const r = generateCustomSlips(mkBudget(), 1, 30, 'flat', false, 1.1, 4, 'lay_exchange', BUDGET_OPTS);
+    expect(r.harmonization?.feasible).toBe(true);
+    expect(r.motherSlip.stake).toBeGreaterThan(1);
+    expect(r.motherSlip.stake).toBe(r.harmonization?.baseUsed);
+    expect(r.harmonization?.baseMinRequired ?? 0).toBeGreaterThan(1);
+  });
+
+  it('book + budget 150 + t30: dutching da budget senza banca', () => {
+    const r = generateCustomSlips(mkBudget(), 20, 30, 'flat', false, 1.1, 4, 'book_single', {
+      harmonized: true,
+      budget: 150,
+    });
+    expect(r.harmonization?.finaleMode).toBe('book');
+    expect(r.harmonization?.feasible).toBe(true);
+    expect(r.coverageSlips[3].type).toBe('FINAL_SINGLE');
+    [r.motherSlip.realizedNetIfWon, ...r.coverageSlips.map((s) => s.realizedNetIfWon)].forEach(
+      (net) => expect(net).toBeGreaterThanOrEqual(29),
+    );
+  });
+
+  it('senza harmonized il budget viene ignorato (sizing standard)', () => {
+    const r = generateCustomSlips(mkBudget(), 20, 30, 'flat', false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.5,
+      budget: 150,
+    });
+    expect(r.harmonization).toBeNull();
+    // sizing sequenziale standard: la C1 non paga 180
+    expect(r.coverageSlips[0].potentialGrossPayout).toBeLessThan(180);
+  });
+});

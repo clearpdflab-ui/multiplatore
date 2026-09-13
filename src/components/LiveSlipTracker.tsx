@@ -19,6 +19,7 @@ import {
   BOOKMAKER_MODELS,
   calculateBookmakerAggio,
 } from '../utils/mathEngine';
+import { proposeTarget } from '../engine/matrix';
 import {
   Layers,
   Clock,
@@ -103,6 +104,10 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   const [layStake, setLayStake] = useState<number | null>(null); // null = sizing green-up automatico
   // F15 — regola mai-perdita: sizing armonizzato (dutching a payout comune)
   const [harmonized, setHarmonized] = useState<boolean>(true);
+  // F23 — budget totale ipotetico I_tot (null = sizing dutch): OGNI copertura
+  // paga budget+target. Messaggio proposta target dal motore.
+  const [budgetTot, setBudgetTot] = useState<number | null>(null);
+  const [targetProposal, setTargetProposal] = useState<string | null>(null);
 
   // Bookmaker Aggio Model State ('132_300' | '130_315' | 'custom')
   const [selectedBookmakerModel, setSelectedBookmakerModel] = useState<BookmakerModelId>('132_300');
@@ -143,6 +148,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
         layCommissionPct,
         layStake: layStake ?? undefined,
         harmonized,
+        budget: budgetTot ?? undefined,
       },
     );
   }, [
@@ -157,6 +163,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     layCommissionPct,
     layStake,
     harmonized,
+    budgetTot,
   ]);
 
   // Match management functions
@@ -323,6 +330,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     layCommissionPct,
     layStake: layStake ?? undefined,
     harmonized,
+    budget: budgetTot ?? undefined,
   });
 
   const defaultSlipName = () => {
@@ -390,6 +398,8 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     if (typeof p.harmonized === 'boolean') {
       setHarmonized(p.harmonized);
     }
+    setBudgetTot(Number.isFinite(p.budget) && (p.budget as number) > 0 ? (p.budget as number) : null);
+    setTargetProposal(null);
     if (p.bookmakerModel) {
       setSelectedBookmakerModel(p.bookmakerModel);
     }
@@ -403,6 +413,35 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   const handleDeleteSlip = async (s: SavedSlip) => {
     await deleteSlip(s.id);
     flashSlipMsg(`🗑 "${s.name}" eliminata`);
+  };
+
+  // F23 — chiede al motore la quota obiettivo congrua (max t verificato
+  // 5..60 col budget impostato) e la applica al target.
+  const handleProposeTarget = () => {
+    if (budgetTot === null || matches.length < 2) {
+      setTargetProposal('Imposta prima un budget > 0 (e almeno 2 partite).');
+      setTimeout(() => setTargetProposal(null), 5000);
+      return;
+    }
+    const prop = proposeTarget({
+      matches,
+      baseStake,
+      layCommissionPct,
+      layQuote: layOdds ?? undefined,
+      finaleModes: [finalHedgeMode === 'lay_exchange' ? 'lay' : 'book'],
+      budget: budgetTot,
+    });
+    if (prop.tStar === null) {
+      setTargetProposal(
+        `Nessun target 5–60 verifica col budget €${budgetTot}: alza il budget o accorcia.`,
+      );
+    } else {
+      setTargetProfit(prop.tStar);
+      setTargetProposal(
+        `Motore: target congruo +€${prop.tStar} applicato (verificato su ogni ramo).`,
+      );
+    }
+    setTimeout(() => setTargetProposal(null), 6000);
   };
 
   const copySlipToClipboard = (slip: GeneratedSlip) => {
@@ -676,6 +715,22 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                     gambe della scala sono sotto soglia. Correggi le quote (workbench) o
                     cambia le partite (Calendario).
                   </>
+                ) : slipsResult.harmonization.reason === 'budget' ? (
+                  <>
+                    <strong className="text-red-400">
+                      BUDGET INSUFFICIENTE: la scala non verifica
+                    </strong>{' '}
+                    — col budget €{(budgetTot ?? 0).toFixed(2)} il ramo peggiore chiude a{' '}
+                    {fmtGain(
+                      Math.min(
+                        slipsResult.motherSlip.realizedNetIfWon,
+                        ...slipsResult.coverageSlips.map((s) => s.realizedNetIfWon),
+                      ),
+                    )}{' '}
+                    contro target +€{targetProfit.toFixed(2)} (spesa €
+                    {slipsResult.maxPotentialExposure.toFixed(2)}). Alza il budget, usa
+                    "Proponi target", o accorcia la scala.
+                  </>
                 ) : (
                   <>
                     <strong className="text-red-400">
@@ -706,6 +761,22 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                   — la regola impone mai sotto quota 1.25 su OGNI selezione: una o più
                   gambe della scala sono sotto soglia. Correggi le quote (workbench) o
                   cambia le partite (Calendario).
+                </>
+              ) : slipsResult.harmonization.reason === 'budget' ? (
+                <>
+                  <strong className="text-red-400">
+                    BUDGET INSUFFICIENTE: la scala non verifica
+                  </strong>{' '}
+                  — col budget €{(budgetTot ?? 0).toFixed(2)} il ramo peggiore chiude a{' '}
+                  {fmtGain(
+                    Math.min(
+                      slipsResult.motherSlip.realizedNetIfWon,
+                      ...slipsResult.coverageSlips.map((s) => s.realizedNetIfWon),
+                    ),
+                  )}{' '}
+                  contro target +€{targetProfit.toFixed(2)} (spesa €
+                  {slipsResult.maxPotentialExposure.toFixed(2)}). Alza il budget, usa
+                  "Proponi target", o accorcia la scala.
                 </>
               ) : (
                 <>
@@ -1061,6 +1132,38 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                     {harmonized ? 'OBBLIGO ATTIVO' : 'OFF'}
                   </span>
                 </div>
+
+              {/* F23 — budget totale ipotetico + proposta target congruo */}
+              {harmonized && (
+                <div className="flex flex-wrap items-center gap-2 pl-2 border-l border-[#2D3139]">
+                  <span className="text-[10px] text-[#64748B]">Budget €:</span>
+                  <input
+                    type="number"
+                    step="10"
+                    min="0"
+                    value={budgetTot ?? ''}
+                    placeholder="dutch"
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      setBudgetTot(Number.isFinite(v) && v > 0 ? v : null);
+                      setTargetProposal(null);
+                    }}
+                    className="w-20 bg-[#1A1D26] border border-[#2D3139] px-2 py-0.5 text-amber-300 text-right rounded-xs font-bold font-mono text-xs"
+                    title="Costo totale ipotetico I_tot (vuoto = sizing dutch classico): OGNI copertura paga budget+target"
+                  />
+                  <button
+                    onClick={handleProposeTarget}
+                    disabled={budgetTot === null || matches.length < 2}
+                    className="px-2 py-0.5 text-[10px] font-mono font-bold rounded-xs border transition-colors bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border-amber-500/40 disabled:opacity-50"
+                    title="Il motore prova target +5..+60 e applica il massimo verificato (ogni ramo >= target, spesa entro budget)"
+                  >
+                    Proponi target
+                  </button>
+                  {targetProposal && (
+                    <span className="text-[10px] font-mono text-amber-200">{targetProposal}</span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

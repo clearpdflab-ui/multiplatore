@@ -25,6 +25,9 @@ export interface MatrixInput {
   layCommissionPct?: number; // default 4.5 (fee exchange utente)
   layQuote?: number; // quota lay Under ultimo; se assente = Under ultimo match
   finaleModes?: ('lay' | 'book')[]; // default entrambi: decide il motore
+  // F23 — budget totale ipotetico I_tot: OGNI copertura paga P = I_tot + t.
+  // Senza budget = sizing dutch (capitale risolto dal target).
+  budget?: number;
 }
 
 export interface MatrixBranch {
@@ -41,6 +44,7 @@ export interface MatrixSolution {
   finaleMode: 'lay' | 'book'; // scelta del motore per questa scala
   layQuote: number; // 0 in book (nessuna banca)
   layCommissionPct: number;
+  targetUsed: number; // t valutato (== input, o t* se auto)
   feasible: boolean;
   equalizedNet: number | null; // netto garantito su OGNI ramo (se feasible)
   branches: MatrixBranch[]; // [S0, C1.., FINALE]
@@ -52,7 +56,9 @@ export interface MatrixSolution {
   stakes: number[]; // [S0, C1.., (B)]
   baseUsed: number; // S0 effettivo (adeguato al minimo se serve)
   baseMinRequired: number; // S0 minimo per chiudere anche il ramo madre
-  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | null;
+  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | null;
+  budgetUsed: number | null; // I_tot usato (null = sizing dutch, non budget)
+  requiredCapital: number | null; // capitale dutched per +t (se budget non basta)
   maxLayQuote: number; // 0 = N/A in book
   kFactor: number; // 1 in book
   sumInverse: number; // SOMMA 1/m (lay: solo coperture; book: + singola)
@@ -76,6 +82,7 @@ function solveOneMode(
   layCommissionPct: number,
   layQuote: number,
   mode: 'lay' | 'book',
+  budget?: number,
 ): MatrixSolution | null {
   const n = matches.length;
   if (n < 2) {
@@ -97,6 +104,7 @@ function solveOneMode(
       layOdds: layQuote,
       layCommissionPct,
       harmonized: true,
+      budget,
     },
   );
   const h = r.harmonization;
@@ -154,6 +162,7 @@ function solveOneMode(
     finaleMode: mode,
     layQuote: isLay ? layQuote : 0,
     layCommissionPct,
+    targetUsed: targetProfit,
     feasible: h.feasible,
     equalizedNet: h.equalizedNet,
     branches,
@@ -166,6 +175,8 @@ function solveOneMode(
     baseUsed: h.baseUsed,
     baseMinRequired: h.baseMinRequired,
     reason: h.reason,
+    budgetUsed: h.budgetUsed,
+    requiredCapital: h.requiredCapital,
     maxLayQuote: h.maxLayQuote,
     kFactor: h.kFactor,
     sumInverse: Number(sumInverse.toFixed(4)),
@@ -181,6 +192,7 @@ export function solveMatrix(input: MatrixInput): MatrixSolution | null {
   if (n < 2) {
     return null;
   }
+  const targetResolved = input.targetProfit;
   const comm = input.layCommissionPct ?? 4.5;
   const modes = input.finaleModes ?? (['lay', 'book'] as ('lay' | 'book')[]);
   // Quota lay esplicita (anche <= 1: solveOneMode la rifiuta per il lay);
@@ -195,10 +207,11 @@ export function solveMatrix(input: MatrixInput): MatrixSolution | null {
     const sol = solveOneMode(
       input.matches,
       input.baseStake,
-      input.targetProfit,
+      targetResolved,
       comm,
       layQuote,
       mode,
+      input.budget,
     );
     if (!sol) {
       continue;
@@ -213,5 +226,61 @@ export function solveMatrix(input: MatrixInput): MatrixSolution | null {
       best = sol;
     }
   }
+  // F23 — confronto onesto: se col budget non verifica, quanto servirebbe in
+  // dutch per lo stesso target? (Solo quando budget impostato e infattibile.)
+  if (best && input.budget !== undefined && !best.feasible) {
+    const dutchBest = solveMatrix({ ...input, budget: undefined, targetProfit: targetResolved });
+    if (dutchBest?.feasible) {
+      best.requiredCapital = dutchBest.exposure;
+    }
+  }
   return best;
+}
+
+export interface TargetRow {
+  t: number;
+  feasible: boolean;
+  minNet: number | null;
+  exposure: number | null;
+}
+
+export interface TargetProposal {
+  tStar: number | null; // max t verificato (null se nessuno chiude)
+  rows: TargetRow[];
+}
+
+// F23 — propone la quota obiettivo congrua: spazza t = 5..60 (step 5) e
+// tiene il MASSIMO t verificato (ogni ramo >= t, spesa entro budget).
+// Con budget: t* cresce finche' la verifica tiene; senza budget (dutch)
+// la fattibilita' non dipende da t, quindi t* = tMax.
+export function proposeTarget(
+  input: Omit<MatrixInput, 'targetProfit'> & { tMin?: number; tMax?: number; tStep?: number },
+): TargetProposal {
+  const tMin = input.tMin ?? 5;
+  const tMax = input.tMax ?? 60;
+  const tStep = input.tStep ?? 5;
+  const rows: TargetRow[] = [];
+  for (let t = tMin; t <= tMax + 1e-9; t += tStep) {
+    const target = Number(t.toFixed(2));
+    const sol = solveMatrix({ ...input, targetProfit: target });
+    if (!sol) {
+      rows.push({ t: target, feasible: false, minNet: null, exposure: null });
+      continue;
+    }
+    const minNet =
+      sol.branchNets.length > 0 ? Math.min(...sol.branchNets) : null;
+    rows.push({
+      t: target,
+      feasible: sol.feasible,
+      minNet: minNet !== null ? Number(minNet.toFixed(2)) : null,
+      exposure: sol.exposure,
+    });
+  }
+  let tStar: number | null = null;
+  for (const r of rows) {
+    if (r.feasible) {
+      tStar = r.t;
+    }
+  }
+  return { tStar, rows };
 }

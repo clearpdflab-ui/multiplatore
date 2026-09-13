@@ -35,6 +35,10 @@ export interface LayFinaleOptions {
   layCommissionPct?: number; // default 4.5 (fee exchange utente)
   layStake?: number; // stake bancata manuale (>0), altrimenti sizing automatico
   harmonized?: boolean; // sizing armonizzato: OGNI esito finale >= 0
+  // F23 — budget totale ipotetico I_tot: OGNI copertura paga P = I_tot + t
+  // (vincita lorda sopra il costo totale, successive incluse). Richiede
+  // harmonized (contabilita' full-relay); senza budget = sizing dutch.
+  budget?: number;
 }
 
 export interface HarmonizationInfo {
@@ -48,7 +52,11 @@ export interface HarmonizationInfo {
   equalizedNet: number | null; // netto garantito su OGNI ramo (se feasible)
   baseUsed: number; // S0 effettivo (adeguato al minimo se serve)
   baseMinRequired: number; // S0 minimo per chiudere anche il ramo madre
-  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | null; // perche' non chiude (se infeasible)
+  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | null;
+  budgetUsed: number | null; // I_tot usato (null = sizing dutch, non budget)
+  // Capitale dutched che servirebbe per +t (riferimento quando il budget
+  // non basta): confronto onesto col modo dutch.
+  requiredCapital: number | null;
 }
 
 export function generateCustomSlips(
@@ -321,15 +329,29 @@ export function generateCustomSlips(
   const quotaOk = minLegOdds >= 1.25;
   let baseUsed = baseStake;
   let baseMinRequired = baseStake;
-  let harmReason: 'layQuote' | 'dutch' | 'mother' | 'quota' | null = null;
+  let harmReason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | null = null;
   let useLayDutch = false;
   let useBookDutch = false;
+  // F23 — modo BUDGET: l'utente fissa il costo totale ipotetico I_tot e OGNI
+  // copertura paga P = I_tot + t (vincita lorda sopra il costo, successive
+  // incluse). Vale solo con harmonized (contabilita' full-relay) e quota ok;
+  // ha priorita' sul dutch (che invece RISOLVE il capitale dal target).
+  // n_k resta FULL remaining: togliere una gamba a quota q>=1.25 moltiplica
+  // il suo 1/m per ~q (piu' calo bonus) -> S peggiore; il relay resta sicuro
+  // comunque (una sotto-copertura puo' solo aggiungere vincite, mai perdite).
+  const budgetTot = Number(layOpts.budget) > 0 ? Number(layOpts.budget) : null;
+  const useBudget =
+    budgetTot !== null &&
+    Boolean(layOpts.harmonized) &&
+    quotaOk &&
+    coverageSlips.length > 0 &&
+    (finalHedgeMode === 'book_single' || N > 1);
   if ((harmonizeRequested && N > 1) || (finalHedgeMode === 'book_single' && Boolean(layOpts.harmonized) && coverageSlips.length > 0)) {
     if (!quotaOk) {
       harmReason = 'quota';
     }
   }
-  if (harmReason === null && harmonizeRequested && N > 1) {
+  if (!useBudget && harmReason === null && harmonizeRequested && N > 1) {
     if (!(kFactorPlan > 1 && kFactorPlan * sumInverse < 0.99)) {
       harmReason = 'layQuote';
     } else {
@@ -346,6 +368,7 @@ export function generateCustomSlips(
       }
     }
   } else if (
+    !useBudget &&
     harmReason === null &&
     finalHedgeMode === 'book_single' &&
     Boolean(layOpts.harmonized) &&
@@ -378,7 +401,52 @@ export function generateCustomSlips(
   }
 
   let runningCumulativeCost = baseUsed;
-  if (useLayDutch) {
+  // F23 — sizing BUDGET: OGNI copertura paga P = I_tot + t (vincita lorda
+  // sopra il costo totale ipotetico, successive incluse). Gli stake NON
+  // dipendono da S0: s_k = P/m_k. La madre viene adeguata dopo (bump da
+  // costi reali, sotto).
+  let budgetLayStake: number | null = null;
+  if (useBudget && budgetTot !== null) {
+    const payoutTarget = budgetTot + targetProfit;
+    coverageSlips.forEach((s) => {
+      s.stake = roundToFiftyCents(payoutTarget / s.finalMultiplier);
+      s.cumulativeCost = Number(runningCumulativeCost.toFixed(2));
+      s.potentialGrossPayout = Number((s.stake * s.finalMultiplier).toFixed(2));
+      s.potentialNetProfit = Number(
+        (s.potentialGrossPayout - (runningCumulativeCost + s.stake)).toFixed(2),
+      );
+      s.targetProfit = targetProfit;
+      runningCumulativeCost = Number((runningCumulativeCost + s.stake).toFixed(2));
+    });
+    // S0 minimo dai costi REALI (gli stake non dipendono da b in budget mode:
+    // un solo passaggio basta): b*(m_0-1) >= S_scommesse + liab + t.
+    const pMinBudget = Math.min(...coverageSlips.map((s) => s.potentialGrossPayout));
+    const denomB0 = layQuotePlan - commPlan;
+    const b0 =
+      manualLayStake ?? roundToFiftyCents(denomB0 > 0 ? pMinBudget / denomB0 : 10);
+    const liab0 =
+      finalHedgeMode === 'lay_exchange' ? Number((b0 * (layQuotePlan - 1)).toFixed(2)) : 0;
+    budgetLayStake = b0;
+    const sumNoS0 = runningCumulativeCost - baseStake;
+    const denMb = motherFinalMultiplier - 1;
+    if (denMb > 0) {
+      const bMinB = (sumNoS0 + liab0 + targetProfit) / denMb;
+      baseMinRequired = Number(bMinB.toFixed(2));
+      baseUsed = Math.max(baseStake, roundToFiftyCents(bMinB));
+      if (baseUsed !== baseStake) {
+        motherGross = Number((baseUsed * motherFinalMultiplier).toFixed(2));
+        motherNet = Number((motherGross - baseUsed).toFixed(2));
+        motherSlip.stake = baseUsed;
+        motherSlip.cumulativeCost = baseUsed;
+        motherSlip.potentialGrossPayout = motherGross;
+        motherSlip.potentialNetProfit = motherNet;
+        motherSlip.targetProfit = motherNet;
+        runningCumulativeCost = Number((runningCumulativeCost + (baseUsed - baseStake)).toFixed(2));
+      }
+    } else {
+      harmReason = 'mother';
+    }
+  } else if (useLayDutch) {
     const totalBook = (baseUsed + kFactorPlan * targetProfit * sumInverse) / (1 - kFactorPlan * sumInverse);
     const commonPayout = kFactorPlan * (totalBook + targetProfit);
     coverageSlips.forEach((s) => {
@@ -455,7 +523,7 @@ export function generateCustomSlips(
     const worstCoveragePayout = coverageSlips.length
       ? Math.min(...coverageSlips.map((s) => s.potentialGrossPayout))
       : motherGross;
-    const activePayout = useLayDutch
+    const activePayout = useLayDutch || useBudget
       ? worstCoveragePayout
       : activeOverIdx !== -1
         ? coverageSlips[activeOverIdx].potentialGrossPayout
@@ -467,9 +535,12 @@ export function generateCustomSlips(
     const commission = commPlan;
     const denom = layQuote - commission;
     // Stake della banca: manuale se impostato, altrimenti green-up pari
-    // (B = P/(L-c) equalizza i due rami finali; in armonizzato P = payout
-    // comune -> OGNI ramo chiude >= equalizedNet).
-    const layStake = manualLayStake ?? roundToFiftyCents(denom > 0 ? activePayout / denom : 10);
+    // (B = P/(L-c) equalizza i due rami finali; in armonizzato/budget P e'
+    // il peggiore -> OGNI ramo chiude >= equalizedNet).
+    // In budget la B e' gia' calcolata nel finalize (budgetLayStake):
+    // qui viene riusata identica (stessi input -> stesso valore).
+    const layStake =
+      manualLayStake ?? budgetLayStake ?? roundToFiftyCents(denom > 0 ? activePayout / denom : 10);
     layLiability = Number((layStake * (layQuote - 1)).toFixed(2));
     const layWinProfit = Number((layStake * (1 - commission)).toFixed(2));
 
@@ -519,7 +590,7 @@ export function generateCustomSlips(
       status: layStatus,
     });
 
-    if (harmonizeRequested) {
+    if (harmonizeRequested && !useBudget) {
       const overNet = layWinProfit - bookStakesTotal;
       const worstUnderNet = worstCoveragePayout - bookStakesTotal - layLiability;
       const motherBranchNet = motherGross - bookStakesTotal - layLiability;
@@ -537,6 +608,8 @@ export function generateCustomSlips(
         baseUsed,
         baseMinRequired,
         reason: useLayDutch ? null : harmReason,
+        budgetUsed: null,
+        requiredCapital: null,
       };
     }
   }
@@ -555,7 +628,7 @@ export function generateCustomSlips(
     // (vince la banca): solo le puntate bookmaker.
     const laySlip = coverageSlips[coverageSlips.length - 1];
     const layPlaced = Boolean(laySlip && laySlip.status !== 'PENDING');
-    const layLiabilityIfPlaced = layPlaced || useLayDutch ? layLiability : 0;
+    const layLiabilityIfPlaced = layPlaced || useLayDutch || useBudget ? layLiability : 0;
     motherSlip.realizedNetIfWon = Number(
       (motherSlip.potentialGrossPayout - (bookStakesTotal + layLiabilityIfPlaced)).toFixed(2),
     );
@@ -578,7 +651,8 @@ export function generateCustomSlips(
     // C1..CN singola inclusa) chiude D' - I = t; realizedNetIfWon sopra e'
     // gia' payout - esposizione totale, quindi il minimo e' il garantito.
     // (Siamo nel ramo else = book_single: basta il flag harmonized.)
-    if (Boolean(layOpts.harmonized) && coverageSlips.length > 0) {
+    // In budget il verdetto e' costruito dopo (serve verifica esplicita).
+    if (!useBudget && Boolean(layOpts.harmonized) && coverageSlips.length > 0) {
       const branchNets = [
         motherSlip.realizedNetIfWon,
         ...coverageSlips.map((s) => s.realizedNetIfWon),
@@ -595,8 +669,42 @@ export function generateCustomSlips(
         baseUsed,
         baseMinRequired,
         reason: useBookDutch ? null : harmReason,
+        budgetUsed: null,
+        requiredCapital: null,
       };
     }
+  }
+
+  // F23 — verdetto modo BUDGET: verifica ESPLICITA su ogni ramo (i netti
+  // realized sopra usano gia' stake reali + responsabilita' pianificata).
+  // Fattibile <=> spesa entro il budget (+10% tolleranza arrotondamenti)
+  // E ramo peggiore >= target (-1 tolleranza arrotondamenti).
+  if (useBudget && budgetTot !== null && harmReason === null) {
+    const branchNets = [
+      motherSlip.realizedNetIfWon,
+      ...coverageSlips.map((s) => s.realizedNetIfWon),
+    ];
+    const minNet = Math.min(...branchNets);
+    const spentOk = runningCumulativeCost <= budgetTot * 1.1;
+    const verified = minNet >= targetProfit - 1.0;
+    const feasibleBudget = spentOk && verified;
+    harmonization = {
+      requested: true,
+      finaleMode: finalHedgeMode === 'lay_exchange' ? 'lay' : 'book',
+      feasible: feasibleBudget,
+      layQuoteUsed: finalHedgeMode === 'lay_exchange' ? layQuotePlan : 0,
+      kFactor: finalHedgeMode === 'lay_exchange' ? Number(kFactorPlan.toFixed(4)) : 1,
+      sumInverseMultipliers: Number(sumInverse.toFixed(4)),
+      maxLayQuote,
+      equalizedNet: feasibleBudget ? Number(minNet.toFixed(2)) : null,
+      baseUsed,
+      baseMinRequired,
+      reason: feasibleBudget ? null : 'budget',
+      budgetUsed: budgetTot,
+      // requiredCapital (capitale dutched per +t) calcolato in matrix.ts
+      // confrontando col modo dutch: qui resta null.
+      requiredCapital: null,
+    };
   }
 
   // Capitale effettivo: puntate bookmaker piazzate + (banca piazzata? la sua

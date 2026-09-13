@@ -279,6 +279,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [fMaxN, setFMaxN] = useState('9');
   const [fLay, setFLay] = useState(''); // '' = auto (Under ultimo match scala)
   const [fComm, setFComm] = useState('4.5');
+  // F23 — budget totale ipotetico I_tot ('' = sizing dutch classico).
+  const [fBudget, setFBudget] = useState('');
   const [finderLoading, setFinderLoading] = useState(false);
   const [finderResult, setFinderResult] = useState<FinderResult | null>(null);
   const [finderLayUsed, setFinderLayUsed] = useState<string>('auto');
@@ -531,6 +533,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       );
       const minStr = overrides?.minN ?? fMinN;
       const maxStr = overrides?.maxN ?? fMaxN;
+      const budgetNum = parseFloat(fBudget.replace(',', '.'));
       const res = findHarmonizableLadders({
         rows,
         now: Date.now(),
@@ -542,6 +545,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         minEvents: Math.max(2, parseInt(minStr, 10) || 6),
         maxEvents: Math.min(15, Math.max(2, parseInt(maxStr, 10) || 9)),
         topK: 3,
+        budget: Number.isFinite(budgetNum) && budgetNum > 0 ? budgetNum : undefined,
       });
       setFinderResult(res);
     } catch (e) {
@@ -1003,6 +1007,10 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
             <label className="flex items-center gap-1 text-[#94A3B8]" title="Commissione exchange %">
               Comm %
               <input type="number" step="0.5" min="0" max="20" value={fComm} onChange={(e) => setFComm(e.target.value)} className="w-12 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Budget totale ipotetico € (vuoto = sizing dutch classico): OGNI copertura paga budget+target">
+              Budget €
+              <input type="number" step="10" min="0" value={fBudget} onChange={(e) => setFBudget(e.target.value)} placeholder="dutch" className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-amber-300" />
             </label>
             <button
               onClick={() => void runFinder()}

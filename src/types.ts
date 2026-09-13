@@ -280,6 +280,8 @@ export interface SavedSlipParams {
   layStake?: number;
   // F15: sizing armonizzato regola mai-perdita (dutching a payout comune)
   harmonized?: boolean;
+  // F23: budget totale ipotetico I_tot (ogni copertura paga budget+target)
+  budget?: number;
 }
 
 export interface SavedSlip {
