@@ -20,6 +20,7 @@ function mkRow(
     away: `Away ${eventId}`,
     kickoff,
     league: 'Serie A',
+    country: '',
     status,
     line: 3.5,
     books: [{ book: 'TestBook', under, over }],

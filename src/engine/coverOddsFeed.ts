@@ -84,6 +84,7 @@ export interface CoverOddsRow {
   away: string;
   kickoff: string;
   league: string;
+  country: string; // nazione lega (es. Italia vs Brasile: "Serie A" da sola e' ambigua)
   status: LdlMatchStatus;
   line: number;
   books: CoverOddsBook[];
@@ -145,12 +146,35 @@ function normTeam(s: string): string {
 }
 
 export function dedupKey(row: CoverOddsRow): string {
-  return `${normTeam(row.home)}|${normTeam(row.away)}|${row.kickoff}`;
+  // Squadre ordinate (un duplicato puo' invertirle) + kickoff al minuto
+  // (stesso istante in formati diversi resta uguale).
+  const teams = [normTeam(row.home), normTeam(row.away)].sort();
+  const t = new Date(row.kickoff).getTime();
+  const when = Number.isFinite(t) ? String(Math.floor(t / 60000)) : row.kickoff;
+  return `${teams[0]}|${teams[1]}|${when}`;
 }
 
 // Gap in ms tra due kickoff; NaN se uno dei due non e' valido (non giudicabile).
 export function kickoffGapMs(a: CoverOddsRow, b: CoverOddsRow): number {
   return new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime();
+}
+
+// F23 — il feed LDL duplica partite reali (stesso match, eventId diversi:
+// es. Flamengo-Bragantino 168702 + 168881, stesso kickoff). Senza dedup la
+// stessa partita puo' finire 2 volte in lista e nella multipla, con quote
+// diverse ("quote a caso"). Tiene una riga per chiave: piu' book vince,
+// a pari book rating piu' alto, poi primo visto. Ordine stabile.
+export function dedupeRows(rows: CoverOddsRow[]): CoverOddsRow[] {
+  const best = new Map<string, CoverOddsRow>();
+  const score = (r: CoverOddsRow): number => r.books.length * 1e6 + (r.rating ?? -1);
+  for (const r of rows) {
+    const k = dedupKey(r);
+    const cur = best.get(k);
+    if (!cur || score(r) > score(cur)) {
+      best.set(k, r);
+    }
+  }
+  return Array.from(best.values());
 }
 
 function computeLineStatus(totalGoals: number | null, line: number): LineStatus | null {
@@ -188,6 +212,7 @@ function buildRow(ev: RawLdlEvent, books: CoverOddsBook[], line: number): CoverO
     away: ev.away?.name ?? '',
     kickoff: ev.datetime ?? '',
     league: ev.league?.name ?? '',
+    country: ev.league?.country ?? '',
     status: normalizeLdlStatus(ev.status),
     line,
     books,
@@ -354,7 +379,7 @@ export function normalizeCoverOddsItems(
       rating: typeof item.rating === 'number' ? item.rating : null,
     });
   }
-  return rows;
+  return dedupeRows(rows);
 }
 
 // ---- Shape reale di GET /odds?eventId=<id> (conferma 2026-09-10) ----
@@ -409,17 +434,19 @@ export function normalizeEventsFeed(
     opts.oddsByEventId instanceof Map
       ? opts.oddsByEventId
       : new Map(Object.entries(opts.oddsByEventId ?? {}));
-  return events
-    .filter((ev) => ev && ev.id !== undefined && ev.id !== null)
-    .map((ev) => {
-      const entries =
-        oddsByEventId.get(String(ev.id)) ?? (ev.sites ? sitesToEntries(ev.sites) : []);
-      return buildRow(
-        { ...ev, sites: null },
-        buildBooksFromEntries(entries, line, sitesById, opts.inactiveSiteIds),
-        line,
-      );
-    });
+  return dedupeRows(
+    events
+      .filter((ev) => ev && ev.id !== undefined && ev.id !== null)
+      .map((ev) => {
+        const entries =
+          oddsByEventId.get(String(ev.id)) ?? (ev.sites ? sitesToEntries(ev.sites) : []);
+        return buildRow(
+          { ...ev, sites: null },
+          buildBooksFromEntries(entries, line, sitesById, opts.inactiveSiteIds),
+          line,
+        );
+      }),
+  );
 }
 
 function sitesToEntries(sites: RawLdlSiteOdds[]): RawLdlCoverOddsEntry[] {

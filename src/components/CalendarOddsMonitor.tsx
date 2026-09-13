@@ -448,7 +448,22 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoRefresh, madreKey, coperturaKey]);
 
-  const leagues = useMemo(() => Array.from(new Set(rows.map((r) => r.league))).sort(), [rows]);
+  // F23: la lega da sola e' ambigua ("Serie A" = Italia E Brasile nel feed
+  // LDL): filtro e label usano lega + nazione.
+  const leagueKey = (league: string, country: string): string =>
+    country ? `${league} (${country})` : league;
+  const leagues = useMemo(() => {
+    const seen = new Map<string, { league: string; country: string }>();
+    for (const r of rows) {
+      const key = leagueKey(r.league, r.country);
+      if (!seen.has(key)) {
+        seen.set(key, { league: r.league, country: r.country });
+      }
+    }
+    return Array.from(seen.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, v]) => ({ key, ...v }));
+  }, [rows]);
 
   // Errori auth LDL: la edge function marca i problemi token con prefisso "TOKEN:".
   const tokenIssue = useMemo(
@@ -467,7 +482,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         if (hideStarted && hasKickoffPassed(r, now)) {
           return false;
         }
-        if (activeLeagueFilter !== 'all' && r.league !== activeLeagueFilter) {
+        if (activeLeagueFilter !== 'all' && leagueKey(r.league, r.country) !== activeLeagueFilter) {
           return false;
         }
         if (activeStatusFilter !== 'all' && r.status !== activeStatusFilter) {
@@ -896,7 +911,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         resultScore: row.totalGoals !== null ? `${row.homeScore} - ${row.awayScore}` : undefined,
         kickoff: row.kickoff || undefined,
         firstHalfOnly: firstHalfIds.includes(row.eventId) || undefined,
-        note: `${row.league} (U:${under.book} / O:${over.book})${firstHalfIds.includes(row.eventId) ? ' · solo 1° tempo' : ''}`,
+        note: `${row.league}${row.country ? ` (${row.country})` : ''} (U:${under.book} / O:${over.book})${firstHalfIds.includes(row.eventId) ? ' · solo 1° tempo' : ''}`,
       });
     });
 
@@ -1414,17 +1429,17 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           >
             Tutte ({rows.length})
           </button>
-          {leagues.map((league) => (
+          {leagues.map(({ key }) => (
             <button
-              key={league}
-              onClick={() => setActiveLeagueFilter(league)}
+              key={key}
+              onClick={() => setActiveLeagueFilter(key)}
               className={`px-2.5 py-1 rounded-xs transition-colors ${
-                activeLeagueFilter === league
+                activeLeagueFilter === key
                   ? 'bg-[#3B82F6] text-white font-bold shadow-xs'
                   : 'bg-[#1A1D26] text-[#94A3B8] border border-[#2D3139] hover:text-white'
               }`}
             >
-              {league}
+              {key}
             </button>
           ))}
 
@@ -1638,7 +1653,10 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                         </>
                       )}
                       <span>•</span>
-                      <span>{row.league}</span>
+                      <span>
+                        {row.league}
+                        {row.country ? <span className="text-[#64748B]"> ({row.country})</span> : null}
+                      </span>
                       {row.rating != null && (
                         <span
                           className="ml-1 text-emerald-400 font-mono"
