@@ -26,6 +26,7 @@ export interface SynthParams {
   nMin?: number; // default 5
   nMax?: number; // default 30 (tetto bonus, non obbligo)
   topK?: number; // default 3
+  line?: number; // linea Totals della scala ideale (default 3.5)
 }
 
 export interface SynthLadder {
@@ -50,7 +51,7 @@ function pad2(v: number): string {
   return String(v).padStart(2, '0');
 }
 
-function synthMatches(n: number, underQ: number, overQ: number): UserMatch[] {
+function synthMatches(n: number, underQ: number, overQ: number, line: number): UserMatch[] {
   const start = new Date();
   start.setUTCDate(start.getUTCDate() + 1);
   start.setUTCHours(12, 0, 0, 0);
@@ -66,6 +67,7 @@ function synthMatches(n: number, underQ: number, overQ: number): UserMatch[] {
       overOdds: overQ,
       outcome: 'PENDING' as const,
       kickoff: ko.toISOString(),
+      line,
     };
   });
 }
@@ -82,8 +84,9 @@ export function generateIdealLadders(p: SynthParams): SynthResult {
 
   const cands: SynthLadder[] = [];
   let evaluated = 0;
+  const line = p.line ?? 3.5;
   for (let n = nMin; n <= nMax; n++) {
-    const matches = synthMatches(n, q0used, overUsed);
+    const matches = synthMatches(n, q0used, overUsed, line);
     const sol = solveMatrix({
       matches,
       baseStake: b,

@@ -102,8 +102,9 @@ async function fetchResourceWithRetry<T>(
 }
 
 // Parametri replicati dalla chiamata reale del sito (dump utente 2026-09-10):
-// sites1 = book madre (Under 3.5), sites2PuntaPunta = book coperture (Over 3.5),
+// sites1 = book madre (Under), sites2PuntaPunta = book coperture (Over),
 // oddsMin/oddsMax = filtro quota madre, dateTo = finestra eventi (ISO).
+// F26: `line` = linea Totals (1.5/2.5/3.5/4.5), default 3.5.
 export interface CoverSuggestionParams {
   sites1: number[];
   sites2PuntaPunta: number[];
@@ -112,12 +113,18 @@ export interface CoverSuggestionParams {
   dateTo?: string; // ISO toISOString()
   dateFrom?: string; // ISO toISOString()
   selections?: string;
+  line?: number;
   bet?: number;
   size?: number; // pagine da N risultati (default 100, verificato sull'API)
   page?: number;
 }
 
+function coverSelections(line: number): string {
+  return `Under ${line},Over ${line}`;
+}
+
 function buildPuntaPuntaQuery(p: CoverSuggestionParams): Record<string, string> {
+  const line = p.line ?? 3.5;
   const query: Record<string, string> = {
     bet: String(p.bet ?? 100),
     bonus: '0',
@@ -127,7 +134,7 @@ function buildPuntaPuntaQuery(p: CoverSuggestionParams): Record<string, string> 
     sites1: p.sites1.join(','),
     sites2PuntaPunta: p.sites2PuntaPunta.join(','),
     sites2: p.sites2PuntaPunta.join(','),
-    selections: p.selections ?? 'Under 3.5,Over 3.5',
+    selections: p.selections ?? coverSelections(line),
     blacklist: '',
     order: 'rating',
     twoOutcomes: 'true',
@@ -187,8 +194,9 @@ export async function fetchCoverSuggestions(
   }
   const sitesById = buildSitesIndex(sites);
   const eventsById = new Map(events.map((e) => [String(e.id), e]));
+  const line = p.line ?? 3.5;
   const matches = normalizeCoverOddsItems(covers, {
-    line: 3.5,
+    line,
     sitesById,
     inactiveSiteIds: collectInactiveSiteIds(sites),
     eventsById,

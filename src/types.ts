@@ -34,12 +34,14 @@ export interface UserMatch {
   timeSlot: string; // e.g. "12:30", "15:00", "18:00", "20:45"
   homeTeam: string;
   awayTeam: string;
-  underOdds: number; // Quote Under 3.5 specifica
-  overOdds: number; // Quote Over 3.5 specifica
+  underOdds: number; // Quota Under (linea in `line`)
+  overOdds: number; // Quota Over (linea in `line`)
   outcome: 'PENDING' | 'UNDER' | 'OVER';
   resultScore?: string;
   note?: string;
   kickoff?: string; // ISO kickoff (import LDL); per controllo spread limite giorni
+  // Linea Totals della schedina (1.5/2.5/3.5/4.5). Default 3.5.
+  line?: number;
   // F17: partita inserita SOLO sul mercato del PRIMO TEMPO (es. Under/Over 3.5
   // 1T): le gambe usano le quote 1T (inserite a mano nel workbench).
   firstHalfOnly?: boolean;
@@ -51,14 +53,15 @@ export interface GeneratedSlipItem {
   homeTeam: string;
   awayTeam: string;
   timeSlot: string;
+  // Mercato Totals con linea variabile (1.5/2.5/3.5/4.5) + variante 1T.
   market:
-    | 'UNDER 3.5'
-    | 'OVER 3.5'
+    | `UNDER ${number}`
+    | `OVER ${number}`
     | 'BOOSTER 1X/12'
-    | 'LAY UNDER 3.5'
-    | 'UNDER 3.5 1T'
-    | 'OVER 3.5 1T'
-    | 'LAY UNDER 3.5 1T';
+    | `LAY UNDER ${number}`
+    | `UNDER ${number} 1T`
+    | `OVER ${number} 1T`
+    | `LAY UNDER ${number} 1T`;
   odds: number;
 }
 
@@ -167,6 +170,8 @@ export interface ModelParameters {
   boosterThresholdEvents?: number;
   asymmetricMode?: AsymmetricMode;
   bookmakerModel?: BookmakerModelId;
+  // F26: linea Totals (etichette timeline; default 3.5)
+  line?: number;
 }
 
 export interface WeakPoint {
@@ -282,6 +287,8 @@ export interface SavedSlipParams {
   harmonized?: boolean;
   // F23: budget totale ipotetico I_tot (ogni copertura paga budget+target)
   budget?: number;
+  // F26: linea Totals della schedina (default 3.5 per vecchi salvataggi)
+  line?: number;
 }
 
 export interface SavedSlip {

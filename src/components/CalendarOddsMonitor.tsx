@@ -298,14 +298,16 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [sComm, setSComm] = useState('4.5');
   const [sMinN, setSMinN] = useState('5');
   const [sMaxN, setSMaxN] = useState('30');
+  // F26 — linea Totals variabile (1.5/2.5/3.5/4.5)
+  const [selectedLine, setSelectedLine] = useState<number>(3.5);
   const [synthLoading, setSynthLoading] = useState(false);
   const [synthResult, setSynthResult] = useState<SynthResult | null>(null);
   // F20 — matrice per-ramo espandibile per candidato (chiave modo+eventi).
   const [matrixOpen, setMatrixOpen] = useState<string | null>(null);
   const [importNotification, setImportNotification] = useState<string | null>(null);
   const [ldlErrors, setLdlErrors] = useState<string[]>([]);
-  // Coppia book per la ricerca /puntapunta: madre=book con Under 3.5 (sites1),
-  // copertura=book con Over 3.5 (sites2PuntaPunta). Multi-selezione libera:
+  // Coppia book per la ricerca /puntapunta: madre=book con Under (sites1),
+  // copertura=book con Over (sites2PuntaPunta). Multi-selezione libera:
   // default = book registrati nel gestionale (match per nome), altrimenti
   // Lottomatica[16] -> Sisal[23] (ricerca standard OddsScasser).
   const [bookmakers, setBookmakers] = useState<LdlBookmaker[]>([]);
@@ -388,6 +390,15 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const hasEdgeDataRef = React.useRef(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
+  // F26: cambiando linea, i dati della vecchia linea non devono mai restare
+  // visibili come se fossero quelli correnti: si azzera tutto e si ricarica.
+  useEffect(() => {
+    hasEdgeDataRef.current = false;
+    setRows([]);
+    setSource(null);
+    setLdlErrors([]);
+  }, [selectedLine]);
+
   async function loadRows() {
     if (!madreSites.length || !coperturaSites.length) {
       return;
@@ -398,6 +409,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         sites1: madreSites,
         sites2PuntaPunta: coperturaSites,
         dateTo: new Date(Date.now() + CALENDAR_WINDOW_DAYS * 24 * 3600_000).toISOString(),
+        line: selectedLine,
       });
       if (r.source === 'edge') {
         hasEdgeDataRef.current = true;
@@ -437,7 +449,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         ]),
       );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [madreKey, coperturaKey]);
+  }, [madreKey, coperturaKey, selectedLine]);
 
   useEffect(() => {
     if (!autoRefresh) {
@@ -450,7 +462,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     // loadRows richiama madreSites/coperturaSites: senza deps aggiornate il
     // timer manterrebbe la vecchia coppia di book.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefresh, madreKey, coperturaKey]);
+  }, [autoRefresh, madreKey, coperturaKey, selectedLine]);
 
   // F23: la lega da sola e' ambigua ("Serie A" = Italia E Brasile nel feed
   // LDL): filtro e label usano lega + nazione.
@@ -630,6 +642,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           nMin: Math.max(2, Math.floor(num(sMinN, 5)) || 5),
           nMax: Math.min(30, Math.max(2, Math.floor(num(sMaxN, 30)) || 30)),
           topK: 3,
+          line: selectedLine,
         }),
       );
     } catch (e) {
@@ -662,6 +675,12 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                     <div className="font-mono text-xs font-bold text-white">
                       <span className="text-emerald-400">#{idx + 1}</span> Scala {c.n} eventi{' '}
+                      <span
+                        className="text-[10px] px-1.5 py-0.2 rounded-xs border bg-amber-500/20 text-amber-300 border-amber-500/40"
+                        title={`Linea Totals di tutta la scala: Under/Over ${c.line}`}
+                      >
+                        U/O {c.line}
+                      </span>{' '}
                       <span
                         className={`text-[10px] px-1.5 py-0.2 rounded-xs border ${
                           isLay
@@ -802,6 +821,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           dateTo,
           size: 100,
           page,
+          line: selectedLine,
         });
         let fresh = 0;
         for (const m of r.matches) {
@@ -916,6 +936,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         kickoff: row.kickoff || undefined,
         firstHalfOnly: firstHalfIds.includes(row.eventId) || undefined,
         note: `${row.league}${row.country ? ` (${row.country})` : ''} (U:${under.book} / O:${over.book})${firstHalfIds.includes(row.eventId) ? ' · solo 1° tempo' : ''}`,
+        line: row.line,
       });
     });
 
@@ -952,7 +973,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               Calendario Partite &amp; Monitoraggio Bookmaker Live
             </h2>
             <p className="text-xs sm:text-sm text-[#94A3B8] mt-1 max-w-3xl leading-relaxed">
-              Partite ed quote under/over 3.5 recuperate in tempo reale dal feed OddsScasser su
+              Partite ed quote under/over {selectedLine} recuperate in tempo reale dal feed OddsScasser su
               finestra di <strong className="text-white">{CALENDAR_WINDOW_DAYS} giorni</strong>. Usa{' '}
               <strong className="text-blue-300">Trova Partite</strong> per selezionare in automatico
               fino a 30 eventi con copertura completa e quota Under sopra la soglia, sui book in cui
@@ -979,6 +1000,20 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               registeredIds={registeredLdlIds}
               daysLimits={daysLimitsByLdlId}
             />
+            <label className="flex items-center gap-1.5 text-[10px] font-mono text-[#94A3B8]">
+              Linea
+              <select
+                value={selectedLine}
+                onChange={(e) => setSelectedLine(parseFloat(e.target.value))}
+                className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-xs text-white font-mono"
+                title="Linea Totals del feed (Under/Over): ricarica calendario, Trova Partite, Scala Ideale e ricerca scale"
+              >
+                <option value="1.5">1.5</option>
+                <option value="2.5">2.5</option>
+                <option value="3.5">3.5</option>
+                <option value="4.5">4.5</option>
+              </select>
+            </label>
             <label className="flex items-center gap-1.5 text-[10px] font-mono text-[#94A3B8]">
               Quota min
               <input
@@ -1073,6 +1108,15 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
             <label className="flex items-center gap-1 text-[#94A3B8]" title="Quota Over uniforme di riferimento">
               Over
               <input type="number" step="0.05" min="1.25" value={sOver} onChange={(e) => setSOver(e.target.value)} className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+            </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Linea Totals (1.5/2.5/3.5/4.5)">
+              Linea
+              <select value={selectedLine} onChange={(e) => setSelectedLine(parseFloat(e.target.value))} className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white">
+                <option value="1.5">1.5</option>
+                <option value="2.5">2.5</option>
+                <option value="3.5">3.5</option>
+                <option value="4.5">4.5</option>
+              </select>
             </label>
             <label className="flex items-center gap-1 text-[#94A3B8]" title="Eventi min-max da provare (tetto bonus 30)">
               N
@@ -1355,9 +1399,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         <div className="bg-amber-950/40 border border-amber-500/40 p-3 rounded-xs text-amber-300 font-mono text-xs flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-amber-400" />
           <span>
-            Dati mock: feed LDL non raggiungibile (edge down o token LDL scaduto — vedi messaggio
-            qui sotto). I rinnovi del token Cognito sono automatici se LDL_COGNITO_REFRESH_TOKEN e'
-            impostato.
+            Dati mock (sempre su linea 3.5): feed LDL non raggiungibile (edge down o token
+            LDL scaduto — vedi messaggio qui sotto). I rinnovi del token Cognito sono
+            automatici se LDL_COGNITO_REFRESH_TOKEN e' impostato.
           </span>
           {ldlErrors.length > 0 && <span className="text-[#FDE68A]">· {ldlErrors[0]}</span>}
         </div>
@@ -1570,7 +1614,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         <div className="p-4 border-b border-[#2D3139] flex items-center justify-between">
           <h3 className="text-xs uppercase font-mono text-white font-bold tracking-wider flex items-center gap-2">
             <Layers className="w-4 h-4 text-[#3B82F6]" />
-            Partite &amp; Copertura Bookmaker (Under 3.5 / Over 3.5)
+            Partite &amp; Copertura Bookmaker (Under {selectedLine} / Over {selectedLine})
           </h3>
           <div className="flex items-center gap-2 text-xs font-mono text-[#64748B]">
             <span>Mostrando {filteredRows.length} partite</span>
@@ -1648,7 +1692,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                             }`}
                             title={
                               firstHalfIds.includes(row.eventId)
-                                ? 'Questa partita entra SOLO sul mercato del primo tempo (Under/Over 3.5 1T). Click per tornare al mercato integrale.'
+                                ? `Questa partita entra SOLO sul mercato del primo tempo (Under/Over ${row.line} 1T). Click per tornare al mercato integrale.`
                                 : `Meno di ${MIN_HOURS_TO_KICKOFF} ore: se vuoi inserirla comunque, portala SOLO sul primo tempo (le quote 1T le aggiusti poi nel workbench).`
                             }
                           >

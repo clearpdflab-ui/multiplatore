@@ -25,11 +25,12 @@ export function buildSequentialTimeline(
     boosterOdds = 1.1,
     boosterThresholdEvents = 4,
     asymmetricMode = 'flat',
+    line = 3.5,
   } = params;
   const timeline: SequentialStepState[] = [];
   let cumulativeCost = baseStake;
   let activeTicketType: 'MAIN' | 'REPLACEMENT' = 'MAIN';
-  let activeTicketDesc = `Multipla Madre (Tutti gli ${totalEvents} Under 3.5)`;
+  let activeTicketDesc = `Multipla Madre (Tutti gli ${totalEvents} Under ${line})`;
   let currentActiveTicketDesc = activeTicketDesc;
 
   const baseBonus = getBonusPercentage(totalEvents);
@@ -80,7 +81,7 @@ export function buildSequentialTimeline(
     const outcome = matchOutcomes[k - 1] || 'PENDING';
     const coverageDesc =
       k === totalEvents
-        ? `Singola Finale: Match ${k} Over 3.5${hasBooster ? ` + Booster Cuscinetto (Q=${boosterOdds.toFixed(2)})` : ''}`
+        ? `Singola Finale: Match ${k} Over ${line}${hasBooster ? ` + Booster Cuscinetto (Q=${boosterOdds.toFixed(2)})` : ''}`
         : `Copertura: Match ${k} OVER + ${remainingUnderAfterThis} restanti UNDER${hasBooster ? ` + Booster (${boosterOdds.toFixed(2)})` : ''} (${effectiveEventsInCoverage} ev.)`;
 
     let status: SequentialStepState['status'] = 'WAITING';

@@ -522,4 +522,17 @@ describe('generateCustomSlips — MODO BUDGET F23 (P = I_tot + t)', () => {
     // sizing sequenziale standard: la C1 non paga 180
     expect(r.coverageSlips[0].potentialGrossPayout).toBeLessThan(180);
   });
+
+  it('F26: line=2.5 -> etichette UNDER 2.5 / OVER 2.5 su madre e coperture', () => {
+    const r = generateCustomSlips(mkMatches(4, [1]), 10, 45, 'flat', false, 1.1, 4, 'book_single', undefined, 2.5);
+    expect(r.motherSlip.items.every((i) => i.market === 'UNDER 2.5')).toBe(true);
+    expect(r.coverageSlips[0].items[0].market).toBe('OVER 2.5');
+    expect(r.coverageSlips[0].items.filter((i) => i.market === 'UNDER 2.5')).toHaveLength(3);
+    expect(r.coverageSlips[3].items[0].market).toBe('OVER 2.5');
+  });
+
+  it('F26: default senza line -> etichette 3.5 (retrocompatibilita)', () => {
+    const r = generateCustomSlips(mkMatches(3), 10, 45);
+    expect(r.motherSlip.items.every((i) => i.market === 'UNDER 3.5')).toBe(true);
+  });
 });

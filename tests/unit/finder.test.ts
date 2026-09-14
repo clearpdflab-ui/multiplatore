@@ -349,4 +349,26 @@ describe('findHarmonizableLadders', () => {
     }
     r.best!.branchNets.forEach((net) => expect(net).toBeGreaterThanOrEqual(29));
   });
+
+  it('F26: la linea delle righe passa al candidato e alle descrizioni', () => {
+    const ks = kickoffs(8);
+    const rows = ks.map((k, i) => ({
+      ...mkRow(`l${i + 1}`, k, 1.5 + (i % 3) * 0.1, 2.2 + (i % 4) * 0.15),
+      line: 2.5,
+    }));
+    const r = findHarmonizableLadders({
+      rows,
+      now: NOW,
+      baseStake: 20,
+      targetProfit: 45,
+      layCommissionPct: 5,
+      lay: 1.3,
+      minEvents: 5,
+      maxEvents: 8,
+      topK: 2,
+    });
+    expect(r.best).not.toBeNull();
+    expect(r.best!.line).toBe(2.5);
+    expect(r.best!.legs[0].desc).toContain('Under 2.5');
+  });
 });

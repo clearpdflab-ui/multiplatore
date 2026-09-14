@@ -72,6 +72,7 @@ export interface FinderCandidate {
   sumInverse: number; // SOMMA 1/m (lay: solo coperture; book: + singola)
   bindingStep: number; // step (1-based) della copertura col 1/m max
   reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | null;
+  line: number; // linea Totals della scala (uniforme per costruzione)
 }
 
 export interface FinderResult {
@@ -103,6 +104,7 @@ function rowsToMatches(rows: CoverOddsRow[]): UserMatch[] {
       overOdds: over?.odds ?? 3.0,
       outcome: 'PENDING' as const,
       kickoff: r.kickoff || undefined,
+      line: r.line,
     };
   });
 }
@@ -156,6 +158,7 @@ function evaluateSequence(
     sumInverse: sol.sumInverse,
     bindingStep: sol.bindingStep,
     reason: sol.reason,
+    line: rows[0]?.line ?? 3.5,
   };
 }
 

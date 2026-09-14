@@ -87,12 +87,20 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   useEffect(() => {
     if (importedMatches && importedMatches.length > 0) {
       setMatches(importedMatches);
+      // F26: la linea del feed diventa la linea della schedina.
+      const importedLine = importedMatches[0]?.line;
+      if (typeof importedLine === 'number' && importedLine > 0) {
+        setSlipLine(importedLine);
+      }
     }
   }, [importedMatches]);
 
   // Betting Strategy Parameters
   const [baseStake, setBaseStake] = useState<number>(20);
   const [targetProfit, setTargetProfit] = useState<number>(45);
+  // F26 — linea Totals della schedina (1.5/2.5/3.5/4.5), uniforme su tutte
+  // le gambe. All'import dal Calendario si sincronizza con la linea del feed.
+  const [slipLine, setSlipLine] = useState<number>(3.5);
   const [asymmetricMode, setAsymmetricMode] = useState<AsymmetricMode>('front_loaded');
   const [enableBooster, setEnableBooster] = useState<boolean>(true);
   const [boosterOdds, setBoosterOdds] = useState<number>(1.1);
@@ -150,6 +158,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
         harmonized,
         budget: budgetTot ?? undefined,
       },
+      slipLine,
     );
   }, [
     matches,
@@ -164,6 +173,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     layStake,
     harmonized,
     budgetTot,
+    slipLine,
   ]);
 
   // Match management functions
@@ -212,6 +222,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
         overOdds: currentModel.overOdds,
         outcome: 'PENDING',
         note: `Match #${nextOrder}`,
+        line: slipLine,
       };
       return [...prev, newMatch];
     });
@@ -331,6 +342,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     layStake: layStake ?? undefined,
     harmonized,
     budget: budgetTot ?? undefined,
+    line: slipLine,
   });
 
   const defaultSlipName = () => {
@@ -399,6 +411,13 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
       setHarmonized(p.harmonized);
     }
     setBudgetTot(Number.isFinite(p.budget) && (p.budget as number) > 0 ? (p.budget as number) : null);
+    // F26: linea salvata (vecchi salvataggi = 3.5; fallback dalla prima gamba).
+    if (typeof p.line === 'number' && p.line > 0) {
+      setSlipLine(p.line);
+    } else {
+      const firstLine = s.matches[0]?.line;
+      setSlipLine(typeof firstLine === 'number' && firstLine > 0 ? firstLine : 3.5);
+    }
     setTargetProposal(null);
     if (p.bookmakerModel) {
       setSelectedBookmakerModel(p.bookmakerModel);
@@ -930,6 +949,22 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 />
                 <span className="absolute left-1.5 top-1 text-[#64748B]">€</span>
               </div>
+            </div>
+
+            {/* F26 — Linea Totals (uniforme su tutta la schedina) */}
+            <div className="flex items-center gap-2">
+              <span className="text-[#94A3B8]">Linea:</span>
+              <select
+                value={slipLine}
+                onChange={(e) => setSlipLine(parseFloat(e.target.value))}
+                title="Linea Totals di tutte le gambe (Under/Over). All'import dal Calendario segue la linea del feed."
+                className="bg-[#1A1D26] border border-[#2D3139] text-white px-2 py-1 rounded-xs font-bold"
+              >
+                <option value="1.5">Under/Over 1.5</option>
+                <option value="2.5">Under/Over 2.5</option>
+                <option value="3.5">Under/Over 3.5</option>
+                <option value="4.5">Under/Over 4.5</option>
+              </select>
             </div>
 
             {/* Asymmetric Strategy Selector */}

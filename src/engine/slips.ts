@@ -10,8 +10,23 @@ import { roundToFiftyCents, getStepTargetProfit } from './dutching';
 
 // F17: partita con flag firstHalfOnly -> le sue gambe usano il mercato del
 // PRIMO TEMPO (le quote sono quelle inserite a mano nel workbench).
-function legMarket(m: UserMatch, base: 'UNDER 3.5' | 'OVER 3.5'): GeneratedSlipItem['market'] {
-  return m.firstHalfOnly ? (`${base} 1T` as GeneratedSlipItem['market']) : base;
+// F26: linea Totals variabile (1.5/2.5/3.5/4.5).
+function legMarket(
+  m: UserMatch,
+  base: 'UNDER' | 'OVER',
+  line: number,
+): GeneratedSlipItem['market'] {
+  const label = `${base} ${line}`;
+  return m.firstHalfOnly
+    ? (`${label} 1T` as GeneratedSlipItem['market'])
+    : (label as GeneratedSlipItem['market']);
+}
+
+function layMarket(m: UserMatch, line: number): GeneratedSlipItem['market'] {
+  const label = `LAY UNDER ${line}`;
+  return m.firstHalfOnly
+    ? (`${label} 1T` as GeneratedSlipItem['market'])
+    : (label as GeneratedSlipItem['market']);
 }
 
 export interface CustomSlipsResult {
@@ -69,6 +84,10 @@ export function generateCustomSlips(
   boosterThresholdEvents: number = 4,
   finalHedgeMode: FinalHedgeMode = 'book_single',
   lay?: LayFinaleOptions,
+  // F26: linea Totals della schedina (1.5/2.5/3.5/4.5). Tutta la matematica
+  // (moltiplicatori, bonus a eventi, dutching, green-up) e' indipendente
+  // dalla linea: cambiano solo etichette mercato e quote in ingresso.
+  line: number = 3.5,
 ): CustomSlipsResult {
   const N = matches.length;
   if (N === 0) {
@@ -113,7 +132,7 @@ export function generateCustomSlips(
     homeTeam: m.homeTeam,
     awayTeam: m.awayTeam,
     timeSlot: m.timeSlot,
-    market: legMarket(m, 'UNDER 3.5'),
+    market: legMarket(m, 'UNDER', line),
     odds: Number(m.underOdds) || 1.3,
   }));
 
@@ -141,7 +160,7 @@ export function generateCustomSlips(
     id: 'slip-mother',
     step: 0,
     type: 'MOTHER',
-    title: `Schedina Madre (${N} Match UNDER 3.5)`,
+    title: `Schedina Madre (${N} Match UNDER ${line})`,
     code: 'S0',
     timing: `Piazzare prima del Match 1 (${matches[0]?.timeSlot || 'Inizio'})`,
     items: motherItems,
@@ -182,7 +201,7 @@ export function generateCustomSlips(
       homeTeam: currentMatch.homeTeam,
       awayTeam: currentMatch.awayTeam,
       timeSlot: currentMatch.timeSlot,
-      market: legMarket(currentMatch, 'OVER 3.5'),
+      market: legMarket(currentMatch, 'OVER', line),
       odds: Number(currentMatch.overOdds) || 3.0,
     });
     for (let j = k; j < N; j++) {
@@ -193,7 +212,7 @@ export function generateCustomSlips(
         homeTeam: nextMatch.homeTeam,
         awayTeam: nextMatch.awayTeam,
         timeSlot: nextMatch.timeSlot,
-        market: legMarket(nextMatch, 'UNDER 3.5'),
+        market: legMarket(nextMatch, 'UNDER', line),
         odds: Number(nextMatch.underOdds) || 1.3,
       });
     }
@@ -247,7 +266,7 @@ export function generateCustomSlips(
       type: isFinalSingle ? 'FINAL_SINGLE' : 'COVERAGE',
       title: isFinalSingle
         ? `Singola Finale Chiusura (${currentMatch.homeTeam} - ${currentMatch.awayTeam})`
-        : `Copertura C${k} (${currentMatch.homeTeam} - ${currentMatch.awayTeam} OVER + Restanti UNDER)`,
+        : `Copertura C${k} (${currentMatch.homeTeam} - ${currentMatch.awayTeam} OVER ${line} + Restanti UNDER ${line})`,
       code: `C${k}`,
       timing: `Piazzare prima di ${currentMatch.homeTeam} - ${currentMatch.awayTeam} (${currentMatch.timeSlot})`,
       items,
@@ -560,7 +579,7 @@ export function generateCustomSlips(
       id: `slip-c${N}`,
       step: N,
       type: 'FINAL_LAY',
-      title: `Banca Finale Exchange (${finalMatch.homeTeam} - ${finalMatch.awayTeam} LAY Under 3.5)`,
+      title: `Banca Finale Exchange (${finalMatch.homeTeam} - ${finalMatch.awayTeam} LAY Under ${line})`,
       code: `C${N}`,
       timing: `Piazzare su Betfair prima di ${finalMatch.homeTeam} - ${finalMatch.awayTeam} (${finalMatch.timeSlot})`,
       items: [
@@ -570,7 +589,7 @@ export function generateCustomSlips(
           homeTeam: finalMatch.homeTeam,
           awayTeam: finalMatch.awayTeam,
           timeSlot: finalMatch.timeSlot,
-          market: finalMatch.firstHalfOnly ? 'LAY UNDER 3.5 1T' : 'LAY UNDER 3.5',
+          market: layMarket(finalMatch, line),
           odds: layQuote,
         },
       ],

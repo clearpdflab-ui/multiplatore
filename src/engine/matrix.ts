@@ -65,9 +65,9 @@ export interface MatrixSolution {
   bindingStep: number; // step (1-based) della copertura col 1/m max
 }
 
-function branchDesc(n: number, step: number, isLay: boolean): string {
+function branchDesc(n: number, step: number, isLay: boolean, line: number): string {
   if (step === 0) {
-    return `${n}× Under 3.5`;
+    return `${n}× Under ${line}`;
   }
   if (step === n) {
     return isLay ? `LAY Under #${n}` : `Over #${n} (singola)`;
@@ -106,6 +106,7 @@ function solveOneMode(
       harmonized: true,
       budget,
     },
+    matches[0]?.line ?? 3.5,
   );
   const h = r.harmonization;
   if (!h) {
@@ -114,6 +115,8 @@ function solveOneMode(
   const isLay = mode === 'lay';
   const layCard = isLay ? r.coverageSlips[r.coverageSlips.length - 1] : null;
   const bookSlips = isLay ? r.coverageSlips.slice(0, -1) : r.coverageSlips;
+  // F26: linea della scala (uniforme per costruzione: un feed = una linea).
+  const line = matches[0]?.line ?? 3.5;
   const sumInverse = bookSlips.reduce(
     (acc, s) => acc + (s.finalMultiplier > 1 ? 1 / s.finalMultiplier : 0),
     0,
@@ -130,7 +133,7 @@ function solveOneMode(
   const branches: MatrixBranch[] = [
     {
       code: 'S0',
-      desc: branchDesc(n, 0, isLay),
+      desc: branchDesc(n, 0, isLay, line),
       mult: r.motherSlip.finalMultiplier,
       stake: r.motherSlip.stake,
       payout: r.motherSlip.potentialGrossPayout,
@@ -138,7 +141,7 @@ function solveOneMode(
     },
     ...bookSlips.map((s) => ({
       code: s.code,
-      desc: branchDesc(n, s.step, isLay),
+      desc: branchDesc(n, s.step, isLay, line),
       mult: s.finalMultiplier,
       stake: s.stake,
       payout: s.potentialGrossPayout,
@@ -148,7 +151,7 @@ function solveOneMode(
       ? [
           {
             code: `C${n}`,
-            desc: branchDesc(n, n, isLay),
+            desc: branchDesc(n, n, isLay, line),
             mult: layCard.finalMultiplier,
             stake: layCard.stake,
             payout: layCard.potentialGrossPayout,
