@@ -6,7 +6,7 @@ export { getBonusPercentage } from '../engine/bonus';
 export { roundToFiftyCents, getStepTargetProfit } from '../engine/dutching';
 export { calculateSteps } from '../engine/calculations';
 export { buildSequentialTimeline } from '../engine/timeline';
-export { generateCustomSlips } from '../engine/slips';
+export { generateCustomSlips, getSlipBook } from '../engine/slips';
 export { calculateBinomialRisk, evaluateScenario } from '../engine/risk';
 export type { CustomSlipsResult } from '../engine/slips';
 export type { ModelParameters } from '../types';

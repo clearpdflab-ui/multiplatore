@@ -40,6 +40,11 @@ export interface UserMatch {
   resultScore?: string;
   note?: string;
   kickoff?: string; // ISO kickoff (import LDL); per controllo spread limite giorni
+  // F31 prenotate: bookmaker vincolato per lato (dal feed all'import) +
+  // snapshot offerte per lato per poter cambiare book nel workbench.
+  underBook?: string;
+  overBook?: string;
+  feedBooks?: { book: string; under: number | null; over: number | null }[];
   // Linea Totals della schedina (1.5/2.5/3.5/4.5). Default 3.5.
   line?: number;
   // F17: partita inserita SOLO sul mercato del PRIMO TEMPO (es. Under/Over 3.5
@@ -63,6 +68,8 @@ export interface GeneratedSlipItem {
     | `OVER ${number} 1T`
     | `LAY UNDER ${number} 1T`;
   odds: number;
+  // F31 prenotate: bookmaker dove piazzare la gamba (dal match all'import).
+  book?: string;
 }
 
 export interface GeneratedSlip {

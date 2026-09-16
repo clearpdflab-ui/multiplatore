@@ -14,6 +14,7 @@ import {
   REAL_SERIE_A_4_MATCHES,
   REAL_CHAMPIONS_LEAGUE_MATCHES,
   generateCustomSlips,
+  getSlipBook,
   roundToFiftyCents,
   getBonusPercentage,
   BOOKMAKER_MODELS,
@@ -196,6 +197,26 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
           return m;
         }
         return { ...m, [field]: value };
+      }),
+    );
+  };
+
+  // F31 prenotate: cambia il book vincolato di un lato (la quota segue il book).
+  const handleChangeMatchBook = (id: string, side: 'under' | 'over', book: string) => {
+    setMatches((prev) =>
+      prev.map((m) => {
+        if (m.id !== id) {
+          return m;
+        }
+        const opt = (m.feedBooks ?? []).find((b) => b.book === book);
+        const odds = opt ? opt[side] : null;
+        return {
+          ...m,
+          [side === 'under' ? 'underBook' : 'overBook']: book || undefined,
+          ...(odds !== null && odds !== undefined && Number.isFinite(odds)
+            ? { [side === 'under' ? 'underOdds' : 'overOdds']: odds as number }
+            : {}),
+        };
       }),
     );
   };
@@ -533,9 +554,19 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
       `--- PRONOSTICI ---`,
       ...slip.items.map(
         (it) =>
-          `${it.homeTeam} - ${it.awayTeam} (${it.timeSlot}) -> ${it.market} @ ${it.odds.toFixed(2)}`,
+          `${it.homeTeam} - ${it.awayTeam} (${it.timeSlot}) -> ${it.market} @ ${it.odds.toFixed(2)}${it.book ? ` [${it.book}]` : ''}`,
       ),
     ];
+    const bi = getSlipBook(slip);
+    if (bi.books.length > 0) {
+      lines.splice(
+        3,
+        0,
+        bi.mixed
+          ? `⚠ MISTO su più book (${bi.books.join(', ')}): un ticket = un solo book — verifica`
+          : `🏦 Da piazzare su: ${bi.single}`,
+      );
+    }
     const text = lines.join('\n');
     navigator.clipboard.writeText(text);
     setCopiedId(slip.id);
@@ -1646,7 +1677,7 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
 
                     {/* Under 3.5 Odds (Directly Editable) */}
                     <td className="p-2.5 text-center">
-                      <div className="inline-flex items-center relative">
+                      <div className="inline-flex flex-col items-center gap-1 relative">
                         <input
                           type="number"
                           step="0.01"
@@ -1662,12 +1693,35 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           }
                           className="w-20 text-center bg-[#1A1D26] border border-emerald-500/40 text-emerald-400 font-bold py-1 px-1.5 rounded-xs focus:border-emerald-400 focus:outline-hidden"
                         />
+                        {/* F31 prenotate: book vincolato lato Under */}
+                        {(match.feedBooks?.length ?? 0) > 0 || match.underBook ? (
+                          <select
+                            value={match.underBook ?? ''}
+                            onChange={(e) => handleChangeMatchBook(match.id, 'under', e.target.value)}
+                            title="Bookmaker dove piazzare l'Under (la quota segue il book)"
+                            className="w-20 bg-[#1A1D26] border border-[#2D3139] text-[#94A3B8] text-[10px] font-mono rounded-xs px-1 py-0.5"
+                          >
+                            {!match.underBook && <option value="">book…</option>}
+                            {match.underBook &&
+                              !(match.feedBooks ?? []).some((b) => b.book === match.underBook) && (
+                                <option value={match.underBook}>{match.underBook}</option>
+                              )}
+                            {(match.feedBooks ?? [])
+                              .filter((b) => b.under !== null)
+                              .sort((a, b) => (b.under ?? 0) - (a.under ?? 0))
+                              .map((b) => (
+                                <option key={b.book} value={b.book}>
+                                  {b.book} @{b.under?.toFixed(2)}
+                                </option>
+                              ))}
+                          </select>
+                        ) : null}
                       </div>
                     </td>
 
                     {/* Over 3.5 Odds (Directly Editable) */}
                     <td className="p-2.5 text-center">
-                      <div className="inline-flex items-center relative">
+                      <div className="inline-flex flex-col items-center gap-1 relative">
                         <input
                           type="number"
                           step="0.05"
@@ -1683,6 +1737,29 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           }
                           className="w-20 text-center bg-[#1A1D26] border border-amber-500/40 text-amber-300 font-bold py-1 px-1.5 rounded-xs focus:border-amber-400 focus:outline-hidden"
                         />
+                        {/* F31 prenotate: book vincolato lato Over */}
+                        {(match.feedBooks?.length ?? 0) > 0 || match.overBook ? (
+                          <select
+                            value={match.overBook ?? ''}
+                            onChange={(e) => handleChangeMatchBook(match.id, 'over', e.target.value)}
+                            title="Bookmaker dove piazzare l'Over (la quota segue il book)"
+                            className="w-20 bg-[#1A1D26] border border-[#2D3139] text-[#94A3B8] text-[10px] font-mono rounded-xs px-1 py-0.5"
+                          >
+                            {!match.overBook && <option value="">book…</option>}
+                            {match.overBook &&
+                              !(match.feedBooks ?? []).some((b) => b.book === match.overBook) && (
+                                <option value={match.overBook}>{match.overBook}</option>
+                              )}
+                            {(match.feedBooks ?? [])
+                              .filter((b) => b.over !== null)
+                              .sort((a, b) => (b.over ?? 0) - (a.over ?? 0))
+                              .map((b) => (
+                                <option key={b.book} value={b.book}>
+                                  {b.book} @{b.over?.toFixed(2)}
+                                </option>
+                              ))}
+                          </select>
+                        ) : null}
                       </div>
                     </td>
 
@@ -1940,6 +2017,30 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                               : 'IN ATTESA'}
                       </span>
 
+                      {/* F31 prenotate: dove piazzare il ticket */}
+                      {(() => {
+                        const bi = getSlipBook(slip);
+                        if (bi.books.length === 0) {
+                          return null;
+                        }
+                        return (
+                          <span
+                            title={
+                              bi.mixed
+                                ? `Gambe su più book (${bi.books.join(', ')}): la regola vuole un ticket = un solo book — verifica prima di piazzare`
+                                : `Ticket prenotato su ${bi.single}`
+                            }
+                            className={`text-[10px] font-mono px-2 py-0.5 rounded-xs font-bold uppercase border ${
+                              bi.mixed
+                                ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                                : 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+                            }`}
+                          >
+                            {bi.mixed ? `MISTO: ${bi.books.join('+')}` : `Su ${bi.single}`}
+                          </span>
+                        );
+                      })()}
+
                       <button
                         onClick={() => copySlipToClipboard(slip)}
                         className="p-1.5 bg-[#1A1D26] hover:bg-[#2A2F3D] text-[#94A3B8] hover:text-white border border-[#2D3139] rounded-xs transition-colors"
@@ -1994,6 +2095,14 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                           {item.timeSlot && (
                             <span className="text-[9px] text-[#64748B] shrink-0 font-mono">
                               {item.timeSlot}
+                            </span>
+                          )}
+                          {item.book && (
+                            <span
+                              className="text-[9px] px-1 py-0.2 rounded-xs font-bold shrink-0 bg-sky-500/15 text-sky-300 border border-sky-500/30"
+                              title={`Prenotata su ${item.book}`}
+                            >
+                              {item.book}
                             </span>
                           )}
                         </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateCustomSlips } from '../../src/engine/slips';
+import { generateCustomSlips, getSlipBook } from '../../src/engine/slips';
 import { canOpenCycle, type CycleLedger } from '../../src/engine/harmony';
 import type { UserMatch } from '../../src/types';
 
@@ -160,5 +160,58 @@ describe('S15 — tetti di portafoglio multi-ciclo (canOpenCycle)', () => {
     expect(
       canOpenCycle({ bankroll: 3000, worstCycleCost: 200, active: mkLedgers(2, 150) }).ok,
     ).toBe(true);
+  });
+});
+
+describe('F31 prenotate — vincolo book strutturato end-to-end', () => {
+  const mkBooked = (): UserMatch[] =>
+    mkScale([
+      [1.6, 2.2],
+      [1.55, 2.4],
+      [1.7, 2.1],
+    ]).map((m, i) => ({
+      ...m,
+      underBook: ['Snai', 'Snai', 'Eurobet'][i],
+      overBook: ['Eurobet', 'Snai', 'Eurobet'][i],
+    }));
+
+  it('gambe ereditano il book del lato; banca su Exchange', () => {
+    const r = generateCustomSlips(mkBooked(), 10, 20, 'flat', false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.5,
+    });
+    // madre: tutti Under -> Snai, Snai, Eurobet
+    expect(r.motherSlip.items.map((it) => it.book)).toEqual(['Snai', 'Snai', 'Eurobet']);
+    // C1: Over#1 (Eurobet) + Under dopo
+    expect(r.coverageSlips[0].items[0].market).toContain('OVER');
+    expect(r.coverageSlips[0].items[0].book).toBe('Eurobet');
+    expect(r.coverageSlips[0].items[1].book).toBe('Snai');
+    // banca finale su Exchange
+    const lay = r.coverageSlips[r.coverageSlips.length - 1];
+    expect(lay.type).toBe('FINAL_LAY');
+    expect(lay.items[0].book).toBe('Exchange');
+  });
+
+  it('getSlipBook: singolo vs misto', () => {
+    const r = generateCustomSlips(mkBooked(), 10, 20, 'flat', false, 1.1, 4, 'lay_exchange', {
+      layOdds: 1.5,
+    });
+    const lay = r.coverageSlips[r.coverageSlips.length - 1];
+    // banca: una sola gamba Exchange -> singolo
+    expect(getSlipBook(lay)).toEqual({ single: 'Exchange', books: ['Exchange'], mixed: false });
+    // madre mista Snai/Eurobet -> misto onesto
+    const mother = getSlipBook(r.motherSlip);
+    expect(mother.mixed).toBe(true);
+    expect(mother.single).toBeNull();
+    expect([...mother.books].sort()).toEqual(['Eurobet', 'Snai']);
+    // scala mono-book -> singolo
+    const mono = mkBooked().map((m) => ({ ...m, underBook: 'Snai', overBook: 'Snai' }));
+    const r2 = generateCustomSlips(mono, 10, 20, 'flat', false, 1.1, 4, 'book_single', {});
+    expect(getSlipBook(r2.motherSlip)).toEqual({ single: 'Snai', books: ['Snai'], mixed: false });
+    expect(getSlipBook(r2.coverageSlips[0]).single).toBe('Snai');
+  });
+
+  it('senza book: nessun chip, nessun crash (retrocompatibilita)', () => {
+    const r = generateCustomSlips(mkScale([[1.6, 2.2], [1.55, 2.4]]), 10, 20);
+    expect(getSlipBook(r.motherSlip)).toEqual({ single: null, books: [], mixed: false });
   });
 });

@@ -49,6 +49,23 @@ function layMarket(m: UserMatch, line: number): GeneratedSlipItem['market'] {
     : (label as GeneratedSlipItem['market']);
 }
 
+// F31 prenotate — dove piazzare il ticket (regola: un ticket = un solo book).
+// Ritorna il book unico se tutte le gambe con book noto concordano, altrimenti
+// la lista dei book coinvolti (MISTO: da verificare col regolamento book).
+export interface SlipBookInfo {
+  single: string | null;
+  books: string[];
+  mixed: boolean;
+}
+
+export function getSlipBook(slip: Pick<GeneratedSlip, 'items' | 'type'>): SlipBookInfo {
+  const books = [...new Set(slip.items.map((it) => it.book).filter((b): b is string => Boolean(b)))];
+  if (books.length === 1) {
+    return { single: books[0], books, mixed: false };
+  }
+  return { single: null, books, mixed: books.length > 1 };
+}
+
 export interface CustomSlipsResult {
   motherSlip: GeneratedSlip;
   coverageSlips: GeneratedSlip[];
@@ -170,6 +187,7 @@ export function generateCustomSlips(
     timeSlot: m.timeSlot,
     market: legMarket(m, 'UNDER', line),
     odds: Number(m.underOdds) || 1.3,
+    book: m.underBook,
   }));
 
   const motherRawMultiplier = motherItems.reduce((acc, it) => acc * it.odds, 1);
@@ -239,6 +257,7 @@ export function generateCustomSlips(
       timeSlot: currentMatch.timeSlot,
       market: legMarket(currentMatch, 'OVER', line),
       odds: Number(currentMatch.overOdds) || 3.0,
+      book: currentMatch.overBook,
     });
     for (let j = k; j < N; j++) {
       const nextMatch = matches[j];
@@ -250,6 +269,7 @@ export function generateCustomSlips(
         timeSlot: nextMatch.timeSlot,
         market: legMarket(nextMatch, 'UNDER', line),
         odds: Number(nextMatch.underOdds) || 1.3,
+        book: nextMatch.underBook,
       });
     }
 
@@ -718,6 +738,7 @@ export function generateCustomSlips(
           timeSlot: finalMatch.timeSlot,
           market: layMarket(finalMatch, line),
           odds: layQuote,
+          book: 'Exchange',
         },
       ],
       eventCount: 1,

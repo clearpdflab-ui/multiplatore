@@ -1074,6 +1074,12 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         firstHalfOnly: firstHalfIds.includes(row.eventId) || undefined,
         note: `${row.league}${row.country ? ` (${row.country})` : ''} (U:${under.book} / O:${over.book})${firstHalfIds.includes(row.eventId) ? ' · solo 1° tempo' : ''}`,
         line: row.line,
+        // F31 prenotate: vincolo book per lato + offerte per poter cambiare nel workbench.
+        underBook: under.book,
+        overBook: over.book,
+        feedBooks: row.books
+          .filter((b) => b.under !== null || b.over !== null)
+          .map((b) => ({ book: b.book, under: b.under, over: b.over })),
       });
     });
 

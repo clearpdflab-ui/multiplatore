@@ -951,3 +951,20 @@ manuale dell'utente.
   la 10gg supera le 100 righe/pagina. Chiamate con `page` esplicita invariate
   (1 sola pagina). Book/gestionale e Scout/finder senza tetti propri: seguono.
 - 215/215, tsc, eslint 0 error, build OK.
+
+## F31a — Schedine prenotate: vincolo book strutturato (2026-09-16)
+
+- **Richiesta utente**: usare i book per creare schedine "prenotate" (pronte da
+  piazzare sul book giusto). Prima il book sopravviveva solo come testo in nota.
+- **Tipi**: `UserMatch` += underBook/overBook/feedBooks; `GeneratedSlipItem` +=
+  book; helper `getSlipBook()` (singolo vs MISTO onesto, regola 1 ticket = 1 book).
+- **Motore slips.ts**: ogni gamba eredita il book del lato (madre Under,
+  coperture Over+Under, banca su Exchange). Nessuna formula toccata.
+- **Import Calendario**: salva underBook/overBook + snapshot offerte per lato.
+- **Workbench**: selettori book sotto ogni quota (la quota segue il book); chip
+  "Su X" / "MISTO" su ogni card; book per gamba in lista; clipboard con riga
+  piazzamento + [book] per gamba. Salvataggi persistono tutto in automatico.
+- **Test**: +3 adversarial (propagazione, singolo/misto, retrocompatibilita).
+  **218/218**, tsc, eslint 0 error, build OK.
+- **Prossimo (F31b)**: bonus/cap per-ticket nel sizing (oggi il sizing usa il book
+  default anche se i ticket sono prenotati altrove).
