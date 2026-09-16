@@ -922,3 +922,11 @@ manuale dell'utente.
   determinismo, budget, gap<2h). **214/214**, tsc, eslint 0 error, build OK.
 - **Aperto**: applicare migration su remote; auto-cron oraria (P4); import 1-click
   e tracking live se richiesti. Non committato.
+
+## F29b — Deploy: commit b82b611 pushato + migration scout_runs applicata (2026-09-16)
+
+- Push `9393cab..b82b611` su origin/main (fast-forward, tree pulito).
+- Migration `20260916120000_create_scout_runs.sql` APPLICATA su remote
+  (Management API database/query, APPLY-OK): verifica `to_regclass`=scout_runs,
+  0 righe; policy RLS presenti (select/insert/delete owner-scoped, niente update:
+  le run sono immutabili per disegno). Sync cloud dello Scout operativa.
