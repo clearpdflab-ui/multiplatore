@@ -8,6 +8,7 @@ import {
   phaseOfTicket,
   recomputeAfterVoid,
   resolveWithFallback,
+  resolveWithFallbackVerbose,
   sizeTicket,
   spendLimitForLock,
   targetForDepth,
@@ -31,6 +32,40 @@ describe('sizeTicket', () => {
   it('should reject finale <= 1', () => {
     const t = sizeTicket({ legs: [{ odds: 1.0 }], spent: 10 });
     expect(t.feasible).toBe(false);
+    expect(t.reason).toBe('finale');
+  });
+
+  it('should veto lordo over the global 50k cap (giocata vietata)', () => {
+    const t = sizeTicket({
+      legs: [{ odds: 60 }, { odds: 60 }],
+      spent: 100000,
+      target: 45,
+    });
+    expect(t.lordo).toBeGreaterThan(50000);
+    expect(t.feasible).toBe(false);
+    expect(t.reason).toBe('terms');
+    expect(t.termsDetail ?? '').toContain('tetto globale');
+    expect(t.termsDetail ?? '').toContain('50000.00');
+  });
+
+  it('should veto lordo over the lower book cap (precedenza al minore)', () => {
+    const t = sizeTicket({
+      legs: [{ odds: 10 }, { odds: 10 }],
+      book: { ...DEFAULT_BOOK, maxPayout: 10000 },
+      spent: 20000,
+      target: 45,
+    });
+    expect(t.lordo).toBeGreaterThan(10000);
+    expect(t.feasible).toBe(false);
+    expect(t.reason).toBe('terms');
+    expect(t.termsDetail ?? '').toContain('tetto book');
+  });
+
+  it('should stay feasible below every cap', () => {
+    const legs = [O(), ...Array.from({ length: 13 }, () => U(1.32))];
+    const t = sizeTicket({ legs, spent: 2, target: 45 });
+    expect(t.feasible).toBe(true);
+    expect(t.reason).toBeNull();
   });
 });
 
@@ -149,5 +184,51 @@ describe('resolveWithFallback', () => {
 
   it('should use the book with best finale via DEFAULT_BOOK', () => {
     expect(DEFAULT_BOOK.bonusCap).toBe(500);
+  });
+
+  it('verbose: should skip the cap-blocked candidate and report why', () => {
+    // lordo ~= speso + t per costruzione: si separa via tetto book basso
+    // (huge bloccato) + minStake che alza il lordo sopra il tetto.
+    const huge = {
+      label: 'huge',
+      legs: [{ odds: 60 }, { odds: 60 }],
+      book: { ...DEFAULT_BOOK, maxPayout: 5000 },
+    };
+    const lock = { label: 'lock', legs: [{ odds: 2.75, market: 'OVER' as const }] };
+    const v = resolveWithFallbackVerbose({ candidates: [huge, lock], spent: 100, minStake: 20 });
+    expect(v.ticket?.label).toBe('lock');
+    expect(v.rejected.length).toBe(1);
+    expect(v.rejected[0].label).toBe('huge');
+    expect(v.rejected[0].reason).toContain('terms');
+    expect(v.rejected[0].reason).toContain('tetto book');
+  });
+
+  it('verbose: should report all rejections when nothing is placeable', () => {
+    const v = resolveWithFallbackVerbose({
+      candidates: [{ label: 'x', legs: [{ odds: 1.0 }] }],
+      spent: 10,
+    });
+    expect(v.ticket).toBeNull();
+    expect(v.rejected).toEqual([{ label: 'x', reason: 'finale' }]);
+  });
+
+  it('buildReferenceChain should flag cap-stopped rows (giocate vietate)', () => {
+    const chain = buildReferenceChain({
+      motherUnderOdds: Array.from({ length: 30 }, () => 2.0),
+      overOdds: 3.0,
+      s0: 50,
+    });
+    expect(chain.capStops).toBeGreaterThan(0);
+    expect(chain.feasible).toBe(false);
+    expect(chain.rows[0].capStop).toBe(true);
+  });
+
+  it('buildReferenceChain stays clean below the cap (regressione)', () => {
+    const chain = buildReferenceChain({
+      motherUnderOdds: Array.from({ length: 15 }, () => 1.32),
+      overOdds: 3.0,
+      s0: 2,
+    });
+    expect(chain.capStops).toBe(0);
   });
 });

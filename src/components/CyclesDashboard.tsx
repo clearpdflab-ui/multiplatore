@@ -6,6 +6,7 @@ import {
   bankrollTargets,
   expectedBleed,
   resolveWithFallback,
+  resolveWithFallbackVerbose,
   sizeTicket,
   spendLimitForLock,
 } from '../engine/harmony';
@@ -203,16 +204,17 @@ export const CyclesDashboard: React.FC = () => {
   // Calcolatore terminazione: full coverage -> N corto -> lock -> stop.
   const termination = useMemo((): {
     res: ReturnType<typeof resolveWithFallback>;
+    rejected: { label: string; reason: string }[];
     ceiling: number | null;
     error: string | null;
   } => {
     if (!selected || !book) {
-      return { res: null, ceiling: null, error: null };
+      return { res: null, rejected: [], ceiling: null, error: null };
     }
     const over = Number(termOver);
     const n = Number(termN);
     if (!Number.isFinite(over) || over <= 1) {
-      return { res: null, ceiling: null, error: 'Over non valido' };
+      return { res: null, rejected: [], ceiling: null, error: null };
     }
     const rest = selected.motherEvents.map((m) => m.odds);
     const full = [
@@ -228,7 +230,7 @@ export const CyclesDashboard: React.FC = () => {
     }
     candidates.push({ label: 'lock @2.75', legs: [{ odds: 2.75, market: 'OVER' as const }], book });
     const bleedNum = Number(bleed) || 0;
-    const res = resolveWithFallback({
+    const verbose = resolveWithFallbackVerbose({
       candidates,
       spent,
       bleed: bleedNum,
@@ -236,7 +238,7 @@ export const CyclesDashboard: React.FC = () => {
       minStake: book.minStake,
     });
     const ceiling = spendLimitForLock(150, 2.75, target, bleedNum);
-    return { res, ceiling, error: null };
+    return { res: verbose.ticket, rejected: verbose.rejected, ceiling, error: null };
   }, [selected, book, termOver, termN, bleed, spent, target]);
 
   async function run(fn: () => Promise<unknown>, ok: string) {
@@ -762,6 +764,12 @@ export const CyclesDashboard: React.FC = () => {
                 {' · '}lordo {preview.lordo.toFixed(2)}€ · netto {preview.nettoNoBleed.toFixed(2)}€
               </div>
             )}
+            {preview && !preview.feasible && preview.reason === 'terms' && (
+              <div className="text-[11px] font-mono text-red-400 mb-2">
+                TETTO VINCITA: giocata vietata — {preview.termsDetail ?? 'lordo oltre €50.000'}.
+                Il pulsante Piazza resta bloccato.
+              </div>
+            )}
             <button
               className={btnPrimary}
               disabled={!parsed.legs || !preview?.feasible}
@@ -832,6 +840,11 @@ export const CyclesDashboard: React.FC = () => {
               ) : (
                 <div className="text-[12px] font-mono text-red-400 flex items-center gap-1.5">
                   <Ban className="w-3.5 h-3.5" /> Nulla di piazzabile → STOP (mai perdita forzata)
+                  {termination.rejected.length > 0 && (
+                    <span className="text-[#64748B]">
+                      ({termination.rejected.map((r) => `${r.label}: ${r.reason}`).join(' · ')})
+                    </span>
+                  )}
                 </div>
               ))}
           </section>

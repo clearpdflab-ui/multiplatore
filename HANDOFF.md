@@ -979,3 +979,18 @@ manuale dell'utente.
   nota rossa + vincita max effettiva per book.
 - **Test**: +3 adversarial (sopra/sotto soglia, precedenza tetto book minore).
   **221/221**, tsc, eslint 0 error, build OK.
+
+## Tetto 50k nel percorso cycles/harmony (2026-09-16, seguito regola 50k)
+
+- `sizeTicket`: lordo oltre cap effettivo min(tetto book, 50k) -> feasible=false,
+  reason finale|terms + termsDetail. `effectivePayoutCap`/`payoutCapScope` helper.
+- `resolveWithFallback` invariato (wrapper); nuovo `resolveWithFallbackVerbose`
+  con rejected[{label, reason}] per distinguere STOP da cap dagli altri.
+- `buildReferenceChain`: ChainRow.capStop + conteggio capStops (riga oltre cap =
+  non piazzabile). Solo test/UI lo consumano (MathematicalAnalysis non lo usa).
+- UI CyclesDashboard: stop rosso con dettaglio in preview (Piazza resta
+  disabilitato: enforcement completo) + motivi scarto in terminazione.
+- **Test**: +7 harmony (veto globale/book, sotto-soglia, verbose skip/report,
+  chain capStops + regressione pulita). **228/228**, tsc, eslint 0 error, build OK.
+  Nota: warning `n` unused e violazioni prettier in CyclesDashboard/harmony.test
+  pre-esistenti a HEAD (non toccati per non inquinare il diff).

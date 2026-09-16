@@ -1,4 +1,4 @@
-import { DEFAULT_BOOK, getBonusForBook } from './books';
+import { DEFAULT_BOOK, getBonusForBook, GLOBAL_MAX_PAYOUT } from './books';
 import { roundToFiftyCents } from './dutching';
 import type { Book, TicketLeg } from '../types';
 
@@ -23,6 +23,23 @@ export interface SizedTicket {
   lordo: number;
   nettoNoBleed: number; // lordo - (spent + stake), i.e. no interim tickets
   feasible: boolean;
+  // Tetto vincita: 'finale' = quota non giocabile, 'terms' = lordo oltre il
+  // cap effettivo min(tetto book, GLOBAL_MAX_PAYOUT 50k) -> giocata vietata.
+  reason: 'finale' | 'terms' | null;
+  termsDetail?: string | null;
+}
+
+// Cap effettivo vincita per un ticket su un book (regola dura utente).
+export function effectivePayoutCap(book: Book): number {
+  return book.maxPayout !== null && book.maxPayout > 0
+    ? Math.min(book.maxPayout, GLOBAL_MAX_PAYOUT)
+    : GLOBAL_MAX_PAYOUT;
+}
+
+export function payoutCapScope(book: Book): 'tetto globale' | 'tetto book' {
+  return book.maxPayout !== null && book.maxPayout > 0 && book.maxPayout < GLOBAL_MAX_PAYOUT
+    ? 'tetto book'
+    : 'tetto globale';
 }
 
 export interface SizingArgs {
@@ -55,11 +72,35 @@ export function sizeTicket(args: SizingArgs): SizedTicket {
       lordo: 0,
       nettoNoBleed: 0,
       feasible: false,
+      reason: 'finale',
     };
   }
   const neutral = (spent + bleed + target) / (finale - 1);
   const stake = roundToFiftyCents(Math.max(neutral, minStake));
   const lordo = r2(stake * finale);
+  // Tetto vincita (regola dura): oltre il cap effettivo la giocata e' vietata
+  // su qualunque book — sizing valido ma non piazzabile.
+  const effCap = effectivePayoutCap(book);
+  if (lordo > effCap) {
+    const scope = payoutCapScope(book);
+    return {
+      legs,
+      book,
+      n,
+      raw,
+      bonus,
+      finale,
+      stakeNeutral: r2(neutral),
+      stake,
+      lordo,
+      nettoNoBleed: r2(lordo - (spent + stake)),
+      feasible: false,
+      reason: 'terms',
+      termsDetail:
+        `lordo €${lordo.toFixed(2)} > ${scope} €${effCap.toFixed(2)}` +
+        (scope === 'tetto book' ? ` (${book.name})` : ''),
+    };
+  }
   return {
     legs,
     book,
@@ -72,6 +113,7 @@ export function sizeTicket(args: SizingArgs): SizedTicket {
     lordo,
     nettoNoBleed: r2(lordo - (spent + stake)),
     feasible: true,
+    reason: null,
   };
 }
 
@@ -158,6 +200,8 @@ export interface ChainRow {
   bleedReserved: number;
   trueNetto: number;
   feasible: boolean;
+  // Tetto vincita: true se la riga e' bloccata dal cap effettivo (giocata vietata).
+  capStop: boolean;
 }
 
 export interface BuildChainArgs {
@@ -177,6 +221,7 @@ export function buildReferenceChain(args: BuildChainArgs): {
   rows: ChainRow[];
   feasible: boolean;
   minTrueNetto: number;
+  capStops: number; // righe bloccate dal tetto vincita (giocate vietate)
 } {
   const {
     motherUnderOdds,
@@ -257,7 +302,11 @@ export function buildReferenceChain(args: BuildChainArgs): {
     const lordo = r2(d.stake * finale);
     const laterStakes = r2(totalStakes - spentSoFar);
     const trueNetto = r2(lordo - (spentSoFar + laterStakes));
-    const feasible = d.stake > 0 && d.stake <= sCap && spentSoFar <= budget;
+    // Tetto vincita (regola dura): oltre il cap effettivo la riga non e'
+    // piazzabile su nessun book.
+    const effCap = effectivePayoutCap(book);
+    const capStop = lordo > effCap;
+    const feasible = d.stake > 0 && d.stake <= sCap && spentSoFar <= budget && !capStop;
     rows.push({
       index: k,
       kind: d.kind,
@@ -272,10 +321,17 @@ export function buildReferenceChain(args: BuildChainArgs): {
       bleedReserved: bleed,
       trueNetto,
       feasible,
+      capStop,
     });
   }
   const minTrueNetto = Math.min(...rows.map((r) => r.trueNetto));
-  return { rows, feasible: rows.every((r) => r.feasible), minTrueNetto: r2(minTrueNetto) };
+  const capStops = rows.filter((r) => r.capStop).length;
+  return {
+    rows,
+    feasible: rows.every((r) => r.feasible),
+    minTrueNetto: r2(minTrueNetto),
+    capStops,
+  };
 }
 
 // Fallback ladder: first feasible plan wins (full T/N -> reduced T -> lock).
@@ -296,6 +352,25 @@ export function resolveWithFallback(args: {
   sCap?: number;
   budget?: number;
 }): (SizedTicket & { label: string }) | null {
+  return resolveWithFallbackVerbose(args).ticket;
+}
+
+// Variante verbosa: oltre al ticket riporta per ogni candidato scartato il
+// motivo ('finale' | 'terms' | tetto stake/budget), cosi' la UI distingue uno
+// STOP da cap (giocata vietata) dagli altri.
+export function resolveWithFallbackVerbose(args: {
+  candidates: FallbackCandidate[]; // ordered by preference
+  spent: number;
+  bleed?: number;
+  targetBase?: number;
+  rho?: number;
+  minStake?: number;
+  sCap?: number;
+  budget?: number;
+}): {
+  ticket: (SizedTicket & { label: string }) | null;
+  rejected: { label: string; reason: string }[];
+} {
   const {
     candidates,
     spent,
@@ -306,6 +381,7 @@ export function resolveWithFallback(args: {
     sCap = 150,
     budget = Number.POSITIVE_INFINITY,
   } = args;
+  const rejected: { label: string; reason: string }[] = [];
   for (const c of candidates) {
     const book = c.book ?? DEFAULT_BOOK;
     const n = c.legs.length;
@@ -313,26 +389,37 @@ export function resolveWithFallback(args: {
     const bonus = getBonusForBook(book, n);
     const finale = raw * (1 + bonus / 100);
     if (!(n >= 1) || !(finale > 1)) {
+      rejected.push({ label: c.label, reason: 'finale' });
       continue;
     }
     const tMaxFeasible = sCap * (finale - 1) - spent - bleed;
     const target = targetForDepth(Math.max(targetBase, rho * spent), rho, spent, tMaxFeasible);
     if (target < 0) {
+      rejected.push({ label: c.label, reason: 'target' });
       continue;
     }
     const sized = sizeTicket({ legs: c.legs, book, spent, bleed, target, minStake });
     if (!sized.feasible) {
+      rejected.push({
+        label: c.label,
+        reason:
+          sized.reason === 'terms'
+            ? `terms${sized.termsDetail ? `: ${sized.termsDetail}` : ''}`
+            : (sized.reason ?? 'sizing'),
+      });
       continue;
     }
     if (sized.stake > sCap) {
+      rejected.push({ label: c.label, reason: 'sCap' });
       continue;
     }
     if (spent + sized.stake > budget) {
+      rejected.push({ label: c.label, reason: 'budget' });
       continue;
     }
-    return { ...sized, label: c.label };
+    return { ticket: { ...sized, label: c.label }, rejected };
   }
-  return null;
+  return { ticket: null, rejected };
 }
 
 // EV-weighted bleed reserve for live ticket sizing: later stakes weighted by
