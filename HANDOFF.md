@@ -930,3 +930,15 @@ manuale dell'utente.
   (Management API database/query, APPLY-OK): verifica `to_regclass`=scout_runs,
   0 righe; policy RLS presenti (select/insert/delete owner-scoped, niente update:
   le run sono immutabili per disegno). Sync cloud dello Scout operativa.
+
+## F29b — Fix sweep Scout su calendari densi (2026-09-16)
+
+- **Bug utente**: pool 63 partite -> "0 finestre vagliate, gap x226". Causa: lo
+  sweep valutava solo fette CONTIGUE di N eventi; con calendari densi quasi ogni
+  fetta contiene una coppia a <2h e veniva scartata prima di valutare.
+- **Fix `scout.ts`**: costruzione sequenze con SALTO (da ogni partenza si allunga
+  con la prima successiva a >=2h, come la beam del finder): si salta, non si
+  butta. Valutato ogni prefisso in [minN, maxN]. Test pool densa (1/h): 2 finestre
+  valutate su 6 partite; gap-test precedente ancora verde.
+- **215/215**, tsc, eslint 0 error. Da committare assieme a F29 (se non ancora
+  pushato) o commit dedicato.

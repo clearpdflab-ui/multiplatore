@@ -133,8 +133,24 @@ describe('Scout — trova e promuove solo il verificato', () => {
       { ...defaultScoutGrid(), minEvents: 3, maxEvents: 3, layDiscount: [0, 0.3] },
       { now: NOW },
     );
-    // unica finestra N=3 possibile (g1,g2,g3) violata dal gap -> niente pick
+    // nessuna sequenza N=3 con gap validi ([g1,g3] e' solo N=2): niente pick
     expect(res.picks).toHaveLength(0);
     expect(res.rejectedBy.gap ?? 0).toBeGreaterThan(0);
+  });
+
+  it('pool densa (1 partita/ora): salta i gap e valuta comunque', async () => {
+    const rows = Array.from({ length: 6 }, (_, i) => mkRow(`d${i}`, 3 + i, 1.9, 2.0));
+    const res = await runScout(
+      rows,
+      { ...defaultScoutGrid(), minEvents: 3, maxEvents: 3, layDiscount: [0, 0.3] },
+      { now: NOW },
+    );
+    // partenze 0 e 1 producono prefissi N=3 saltando le ore intermedie
+    // ([d0,d2,d4] e [d1,d3,d5]); le altre non arrivano a 3 entro maxN
+    expect(res.evaluatedWindows).toBe(2);
+    // coerenza verdetti: se promosse, invarianti certificate
+    for (const p of res.picks) {
+      expect(p.equalizedNet).toBeGreaterThanOrEqual(p.targetUsed - 1e-9);
+    }
   });
 });

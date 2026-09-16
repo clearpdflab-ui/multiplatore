@@ -293,116 +293,119 @@ export async function runScout(
             : 'inplay';
 
   const linesSorted = [...byLine.entries()].sort((a, b) => a[0] - b[0]);
-  for (const [line, arr] of linesSorted) {
-    for (let n = minN; n <= maxN && !budgetHit; n++) {
-      for (let start = 0; start + n <= arr.length && !budgetHit; start++) {
-        const seq = arr.slice(start, start + n);
-        // Relay sequenziale: gap minimo 2h tra kickoff consecutivi.
-        let gapOk = true;
-        for (let i = 1; i < seq.length; i++) {
-          const gap = kickoffGapMs(seq[i - 1], seq[i]);
-          if (Number.isFinite(gap) && (gap as number) < MIN_GAP_MS) {
-            gapOk = false;
-            break;
-          }
+  // Valutazione di UNA finestra (sequenza cronologica con gap verificati).
+  const evaluateWindow = async (seq: CoverOddsRow[], n: number, line: number): Promise<void> => {
+    evaluatedWindows += 1;
+    const key = seq.map((r) => r.eventId).join('|');
+    if (seenKeys.has(key)) {
+      return;
+    }
+    const matches = rowsToMatches(seq);
+    const lastUnder = Number(matches[matches.length - 1].underOdds) || 0;
+    // S0 massimo della griglia (a pari r vince il capitale maggiore).
+    const s0 = g.s0[0];
+    let promoted = false;
+    for (const d of g.layDiscount) {
+      if (promoted || !budgetLeft()) {
+        break;
+      }
+      const layQ = d <= 0 ? lastUnder : r2(lastUnder * (1 - d));
+      if (!(layQ > 1.01)) {
+        continue;
+      }
+      // r in ordine di preferenza: il primo che chiude e' il migliore.
+      for (const roi of g.roiPct) {
+        if (!budgetLeft()) {
+          break;
         }
-        if (!gapOk) {
+        const sol = solveCounted({
+          matches,
+          baseStake: s0,
+          targetProfit: 1,
+          layCommissionPct: g.layCommissionPct,
+          layQuote: layQ,
+          finaleModes: [...g.modes],
+          targetMode: 'roi',
+          roiPct: roi,
+          baseCap: g.baseCap,
+        });
+        if (sol?.feasible) {
+          const shocks = runShocks(matches, s0, roi, layQ, g.layCommissionPct);
+          const shockOk =
+            (!g.requireQuoteMinus5 || shocks.quoteMinus5) &&
+            (!g.requireLayPlus01 || shocks.layPlus01);
+          if (!shockOk) {
+            bumpRejected(rejectedBy, 'shock');
+            break; // fragile anche al miglior r: inutile provare r minori
+          }
+          const firstKo = seq.reduce<number | null>((acc, r) => {
+            const ms = parseLdlDateTime(r.kickoff);
+            if (!Number.isFinite(ms)) {
+              return acc;
+            }
+            return acc === null ? ms : Math.min(acc, ms);
+          }, null);
+          picks.push({
+            key,
+            eventIds: seq.map((r) => r.eventId),
+            legs: seq.map((r) => ({
+              home: r.home,
+              away: r.away,
+              kickoff: r.kickoff,
+              league: r.league,
+              under: bestCoverSide(r, 'under')?.odds ?? 0,
+              over: bestCoverSide(r, 'over')?.odds ?? 0,
+            })),
+            n,
+            line,
+            finaleMode: sol.finaleMode,
+            s0used: sol.baseUsed,
+            roiPct: roi,
+            layScenario: layScenarioName(d),
+            layQuote: sol.layQuote,
+            maxLayQuote: sol.maxLayQuote,
+            targetUsed: sol.targetUsed,
+            equalizedNet: sol.equalizedNet ?? 0,
+            exposure: sol.exposure,
+            motherGross: sol.motherGross,
+            shocks,
+            firstKickoffMs: firstKo,
+            expiresAtMs: firstKo === null ? null : firstKo - 2 * 3600_000,
+          });
+          seenKeys.add(key);
+          promoted = true;
+          break;
+        } else {
+          bumpRejected(rejectedBy, sol?.reason ?? 'n/a');
+        }
+      }
+    }
+    if (exactSolves >= g.evalBudget) {
+      budgetHit = true;
+    }
+    if (onProgress && evaluatedWindows % yieldEvery === 0) {
+      onProgress({ windows: evaluatedWindows, solves: exactSolves, picks: picks.length });
+    }
+    if (evaluatedWindows % yieldEvery === 0) {
+      await new Promise((res) => setTimeout(res, 0));
+    }
+  };
+
+  for (const [line, arr] of linesSorted) {
+    // Costruzione sequenze con SALTO del gap: da ogni partenza si allunga con
+    // la prima successiva a >=2h (regola relay). Con calendari densi le fette
+    // contigue sarebbero tutte invalide: si salta, non si butta.
+    for (let start = 0; start < arr.length && !budgetHit; start++) {
+      const seq: CoverOddsRow[] = [arr[start]];
+      for (let j = start + 1; j < arr.length && seq.length < maxN && !budgetHit; j++) {
+        const gap = kickoffGapMs(seq[seq.length - 1], arr[j]);
+        if (Number.isFinite(gap) && (gap as number) < MIN_GAP_MS) {
           bumpRejected(rejectedBy, 'gap');
           continue;
         }
-        evaluatedWindows += 1;
-        const key = seq.map((r) => r.eventId).join('|');
-        if (seenKeys.has(key)) {
-          continue;
-        }
-        const matches = rowsToMatches(seq);
-        const lastUnder = Number(matches[matches.length - 1].underOdds) || 0;
-        // Sardo: S0 massimo della griglia (a pari r vince il capitale maggiore).
-        const s0 = g.s0[0];
-        let promoted = false;
-        for (const d of g.layDiscount) {
-          if (promoted || !budgetLeft()) {
-            break;
-          }
-          const layQ = d <= 0 ? lastUnder : r2(lastUnder * (1 - d));
-          if (!(layQ > 1.01)) {
-            continue;
-          }
-          // r in ordine di preferenza: il primo che chiude e' il migliore.
-          for (const roi of g.roiPct) {
-            if (!budgetLeft()) {
-              break;
-            }
-            const sol = solveCounted({
-              matches,
-              baseStake: s0,
-              targetProfit: 1,
-              layCommissionPct: g.layCommissionPct,
-              layQuote: layQ,
-              finaleModes: [...g.modes],
-              targetMode: 'roi',
-              roiPct: roi,
-              baseCap: g.baseCap,
-            });
-            if (sol?.feasible) {
-              const shocks = runShocks(matches, s0, roi, layQ, g.layCommissionPct);
-              const shockOk =
-                (!g.requireQuoteMinus5 || shocks.quoteMinus5) &&
-                (!g.requireLayPlus01 || shocks.layPlus01);
-              if (!shockOk) {
-                bumpRejected(rejectedBy, 'shock');
-                break; // fragile anche al miglior r: inutile provare r minori
-              }
-              const firstKo = seq.reduce<number | null>((acc, r) => {
-                const ms = parseLdlDateTime(r.kickoff);
-                if (!Number.isFinite(ms)) {
-                  return acc;
-                }
-                return acc === null ? ms : Math.min(acc, ms);
-              }, null);
-              picks.push({
-                key,
-                eventIds: seq.map((r) => r.eventId),
-                legs: seq.map((r) => ({
-                  home: r.home,
-                  away: r.away,
-                  kickoff: r.kickoff,
-                  league: r.league,
-                  under: bestCoverSide(r, 'under')?.odds ?? 0,
-                  over: bestCoverSide(r, 'over')?.odds ?? 0,
-                })),
-                n,
-                line,
-                finaleMode: sol.finaleMode,
-                s0used: sol.baseUsed,
-                roiPct: roi,
-                layScenario: layScenarioName(d),
-                layQuote: sol.layQuote,
-                maxLayQuote: sol.maxLayQuote,
-                targetUsed: sol.targetUsed,
-                equalizedNet: sol.equalizedNet ?? 0,
-                exposure: sol.exposure,
-                motherGross: sol.motherGross,
-                shocks,
-                firstKickoffMs: firstKo,
-                expiresAtMs: firstKo === null ? null : firstKo - 2 * 3600_000,
-              });
-              seenKeys.add(key);
-              promoted = true;
-              break;
-            } else {
-              bumpRejected(rejectedBy, sol?.reason ?? 'n/a');
-            }
-          }
-        }
-        if (exactSolves >= g.evalBudget) {
-          budgetHit = true;
-        }
-        if (onProgress && evaluatedWindows % yieldEvery === 0) {
-          onProgress({ windows: evaluatedWindows, solves: exactSolves, picks: picks.length });
-        }
-        if (evaluatedWindows % yieldEvery === 0) {
-          await new Promise((res) => setTimeout(res, 0));
+        seq.push(arr[j]);
+        if (seq.length >= minN) {
+          await evaluateWindow([...seq], seq.length, line);
         }
       }
     }
