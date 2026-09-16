@@ -16,6 +16,8 @@ import {
   type FinderCandidate,
   type FinderResult,
 } from '../engine/finder';
+import { runScout, type ScoutPick, type ScoutProgress } from '../engine/scout';
+import { useScoutRuns } from '../hooks/useScoutRuns';
 import { generateIdealLadders, type SynthResult } from '../engine/synth';
 import { findRegistryBook } from '../engine/oddsFeed';
 import { useBooks } from '../hooks/useBooks';
@@ -286,9 +288,19 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [fComm, setFComm] = useState('4.5');
   // F23 — budget totale ipotetico I_tot ('' = sizing dutch classico).
   const [fBudget, setFBudget] = useState('');
+  // F27 — modo ROI + tetto S0 nella ricerca scale.
+  const [fTargetMode, setFTargetMode] = useState<'fixed' | 'roi'>('fixed');
+  const [fRoiPct, setFRoiPct] = useState('4');
+  const [fBaseCap, setFBaseCap] = useState('10');
   const [finderLoading, setFinderLoading] = useState(false);
   const [finderResult, setFinderResult] = useState<FinderResult | null>(null);
   const [finderLayUsed, setFinderLayUsed] = useState<string>('auto');
+  // Scout Radar: caccia autonoma (P1-P3). Legge `rows`, scrive la shortlist
+  // sola-lettura via useScoutRuns (locale + cloud).
+  const { latest: scoutLatest, saveRun: saveScoutRun, clearRuns: clearScoutRuns } = useScoutRuns();
+  const [scoutLoading, setScoutLoading] = useState(false);
+  const [scoutProgress, setScoutProgress] = useState<ScoutProgress | null>(null);
+  const [scoutMsg, setScoutMsg] = useState<string | null>(null);
   // F24 — Scala Ideale inversa: tu dai q0 + target, il motore propone N* e quote.
   const [sQ0, setSQ0] = useState('1.40');
   const [sTarget, setSTarget] = useState('45');
@@ -579,6 +591,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       const budgetNum = parseFloat(fBudget.replace(',', '.'));
       const oddsStr = overrides?.oddsMin ?? oddsMin;
       const oddsNum = parseFloat(oddsStr.replace(',', '.'));
+      const roiNum = parseFloat(fRoiPct.replace(',', '.'));
+      const capNum = parseFloat(fBaseCap.replace(',', '.'));
       const res = findHarmonizableLadders({
         rows,
         now: Date.now(),
@@ -591,6 +605,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         maxEvents: Math.min(15, Math.max(2, parseInt(maxStr, 10) || 9)),
         topK: 3,
         budget: Number.isFinite(budgetNum) && budgetNum > 0 ? budgetNum : undefined,
+        targetMode: fTargetMode,
+        roiPct: Number.isFinite(roiNum) && roiNum > 0 ? roiNum : undefined,
+        baseCap: Number.isFinite(capNum) && capNum > 0 ? capNum : undefined,
       });
       setFinderResult(res);
     } catch (e) {
@@ -617,6 +634,126 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const importFinderCandidate = (c: FinderCandidate) => {
     setSelectedEventIds(c.eventIds);
     handleImportSelected(c.eventIds);
+  };
+
+  // Scout Radar (P3): spazza pool × S0 × r% × scenari lay e promuove solo il
+  // verificato (tutti gli N+1 rami + shock). Scrive la shortlist sola-lettura.
+  const handleRunScout = async () => {
+    if (scoutLoading || rows.length === 0) {
+      return;
+    }
+    setScoutLoading(true);
+    setScoutProgress(null);
+    setScoutMsg(null);
+    try {
+      const s0num = Math.max(1, parseFloat(fBase.replace(',', '.')) || 10);
+      const oddsNum = parseFloat(oddsMin.replace(',', '.'));
+      const res = await runScout(
+        rows,
+        {
+          s0: [s0num],
+          roiPct: [4],
+          layDiscount: [0, 0.1, 0.2, 0.3],
+          minEvents: Math.max(2, parseInt(fMinN, 10) || 2),
+          maxEvents: Math.min(9, Math.max(2, parseInt(fMaxN, 10) || 6)),
+          oddsMin: Math.max(1.25, Number.isFinite(oddsNum) ? oddsNum : 1.25),
+          layCommissionPct: Math.min(20, Math.max(0, parseFloat(fComm.replace(',', '.')) || 0)),
+          baseCap: s0num,
+          topK: 10,
+        },
+        {
+          onProgress: (p) => setScoutProgress(p),
+        },
+      );
+      await saveScoutRun(res);
+      setScoutMsg(
+        res.picks.length > 0
+          ? `Radar: ${res.picks.length} scale promosse su ${res.evaluatedWindows} finestre (${res.exactSolves} verifiche, ${(res.msElapsed / 1000).toFixed(1)}s).`
+          : `Radar: niente da giocare — ${res.evaluatedWindows} finestre vagliate, tutte scartate con motivo. Vedi ragioni sotto.`,
+      );
+    } catch (e) {
+      setScoutMsg(`Radar fallito: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setScoutLoading(false);
+    }
+  };
+
+  const scoutScenarioBadge = (p: ScoutPick): string =>
+    p.layScenario === 'prematch'
+      ? 'pre-match'
+      : p.layScenario === 'inplay-10'
+        ? 'lay −10% in-play?'
+        : p.layScenario === 'inplay-20'
+          ? 'lay −20% in-play?'
+          : p.layScenario === 'inplay-30'
+            ? 'lay −30% in-play?'
+            : 'lay scontata?';
+
+  const renderScoutPick = (p: ScoutPick, idx: number) => {
+    const expired = p.expiresAtMs !== null && p.expiresAtMs <= Date.now();
+    const shock = (ok: boolean, label: string, title: string) => (
+      <span
+        key={label}
+        title={title}
+        className={`px-1 py-0.2 rounded-xs border font-mono ${ok ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-zinc-800 text-[#64748B] border-zinc-700'}`}
+      >
+        {ok ? '✓' : '·'}
+        {label}
+      </span>
+    );
+    return (
+      <div
+        key={p.key}
+        className={`border rounded-xs p-2.5 ${expired ? 'border-zinc-700 bg-[#141824] opacity-60' : 'border-emerald-500/40 bg-emerald-500/5'}`}
+      >
+        <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+          <span className="text-white font-bold">
+            #{idx + 1} · {p.n} eventi · linea {p.line}
+          </span>
+          <span
+            title={
+              p.layScenario === 'prematch'
+                ? 'Chiude ai prezzi osservati ora'
+                : "Chiude SE la lay dell'ultimo scende del X% in-play (ipotesi da monitorare, non garanzia)"
+            }
+            className={`px-1.5 py-0.2 rounded-xs border font-bold ${p.layScenario === 'prematch' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-amber-500/15 text-amber-300 border-amber-500/40'}`}
+          >
+            {scoutScenarioBadge(p)}
+          </span>
+          <span className="text-emerald-300 font-bold" title="Utile garantito minimo su ogni esito">
+            ≥ €{p.equalizedNet.toFixed(2)}
+          </span>
+          <span className="text-[#94A3B8]" title={`Target ${p.roiPct}% di €${p.exposure.toFixed(2)} esposti`}>
+            (t €{p.targetUsed.toFixed(2)} · E €{p.exposure.toFixed(2)})
+          </span>
+          <span className="text-[#94A3B8]">
+            {p.finaleMode === 'lay'
+              ? `banca @${p.layQuote.toFixed(2)} (max @${p.maxLayQuote.toFixed(2)})`
+              : 'punta/punta'}
+          </span>
+          {expired && <span className="text-red-300 font-bold">SCADUTA</span>}
+        </div>
+        <div className="mt-1.5 grid sm:grid-cols-2 gap-x-4 gap-y-0.5 font-mono text-[11px] text-[#94A3B8]">
+          {p.legs.map((l, i) => (
+            <div key={i} className="truncate" title={`${l.home} - ${l.away} · ${l.league} · ${l.kickoff}`}>
+              <span className="text-[#64748B]">{i + 1}.</span> {l.home} - {l.away}{' '}
+              <span className="text-white">
+                U@{l.under.toFixed(2)} O@{l.over.toFixed(2)}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[10px]">
+          <span className="text-[#64748B] font-mono">shock:</span>
+          {shock(p.shocks.quoteMinus5, 'Q−5%', 'Regge a quote −5%')}
+          {shock(p.shocks.quoteMinus10, 'Q−10%', 'Regge a quote −10%')}
+          {shock(p.shocks.layPlus01, 'L+10', 'Regge a lay +0.10')}
+          {shock(p.shocks.layPlus02, 'L+20', 'Regge a lay +0.20')}
+          {shock(p.shocks.comm5, 'C5%', 'Regge a commissione 5%')}
+          {shock(p.shocks.noBonus, 'NB', 'Regge senza bonus Over')}
+        </div>
+      </div>
+    );
   };
 
   // F24: lancia il generatore di scala ideale (q0 + target -> N* e quote).
@@ -1217,10 +1354,31 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               Base €
               <input type="number" step="1" min="1" value={fBase} onChange={(e) => setFBase(e.target.value)} className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
             </label>
-            <label className="flex items-center gap-1 text-[#94A3B8]" title="Utile garantito richiesto su ogni esito">
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Utile garantito richiesto su ogni esito (modo € fisso)">
               Target €
               <input type="number" step="5" min="5" value={fTarget} onChange={(e) => setFTarget(e.target.value)} className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-emerald-400 font-bold" />
             </label>
+            <label className="flex items-center gap-1 text-[#94A3B8]" title="Modo ROI: target = % del capitale (verifica stretta). Con ROI attivo il Target € è ignorato.">
+              <button
+                type="button"
+                onClick={() => setFTargetMode(fTargetMode === 'roi' ? 'fixed' : 'roi')}
+                className={`px-2 py-1 text-[11px] font-bold rounded-xs border ${fTargetMode === 'roi' ? 'bg-emerald-500/25 text-emerald-300 border-emerald-500/40' : 'bg-[#0F1117] text-[#64748B] border-[#2D3139]'}`}
+              >
+                ROI {fTargetMode === 'roi' ? 'ON' : 'OFF'}
+              </button>
+            </label>
+            {fTargetMode === 'roi' && (
+              <>
+                <label className="flex items-center gap-1 text-[#94A3B8]" title="Percentuale del capitale garantita su ogni esito">
+                  ROI %
+                  <input type="number" step="0.5" min="0.5" max="50" value={fRoiPct} onChange={(e) => setFRoiPct(e.target.value)} className="w-14 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-emerald-400 font-bold" />
+                </label>
+                <label className="flex items-center gap-1 text-[#94A3B8]" title="Tetto S0: oltre, la scala è scartata">
+                  Cap €
+                  <input type="number" step="1" min="1" value={fBaseCap} onChange={(e) => setFBaseCap(e.target.value)} className="w-14 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-white" />
+                </label>
+              </>
+            )}
             <label className="flex items-center gap-1 text-[#94A3B8]" title="Quota lay Under ultimo match: vuoto = auto pre-match (Under dell'ultimo match della scala), numero = prezzo a cui conti di bancare (es. in-play)">
               Lay @
               <input type="number" step="0.01" min="1.01" value={fLay} onChange={(e) => setFLay(e.target.value)} placeholder="auto" className="w-16 bg-[#0F1117] border border-[#2D3139] rounded-xs px-1.5 py-1 text-violet-300" />
@@ -1354,6 +1512,85 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               </div>
             ) : (
               finderResult.feasible.map((c, idx) => renderFinderCard(c, idx, null))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Scout Radar: caccia autonoma scale da giocare (sola lettura) */}
+      <div className="bg-[#0F1117] border border-sky-500/30 p-4 rounded-sm space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-white uppercase tracking-wider font-mono flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-sky-400" />
+              Radar Scout
+              <span className="text-[10px] px-1.5 py-0.2 bg-sky-500/20 text-sky-300 border border-sky-500/40 rounded-xs">
+                solo verificate
+              </span>
+            </h3>
+            <p className="text-xs text-[#94A3B8] mt-0.5 max-w-3xl">
+              Lo Scout spazza finestre cronologiche × S0 × ROI 4% × scenari lay (prematch e
+              ipotesi in-play −10/−20/−30%) e promuove solo scale dove{' '}
+              <strong className="text-white">OGNI esito</strong> verifica + regge gli shock
+              (quote −5%, lay +0.10). Lista di lettura: per piazzare usa workbench + gate.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 font-mono text-xs shrink-0">
+            <span className="text-[#64748B]" title="Base S0 e tetto usati nella caccia (dal campo Base € del finder)">
+              S0/cap €{Math.max(1, parseFloat(fBase.replace(',', '.')) || 10)} · ROI 4%
+            </span>
+            <button
+              onClick={() => void handleRunScout()}
+              disabled={scoutLoading || loading || rows.length === 0}
+              className="px-3 py-1.5 text-xs font-mono font-bold rounded-xs border flex items-center gap-1.5 transition-colors bg-sky-500/10 hover:bg-sky-500/25 text-sky-300 border-sky-500/40 disabled:opacity-50"
+              title="Lancia la caccia su tutte le partite del calendario (può durare decine di secondi)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${scoutLoading ? 'animate-spin' : ''}`} />
+              <span>{scoutLoading ? 'Caccio…' : 'Lancia Scout'}</span>
+            </button>
+            {scoutLatest && scoutLatest.picks.length > 0 && (
+              <button
+                onClick={() => void clearScoutRuns()}
+                disabled={scoutLoading}
+                className="px-2 py-1.5 text-[11px] font-mono rounded-xs border bg-[#1A1D26] text-[#64748B] border-[#2D3139] hover:text-white disabled:opacity-50"
+                title="Svuota la lista (locale + cloud)"
+              >
+                Svuota
+              </button>
+            )}
+          </div>
+        </div>
+
+        {(scoutLoading && scoutProgress) || scoutMsg ? (
+          <div className="font-mono text-xs text-sky-200">
+            {scoutLoading && scoutProgress
+              ? `Vaglio… ${scoutProgress.windows} finestre · ${scoutProgress.solves} verifiche · ${scoutProgress.picks} promosse`
+              : null}
+            {scoutMsg ? <div className={scoutLoading ? 'mt-1' : ''}>{scoutMsg}</div> : null}
+          </div>
+        ) : null}
+
+        {scoutLatest && (
+          <div className="space-y-2.5">
+            <div className="text-[10px] font-mono text-[#64748B]">
+              Run {new Date(scoutLatest.ranAt).toLocaleString('it-IT')} · pool{' '}
+              {scoutLatest.poolSize} partite · {scoutLatest.evaluatedWindows} finestre ·{' '}
+              {scoutLatest.exactSolves} verifiche · {(scoutLatest.msElapsed / 1000).toFixed(1)}s
+              {scoutLatest.budgetHit ? ' (budget valutazioni esaurito)' : ''} · scarti:{' '}
+              {Object.entries(scoutLatest.rejectedBy)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4)
+                .map(([k, v]) => `${k}×${v}`)
+                .join(' · ') || '—'}
+            </div>
+            {scoutLatest.picks.length === 0 ? (
+              <div className="font-mono text-xs text-amber-200 border border-amber-500/40 bg-amber-500/5 rounded-xs p-2.5">
+                Niente da giocare in questa pool: ogni finestra è stata scartata con motivo
+                (vedi conteggi sopra). Allarga N, abbassa le pretese di quota, o riprova col
+                feed aggiornato.
+              </div>
+            ) : (
+              scoutLatest.picks.map((p, idx) => renderScoutPick(p, idx))
             )}
           </div>
         )}

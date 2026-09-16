@@ -287,6 +287,10 @@ export interface SavedSlipParams {
   harmonized?: boolean;
   // F23: budget totale ipotetico I_tot (ogni copertura paga budget+target)
   budget?: number;
+  // F27: modo ROI (t = roiPct% di E, verifica stretta) + tetto S0
+  targetMode?: 'fixed' | 'roi';
+  roiPct?: number;
+  baseCap?: number;
   // F26: linea Totals della schedina (default 3.5 per vecchi salvataggi)
   line?: number;
 }
@@ -298,4 +302,19 @@ export interface SavedSlip {
   params: SavedSlipParams;
   createdAt: string; // ISO
   updatedAt: string; // ISO
+}
+
+// Scout Radar: run di caccia (sola lettura in UI). Tipi motore in engine/scout.
+export interface ScoutRun {
+  id: string;
+  picks: import('./engine/scout').ScoutPick[];
+  poolSize: number;
+  perLine: Record<number, number>;
+  evaluatedWindows: number;
+  exactSolves: number;
+  rejectedBy: Record<string, number>;
+  ranAt: string; // ISO
+  msElapsed: number;
+  budgetHit: boolean;
+  grid: import('./engine/scout').ScoutGrid;
 }

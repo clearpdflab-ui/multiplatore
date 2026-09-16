@@ -1,5 +1,5 @@
 import { generateCustomSlips } from './slips';
-import type { UserMatch } from '../types';
+import type { UserMatch, Book } from '../types';
 
 // F20 — MOTORE A MATRICI per multiple a scalare con regola MAI-PERDITA.
 //
@@ -28,6 +28,12 @@ export interface MatrixInput {
   // F23 — budget totale ipotetico I_tot: OGNI copertura paga P = I_tot + t.
   // Senza budget = sizing dutch (capitale risolto dal target).
   budget?: number;
+  // M2a — modo ROI (t = roiPct% di E, verifica stretta) + tetto S0 + book
+  // di riferimento (eleggibilita' bonus / maxPayout). Vedi LayFinaleOptions.
+  targetMode?: 'fixed' | 'roi';
+  roiPct?: number;
+  baseCap?: number;
+  book?: Book;
 }
 
 export interface MatrixBranch {
@@ -56,7 +62,7 @@ export interface MatrixSolution {
   stakes: number[]; // [S0, C1.., (B)]
   baseUsed: number; // S0 effettivo (adeguato al minimo se serve)
   baseMinRequired: number; // S0 minimo per chiudere anche il ramo madre
-  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | null;
+  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | 'cap' | 'terms' | null;
   budgetUsed: number | null; // I_tot usato (null = sizing dutch, non budget)
   requiredCapital: number | null; // capitale dutched per +t (se budget non basta)
   maxLayQuote: number; // 0 = N/A in book
@@ -83,6 +89,7 @@ function solveOneMode(
   layQuote: number,
   mode: 'lay' | 'book',
   budget?: number,
+  extra?: { targetMode?: 'fixed' | 'roi'; roiPct?: number; baseCap?: number; book?: Book },
 ): MatrixSolution | null {
   const n = matches.length;
   if (n < 2) {
@@ -105,8 +112,12 @@ function solveOneMode(
       layCommissionPct,
       harmonized: true,
       budget,
+      targetMode: extra?.targetMode,
+      roiPct: extra?.roiPct,
+      baseCap: extra?.baseCap,
     },
     matches[0]?.line ?? 3.5,
+    extra?.book,
   );
   const h = r.harmonization;
   if (!h) {
@@ -165,7 +176,7 @@ function solveOneMode(
     finaleMode: mode,
     layQuote: isLay ? layQuote : 0,
     layCommissionPct,
-    targetUsed: targetProfit,
+    targetUsed: h.targetUsed ?? targetProfit,
     feasible: h.feasible,
     equalizedNet: h.equalizedNet,
     branches,
@@ -215,6 +226,12 @@ export function solveMatrix(input: MatrixInput): MatrixSolution | null {
       layQuote,
       mode,
       input.budget,
+      {
+        targetMode: input.targetMode,
+        roiPct: input.roiPct,
+        baseCap: input.baseCap,
+        book: input.book,
+      },
     );
     if (!sol) {
       continue;
@@ -222,7 +239,8 @@ export function solveMatrix(input: MatrixInput): MatrixSolution | null {
     // fattibile >> infattibile; a pari esito: garantito alto, capitale basso.
     const score =
       (sol.feasible ? 1e12 : 0) +
-      (sol.equalizedNet ?? -(sol.finaleMode === 'lay' ? sol.kFactor * sol.sumInverse : sol.sumInverse) * 1000) -
+      (sol.equalizedNet ??
+        -(sol.finaleMode === 'lay' ? sol.kFactor * sol.sumInverse : sol.sumInverse) * 1000) -
       sol.exposure / 1e6;
     if (score > bestScore) {
       bestScore = score;
@@ -270,8 +288,7 @@ export function proposeTarget(
       rows.push({ t: target, feasible: false, minNet: null, exposure: null });
       continue;
     }
-    const minNet =
-      sol.branchNets.length > 0 ? Math.min(...sol.branchNets) : null;
+    const minNet = sol.branchNets.length > 0 ? Math.min(...sol.branchNets) : null;
     rows.push({
       t: target,
       feasible: sol.feasible,

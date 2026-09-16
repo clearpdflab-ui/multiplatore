@@ -8,7 +8,7 @@ import {
   type CoverOddsRow,
 } from './coverOddsFeed';
 import { solveMatrix, type MatrixBranch } from './matrix';
-import type { UserMatch } from '../types';
+import type { UserMatch, Book } from '../types';
 
 // F19/F20 — MOTORE DI RICERCA SCALE ARMONIZZATE ("finder").
 //
@@ -48,6 +48,11 @@ export interface FinderParams {
   topK?: number; // default 3
   beamWidth?: number; // default 30
   evalBudget?: number; // valutazioni esatte massime (default 12000)
+  // M2a — modo ROI + tetto S0 + book di riferimento (threaded a solveMatrix).
+  targetMode?: 'fixed' | 'roi';
+  roiPct?: number;
+  baseCap?: number;
+  book?: Book;
 }
 
 export interface FinderCandidate {
@@ -71,7 +76,7 @@ export interface FinderCandidate {
   kFactor: number; // 1 in book
   sumInverse: number; // SOMMA 1/m (lay: solo coperture; book: + singola)
   bindingStep: number; // step (1-based) della copertura col 1/m max
-  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | null;
+  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | 'cap' | 'terms' | null;
   line: number; // linea Totals della scala (uniforme per costruzione)
 }
 
@@ -117,6 +122,7 @@ function evaluateSequence(
   layQuote: number,
   mode: 'lay' | 'book',
   budget?: number,
+  extra?: { targetMode?: 'fixed' | 'roi'; roiPct?: number; baseCap?: number; book?: Book },
 ): FinderCandidate | null {
   if (rows.length < 2) {
     return null;
@@ -132,6 +138,10 @@ function evaluateSequence(
     layQuote,
     finaleModes: [mode],
     budget,
+    targetMode: extra?.targetMode,
+    roiPct: extra?.roiPct,
+    baseCap: extra?.baseCap,
+    book: extra?.book,
   });
   if (!sol || sol.finaleMode !== mode) {
     return null;
@@ -184,7 +194,9 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
     .filter((r) => {
       const under = bestCoverSide(r, 'under');
       const over = bestCoverSide(r, 'over');
-      return Boolean(under && over && (under?.odds ?? 0) >= oddsMin && (over?.odds ?? 0) >= oddsMin);
+      return Boolean(
+        under && over && (under?.odds ?? 0) >= oddsMin && (over?.odds ?? 0) >= oddsMin,
+      );
     })
     .sort(byKickoffAsc)
     .filter((r) => {
@@ -226,6 +238,12 @@ export function findHarmonizableLadders(params: FinderParams): FinderResult {
       layQuote,
       mode,
       params.budget,
+      {
+        targetMode: params.targetMode,
+        roiPct: params.roiPct,
+        baseCap: params.baseCap,
+        book: params.book,
+      },
     );
     evalCache.set(key, c);
     return c;

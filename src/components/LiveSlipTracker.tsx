@@ -20,6 +20,7 @@ import {
   calculateBookmakerAggio,
 } from '../utils/mathEngine';
 import { proposeTarget } from '../engine/matrix';
+import { requoteGate } from '../engine/requote';
 import {
   Layers,
   Clock,
@@ -112,6 +113,11 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   const [layStake, setLayStake] = useState<number | null>(null); // null = sizing green-up automatico
   // F15 — regola mai-perdita: sizing armonizzato (dutching a payout comune)
   const [harmonized, setHarmonized] = useState<boolean>(true);
+  // F27 — modo ROI (target = r% del capitale, verifica stretta) + tetto S0.
+  const [targetMode, setTargetMode] = useState<'fixed' | 'roi'>('fixed');
+  const [roiPct, setRoiPct] = useState<number>(4);
+  const [baseCap, setBaseCap] = useState<number>(10);
+  const [gateVerdict, setGateVerdict] = useState<{ ok: boolean; text: string } | null>(null);
   // F23 — budget totale ipotetico I_tot (null = sizing dutch): OGNI copertura
   // paga budget+target. Messaggio proposta target dal motore.
   const [budgetTot, setBudgetTot] = useState<number | null>(null);
@@ -157,6 +163,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
         layStake: layStake ?? undefined,
         harmonized,
         budget: budgetTot ?? undefined,
+        targetMode,
+        roiPct,
+        baseCap,
       },
       slipLine,
     );
@@ -173,6 +182,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     layStake,
     harmonized,
     budgetTot,
+    targetMode,
+    roiPct,
+    baseCap,
     slipLine,
   ]);
 
@@ -343,6 +355,9 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     harmonized,
     budget: budgetTot ?? undefined,
     line: slipLine,
+    targetMode,
+    roiPct,
+    baseCap,
   });
 
   const defaultSlipName = () => {
@@ -411,6 +426,19 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
       setHarmonized(p.harmonized);
     }
     setBudgetTot(Number.isFinite(p.budget) && (p.budget as number) > 0 ? (p.budget as number) : null);
+    // F27: modo ROI + tetto S0 (vecchi salvataggi = fixed, nessun cap).
+    if (p.targetMode === 'roi') {
+      setTargetMode('roi');
+    } else {
+      setTargetMode('fixed');
+    }
+    if (Number.isFinite(p.roiPct) && (p.roiPct as number) > 0) {
+      setRoiPct(p.roiPct as number);
+    }
+    if (Number.isFinite(p.baseCap) && (p.baseCap as number) > 0) {
+      setBaseCap(p.baseCap as number);
+    }
+    setGateVerdict(null);
     // F26: linea salvata (vecchi salvataggi = 3.5; fallback dalla prima gamba).
     if (typeof p.line === 'number' && p.line > 0) {
       setSlipLine(p.line);
@@ -461,6 +489,33 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
       );
     }
     setTimeout(() => setTargetProposal(null), 6000);
+  };
+
+  // F27 — gate pre-piazzamento: riverifica la scala con le quote COME SONO ORA
+  // nella tabella (osservate) + vincoli exchange sulla banca. VIA LIBERA solo
+  // se ogni ramo verifica, altrimenti STOP col motivo. Rieseguire dopo ogni
+  // modifica alle quote.
+  const handleGateCheck = () => {
+    if (matches.length < 2) {
+      setGateVerdict({ ok: false, text: 'STOP: servono almeno 2 partite.' });
+      return;
+    }
+    const v = requoteGate({
+      matches,
+      baseStake,
+      targetProfit,
+      targetMode,
+      roiPct,
+      baseCap,
+      layCommissionPct,
+      layQuoteObserved: layOdds ?? undefined,
+      finaleModes: [finalHedgeMode === 'lay_exchange' ? 'lay' : 'book'],
+    });
+    if (v.ok) {
+      setGateVerdict({ ok: true, text: v.note });
+    } else {
+      setGateVerdict({ ok: false, text: v.detail });
+    }
   };
 
   const copySlipToClipboard = (slip: GeneratedSlip) => {
@@ -750,6 +805,22 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                     {slipsResult.maxPotentialExposure.toFixed(2)}). Alza il budget, usa
                     "Proponi target", o accorcia la scala.
                   </>
+                ) : slipsResult.harmonization.reason === 'cap' ? (
+                  <>
+                    <strong className="text-red-400">
+                      TETTO S0: servirebbero €{slipsResult.harmonization.baseMinRequired.toFixed(2)}
+                    </strong>{' '}
+                    — oltre il tetto operativo: la scala non si arma senza superare il
+                    tetto di puntata. Accorcia la scala o cerca quote madre più alte.
+                  </>
+                ) : slipsResult.harmonization.reason === 'terms' ? (
+                  <>
+                    <strong className="text-red-400">
+                      TETTO PAYOUT BOOK: garanzia ineseguibile
+                    </strong>{' '}
+                    — un payout della scala supera il max payout del book: il ramo
+                    madre/copertura verrebbe tagliato. Cambia book o accorcia la scala.
+                  </>
                 ) : (
                   <>
                     <strong className="text-red-400">
@@ -796,6 +867,22 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                   contro target +€{targetProfit.toFixed(2)} (spesa €
                   {slipsResult.maxPotentialExposure.toFixed(2)}). Alza il budget, usa
                   "Proponi target", o accorcia la scala.
+                </>
+              ) : slipsResult.harmonization.reason === 'cap' ? (
+                <>
+                  <strong className="text-red-400">
+                    TETTO S0: servirebbero €{slipsResult.harmonization.baseMinRequired.toFixed(2)}
+                  </strong>{' '}
+                  — oltre il tetto operativo: la scala non si arma senza superare il
+                  tetto di puntata. Accorcia la scala o cerca quote madre più alte.
+                </>
+              ) : slipsResult.harmonization.reason === 'terms' ? (
+                <>
+                  <strong className="text-red-400">
+                    TETTO PAYOUT BOOK: garanzia ineseguibile
+                  </strong>{' '}
+                  — un payout della scala supera il max payout del book: il ramo
+                  madre/copertura verrebbe tagliato. Cambia book o accorcia la scala.
                 </>
               ) : (
                 <>
@@ -868,8 +955,10 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                     {s.name}
                   </div>
                   <div className="text-[10px] font-mono text-[#64748B]">
-                    {s.matches.length} partite · madre €{s.params.baseStake} · target €
-                    {s.params.targetProfit} ·{' '}
+                    {s.matches.length} partite · madre €{s.params.baseStake} ·{' '}
+                    {s.params.targetMode === 'roi'
+                      ? `ROI ${s.params.roiPct ?? 4}% (cap €${s.params.baseCap ?? '—'})`
+                      : `target €${s.params.targetProfit}`}{' '}
                     {new Date(s.createdAt).toLocaleString('it-IT', {
                       day: '2-digit',
                       month: 'short',
@@ -934,22 +1023,86 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
               </div>
             </div>
 
-            {/* Target Profit */}
+            {/* Target Profit: fisso € oppure ROI % del capitale (F27) */}
             <div className="flex items-center gap-2">
-              <span className="text-[#94A3B8]">Target Utile:</span>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="5"
-                  min="5"
-                  max="1000"
-                  value={targetProfit}
-                  onChange={(e) => setTargetProfit(Math.max(5, parseFloat(e.target.value) || 5))}
-                  className="w-20 bg-[#1A1D26] border border-[#2D3139] px-2 py-1 text-emerald-400 text-right rounded-xs font-bold"
-                />
-                <span className="absolute left-1.5 top-1 text-[#64748B]">€</span>
+              <span className="text-[#94A3B8]">Target:</span>
+              <div className="flex rounded-xs overflow-hidden border border-[#2D3139]">
+                <button
+                  type="button"
+                  onClick={() => setTargetMode('fixed')}
+                  title="Utile fisso in euro su ogni esito"
+                  className={`px-2 py-1 text-xs font-bold ${targetMode === 'fixed' ? 'bg-emerald-500/25 text-emerald-300' : 'bg-[#1A1D26] text-[#64748B]'}`}
+                >
+                  € fisso
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetMode('roi')}
+                  title="Utile = % del capitale esposto, verifica stretta a tolleranza zero (richiede Armonizza)"
+                  className={`px-2 py-1 text-xs font-bold ${targetMode === 'roi' ? 'bg-emerald-500/25 text-emerald-300' : 'bg-[#1A1D26] text-[#64748B]'}`}
+                >
+                  ROI %
+                </button>
               </div>
+              {targetMode === 'fixed' ? (
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="5"
+                    min="5"
+                    max="1000"
+                    value={targetProfit}
+                    onChange={(e) => setTargetProfit(Math.max(5, parseFloat(e.target.value) || 5))}
+                    className="w-20 bg-[#1A1D26] border border-[#2D3139] px-2 py-1 text-emerald-400 text-right rounded-xs font-bold"
+                  />
+                  <span className="absolute left-1.5 top-1 text-[#64748B]">€</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      max="50"
+                      value={roiPct}
+                      onChange={(e) =>
+                        setRoiPct(Math.min(50, Math.max(0.5, parseFloat(e.target.value) || 4)))
+                      }
+                      title="Percentuale del capitale esposto garantita su ogni esito"
+                      className="w-16 bg-[#1A1D26] border border-[#2D3139] px-2 py-1 text-emerald-400 text-right rounded-xs font-bold"
+                    />
+                    <span className="absolute left-1.5 top-1 text-[#64748B]">%</span>
+                  </div>
+                  <span className="text-[#94A3B8] text-xs" title="Tetto operativo S0: la base non lo supera mai">
+                    Cap €:
+                  </span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    max="500"
+                    value={baseCap}
+                    onChange={(e) =>
+                      setBaseCap(Math.min(500, Math.max(1, parseFloat(e.target.value) || 10)))
+                    }
+                    title="Tetto S0: oltre, la scala è scartata (mai bump oltre il tetto)"
+                    className="w-16 bg-[#1A1D26] border border-[#2D3139] px-2 py-1 text-white text-right rounded-xs font-bold"
+                  />
+                </div>
+              )}
             </div>
+            {/* F27 — readout target certificato in modo ROI */}
+            {targetMode === 'roi' && slipsResult.harmonization?.feasible && (
+              <div className="flex items-center gap-2 px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/40 rounded-xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-xs text-emerald-200">
+                  Target certificato <strong>€{slipsResult.harmonization.targetUsed.toFixed(2)}</strong>{' '}
+                  ({roiPct}% di €{slipsResult.maxPotentialExposure.toFixed(2)} esposti) — ogni esito ≥{' '}
+                  {fmtGain(slipsResult.harmonization.equalizedNet)}
+                </span>
+              </div>
+            )}
 
             {/* F26 — Linea Totals (uniforme su tutta la schedina) */}
             <div className="flex items-center gap-2">
@@ -1199,6 +1352,25 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                   )}
                 </div>
               )}
+
+              {/* F27 — gate pre-piazzamento: semaforo con le quote come sono ora */}
+              <div className="flex flex-wrap items-center gap-2 pl-2 border-l border-[#2D3139]">
+                <button
+                  onClick={handleGateCheck}
+                  disabled={matches.length < 2}
+                  className="px-2 py-1 text-[11px] font-mono font-bold rounded-xs border transition-colors bg-sky-500/10 hover:bg-sky-500/25 text-sky-300 border-sky-500/40 disabled:opacity-50"
+                  title="Riverifica la scala con le quote attuali della tabella + vincoli exchange sulla banca. VIA LIBERA solo se ogni ramo verifica: rieseguire dopo ogni modifica quote, prima di piazzare."
+                >
+                  🛂 Verifica pre-piazzamento
+                </button>
+                {gateVerdict && (
+                  <span
+                    className={`text-[11px] font-mono max-w-xl ${gateVerdict.ok ? 'text-emerald-300' : 'text-red-300'}`}
+                  >
+                    {gateVerdict.text}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -5,8 +5,28 @@ import {
   AsymmetricMode,
   FinalHedgeMode,
 } from '../types';
-import { getBonusPercentage } from './bonus';
+import { DEFAULT_BONUS_TABLE, DEFAULT_BOOK } from './books';
+import type { Book } from '../types';
 import { roundToFiftyCents, getStepTargetProfit } from './dutching';
+
+// M1-precheck — bonus EFFETTIVO per ticket su un book dato. Il book default
+// ("Main", overEligible) mantiene il comportamento storico; i book che
+// escludono le gambe Over dal bonus non lo riconoscono sulle coperture
+// (la prima gamba di ogni copertura e' sempre Over per costruzione).
+// N<5 -> 0% su qualunque book. Il controllo leghe/competizioni e' escluso:
+// UserMatch non porta la lega (rischio residuo documentato, stress S6).
+function effectiveBonus(book: Book | undefined, nLegs: number, hasOverLeg: boolean): number {
+  const b = book ?? DEFAULT_BOOK;
+  if (nLegs < 5) {
+    return 0;
+  }
+  if (hasOverLeg && b.overEligible === false) {
+    return 0;
+  }
+  const table = b.bonusTable ?? DEFAULT_BONUS_TABLE;
+  const raw = table[nLegs] ?? 0;
+  return Math.min(raw, b.bonusCap);
+}
 
 // F17: partita con flag firstHalfOnly -> le sue gambe usano il mercato del
 // PRIMO TEMPO (le quote sono quelle inserite a mano nel workbench).
@@ -54,6 +74,16 @@ export interface LayFinaleOptions {
   // (vincita lorda sopra il costo totale, successive incluse). Richiede
   // harmonized (contabilita' full-relay); senza budget = sizing dutch.
   budget?: number;
+  // M2a — modo ROI: il target non e' fisso in euro ma e' r% del capitale
+  // (t = roiPct/100 * E). Richiede harmonized; col budget impostato vince il
+  // budget e roiPct e' ignorato. In ROI la verifica e' STRETTA (tolleranza
+  // zero, quanto di arrotondamento compreso): feasible <=> OGNI ramo
+  // arrotondato chiude >= t. Niente bump di S0 (tutto scala linearmente con b).
+  targetMode?: 'fixed' | 'roi'; // default 'fixed'
+  roiPct?: number; // es. 4 -> t = 4% dell'esposizione
+  // M2a — tetto S0 operativo (es. 10): gli stake reali non superano mai il cap;
+  // in fixed+armonizzato un bMin oltre il cap rende infattibile (reason 'cap').
+  baseCap?: number;
 }
 
 export interface HarmonizationInfo {
@@ -67,7 +97,10 @@ export interface HarmonizationInfo {
   equalizedNet: number | null; // netto garantito su OGNI ramo (se feasible)
   baseUsed: number; // S0 effettivo (adeguato al minimo se serve)
   baseMinRequired: number; // S0 minimo per chiudere anche il ramo madre
-  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | null;
+  // M2a: 'cap' = S0 minimo oltre il tetto operativo (mai bump oltre il cap);
+  // 'terms' = payout oltre il maxPayout del book (garanzia ineseguibile).
+  reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | 'cap' | 'terms' | null;
+  targetUsed: number; // t usato per il sizing (fisso oppure r% di E in modo ROI)
   budgetUsed: number | null; // I_tot usato (null = sizing dutch, non budget)
   // Capitale dutched che servirebbe per +t (riferimento quando il budget
   // non basta): confronto onesto col modo dutch.
@@ -88,6 +121,9 @@ export function generateCustomSlips(
   // (moltiplicatori, bonus a eventi, dutching, green-up) e' indipendente
   // dalla linea: cambiano solo etichette mercato e quote in ingresso.
   line: number = 3.5,
+  // M1-precheck: book di riferimento per eleggibilita' bonus (overEligible) e
+  // tetto payout (maxPayout). Assente = book default (comportamento storico).
+  book?: Book,
 ): CustomSlipsResult {
   const N = matches.length;
   if (N === 0) {
@@ -137,7 +173,7 @@ export function generateCustomSlips(
   }));
 
   const motherRawMultiplier = motherItems.reduce((acc, it) => acc * it.odds, 1);
-  const motherBonus = getBonusPercentage(N);
+  const motherBonus = effectiveBonus(book, N, false);
   const motherFinalMultiplier = Number((motherRawMultiplier * (1 + motherBonus / 100)).toFixed(2));
   // F20b: S0 puo' essere ADEGUATO al minimo che chiude anche il ramo madre
   // (vedi pass 2): motherGross/motherNet diventano let e vengono ricalcolati.
@@ -232,7 +268,9 @@ export function generateCustomSlips(
     }
 
     const rawMultiplier = items.reduce((acc, it) => acc * it.odds, 1);
-    const bonus = getBonusPercentage(items.length);
+    // La prima gamba di ogni copertura e' sempre Over -> eleggibilita' bonus
+    // del book (M1-precheck): con overEligible=false il bonus e' 0.
+    const bonus = effectiveBonus(book, items.length, true);
     const finalMultiplier = Number((rawMultiplier * (1 + bonus / 100)).toFixed(2));
 
     let slipStatus: 'PENDING' | 'ACTIVE' | 'WON' | 'LOST' = 'PENDING';
@@ -312,9 +350,7 @@ export function generateCustomSlips(
   const harmonizeRequested =
     finalHedgeMode === 'lay_exchange' && Boolean(layOpts.harmonized) && N > 1;
   const layQuotePlan =
-    Number(layOpts.layOdds) > 1
-      ? Number(layOpts.layOdds)
-      : Number(matches[N - 1].underOdds) || 1.3;
+    Number(layOpts.layOdds) > 1 ? Number(layOpts.layOdds) : Number(matches[N - 1].underOdds) || 1.3;
   const commPlan = Math.min(0.2, Math.max(0, (Number(layOpts.layCommissionPct) || 4.5) / 100));
   const kFactorPlan = (layQuotePlan - commPlan) / (1 - commPlan);
   const sumInverse = coverageSlips.reduce(
@@ -348,9 +384,17 @@ export function generateCustomSlips(
   const quotaOk = minLegOdds >= 1.25;
   let baseUsed = baseStake;
   let baseMinRequired = baseStake;
-  let harmReason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | null = null;
+  let harmReason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | 'cap' | 'terms' | null =
+    null;
   let useLayDutch = false;
   let useBookDutch = false;
+  // M2a — tetto S0 operativo: gli stake reali non superano mai il cap, nemmeno
+  // in fallback standard. In fixed+armonizzato un bMin oltre il cap rende la
+  // scala infattibile (reason 'cap') invece di adeguare S0 oltre il tetto.
+  const baseCap = Number(layOpts.baseCap) > 0 ? Number(layOpts.baseCap) : null;
+  if (baseCap !== null) {
+    baseUsed = Math.min(baseStake, baseCap);
+  }
   // F23 — modo BUDGET: l'utente fissa il costo totale ipotetico I_tot e OGNI
   // copertura paga P = I_tot + t (vincita lorda sopra il costo, successive
   // incluse). Vale solo con harmonized (contabilita' full-relay) e quota ok;
@@ -365,13 +409,73 @@ export function generateCustomSlips(
     quotaOk &&
     coverageSlips.length > 0 &&
     (finalHedgeMode === 'book_single' || N > 1);
-  if ((harmonizeRequested && N > 1) || (finalHedgeMode === 'book_single' && Boolean(layOpts.harmonized) && coverageSlips.length > 0)) {
+  if (
+    (harmonizeRequested && N > 1) ||
+    (finalHedgeMode === 'book_single' && Boolean(layOpts.harmonized) && coverageSlips.length > 0)
+  ) {
     if (!quotaOk) {
       harmReason = 'quota';
     }
   }
+  // M2a — modo ROI (t = r% di E, forma chiusa, audit §3):
+  //   lay:  E = (1+A2)*b / [(1-kS)(1-r*A2) - (1+A2)*k*r*S], A2 = (L-1)/(1-c)
+  //   book: E = b / [1-S'(1+r)]
+  // denomE>0 (con r*A2<1, sempre vero nel range operativo) implica kS<1, quindi
+  // sostituisce la guardia 0.99. In ROI niente bump di S0: tutto scala
+  // linearmente con b, quindi b resta la base (clamped al cap); la madre e'
+  // verificata ex-post.
+  //
+  // CUSCINO ANTI-QUANTO (certificazione, stress S2): il dutch esatto chiude i
+  // rami a t in aritmetica reale, ma gli stake sono arrotondati per eccesso a
+  // 0.50€ (drag fino a ~0.50€ per gamba, amplificato da 1/(1-kS) in lay).
+  // Sizzare a t esatto lascerebbe la garanzia in balia del quanto. Il sizing
+  // avviene quindi a t_s = t0 + C_q; il CONTRATTO resta t = r*E_effettiva,
+  // verificato ex-post a tolleranza zero (blocco strict). Se il leverage non
+  // regge roi+quanto (r*beta >= 0.9) la scala e' correttamente infattibile:
+  // una garanzia che non sopravvive al proprio quanto non e' certificabile.
+  const roiPctRaw = Number(layOpts.roiPct);
+  const roiMode =
+    layOpts.targetMode === 'roi' &&
+    roiPctRaw > 0 &&
+    Boolean(layOpts.harmonized) &&
+    quotaOk &&
+    !useBudget &&
+    coverageSlips.length > 0 &&
+    (finalHedgeMode === 'book_single' || N > 1);
+  const roiRate = roiMode ? roiPctRaw / 100 : 0;
+  let tEff = targetProfit;
+  if (roiMode && harmReason === null) {
+    if (finalHedgeMode === 'lay_exchange' && N > 1) {
+      const A2r = (layQuotePlan - 1) / (1 - commPlan);
+      const kr = kFactorPlan;
+      const Sr = sumInverse;
+      const denomE = (1 - kr * Sr) * (1 - roiRate * A2r) - (1 + A2r) * kr * roiRate * Sr;
+      const marginK = Math.max(0.05, 1 - kr * Sr);
+      const betaLay = ((1 + A2r) * kr * Sr) / marginK + A2r; // dE/dt
+      if (!(denomE > 0) || roiRate * betaLay >= 0.9) {
+        harmReason = 'layQuote';
+      } else {
+        const E0 = ((1 + A2r) * baseUsed) / denomE;
+        const Jr = coverageSlips.length;
+        const dragLay = (0.5 * Jr) / marginK + 0.5;
+        const cushion = dragLay / (1 - roiRate * betaLay) + 0.5;
+        tEff = Number((roiRate * E0 + cushion).toFixed(2));
+      }
+    } else {
+      const denomB = 1 - sumInverse * (1 + roiRate);
+      const betaBook = sumInverse / Math.max(0.05, 1 - sumInverse); // dE/dt
+      if (!(denomB > 0) || roiRate * betaBook >= 0.9) {
+        harmReason = 'dutch';
+      } else {
+        const E0 = baseUsed / denomB;
+        const Jr = coverageSlips.length;
+        const cushion = (0.5 * Jr) / (1 - roiRate * betaBook) + 0.5;
+        tEff = Number((roiRate * E0 + cushion).toFixed(2));
+      }
+    }
+  }
   if (!useBudget && harmReason === null && harmonizeRequested && N > 1) {
-    if (!(kFactorPlan > 1 && kFactorPlan * sumInverse < 0.99)) {
+    if (!(kFactorPlan > 1) || (!roiMode && !(kFactorPlan * sumInverse < 0.99))) {
       harmReason = 'layQuote';
     } else {
       const A2 = (layQuotePlan - 1) / (1 - commPlan);
@@ -379,11 +483,22 @@ export function generateCustomSlips(
       const denM = motherFinalMultiplier * Qc - 1 - A2;
       if (!(denM > 0)) {
         harmReason = 'mother';
-      } else {
-        const bMinM = (targetProfit * (1 + A2)) / denM;
-        baseMinRequired = Number(bMinM.toFixed(2));
-        baseUsed = Math.max(baseStake, roundToFiftyCents(bMinM));
+      } else if (roiMode) {
+        // Scala-invariante: la madre tiene a qualunque b oppure a nessuno;
+        // verifica ex-post sui netti arrotondati (blocco strict). Mai bump.
+        baseMinRequired = baseUsed;
         useLayDutch = true;
+      } else {
+        const bMinM = (tEff * (1 + A2)) / denM;
+        baseMinRequired = Number(bMinM.toFixed(2));
+        const bumped = Math.max(baseUsed, roundToFiftyCents(bMinM));
+        if (baseCap !== null && bumped > baseCap) {
+          harmReason = 'cap';
+          // baseUsed resta clamped: la scala ripiega sullo standard onesto.
+        } else {
+          baseUsed = bumped;
+          useLayDutch = true;
+        }
       }
     }
   } else if (
@@ -393,18 +508,27 @@ export function generateCustomSlips(
     Boolean(layOpts.harmonized) &&
     coverageSlips.length > 0
   ) {
-    if (!(sumInverse < 0.99)) {
+    if (!(sumInverse < 0.99) && !roiMode) {
       harmReason = 'dutch';
-    } else {
+    } else if (!roiMode) {
       const denB = (1 - sumInverse) * motherFinalMultiplier - 1;
       if (!(denB > 0)) {
         harmReason = 'mother';
       } else {
-        const bMinB = targetProfit / denB;
+        const bMinB = tEff / denB;
         baseMinRequired = Number(bMinB.toFixed(2));
-        baseUsed = Math.max(baseStake, roundToFiftyCents(bMinB));
-        useBookDutch = true;
+        const bumped = Math.max(baseUsed, roundToFiftyCents(bMinB));
+        if (baseCap !== null && bumped > baseCap) {
+          harmReason = 'cap';
+        } else {
+          baseUsed = bumped;
+          useBookDutch = true;
+        }
       }
+    } else {
+      // ROI book: denomB>0 gia' stabilito sopra; mai bump, verifica ex-post.
+      baseMinRequired = baseUsed;
+      useBookDutch = true;
     }
   }
 
@@ -441,8 +565,7 @@ export function generateCustomSlips(
     // un solo passaggio basta): b*(m_0-1) >= S_scommesse + liab + t.
     const pMinBudget = Math.min(...coverageSlips.map((s) => s.potentialGrossPayout));
     const denomB0 = layQuotePlan - commPlan;
-    const b0 =
-      manualLayStake ?? roundToFiftyCents(denomB0 > 0 ? pMinBudget / denomB0 : 10);
+    const b0 = manualLayStake ?? roundToFiftyCents(denomB0 > 0 ? pMinBudget / denomB0 : 10);
     const liab0 =
       finalHedgeMode === 'lay_exchange' ? Number((b0 * (layQuotePlan - 1)).toFixed(2)) : 0;
     budgetLayStake = b0;
@@ -466,8 +589,9 @@ export function generateCustomSlips(
       harmReason = 'mother';
     }
   } else if (useLayDutch) {
-    const totalBook = (baseUsed + kFactorPlan * targetProfit * sumInverse) / (1 - kFactorPlan * sumInverse);
-    const commonPayout = kFactorPlan * (totalBook + targetProfit);
+    // M2a: sizing sul target effettivo (fisso oppure r% di E in modo ROI).
+    const totalBook = (baseUsed + kFactorPlan * tEff * sumInverse) / (1 - kFactorPlan * sumInverse);
+    const commonPayout = kFactorPlan * (totalBook + tEff);
     coverageSlips.forEach((s) => {
       s.stake = roundToFiftyCents(commonPayout / s.finalMultiplier);
       s.cumulativeCost = Number(runningCumulativeCost.toFixed(2));
@@ -475,11 +599,11 @@ export function generateCustomSlips(
       s.potentialNetProfit = Number(
         (s.potentialGrossPayout - (runningCumulativeCost + s.stake)).toFixed(2),
       );
-      s.targetProfit = targetProfit;
+      s.targetProfit = tEff;
       runningCumulativeCost = Number((runningCumulativeCost + s.stake).toFixed(2));
     });
   } else if (useBookDutch) {
-    const commonPayoutBook = (baseUsed + targetProfit) / (1 - sumInverse);
+    const commonPayoutBook = (baseUsed + tEff) / (1 - sumInverse);
     coverageSlips.forEach((s) => {
       s.stake = roundToFiftyCents(commonPayoutBook / s.finalMultiplier);
       s.cumulativeCost = Number(runningCumulativeCost.toFixed(2));
@@ -487,13 +611,15 @@ export function generateCustomSlips(
       s.potentialNetProfit = Number(
         (s.potentialGrossPayout - (runningCumulativeCost + s.stake)).toFixed(2),
       );
-      s.targetProfit = targetProfit;
+      s.targetProfit = tEff;
       runningCumulativeCost = Number((runningCumulativeCost + s.stake).toFixed(2));
     });
   } else {
     coverageSlips.forEach((s) => {
       const rawStake =
-        s.finalMultiplier > 1 ? (runningCumulativeCost + s.targetProfit) / (s.finalMultiplier - 1) : 10;
+        s.finalMultiplier > 1
+          ? (runningCumulativeCost + s.targetProfit) / (s.finalMultiplier - 1)
+          : 10;
       s.stake = roundToFiftyCents(rawStake);
       s.cumulativeCost = Number(runningCumulativeCost.toFixed(2));
       s.potentialGrossPayout = Number((s.stake * s.finalMultiplier).toFixed(2));
@@ -542,13 +668,14 @@ export function generateCustomSlips(
     const worstCoveragePayout = coverageSlips.length
       ? Math.min(...coverageSlips.map((s) => s.potentialGrossPayout))
       : motherGross;
-    const activePayout = useLayDutch || useBudget
-      ? worstCoveragePayout
-      : activeOverIdx !== -1
-        ? coverageSlips[activeOverIdx].potentialGrossPayout
-        : anyPendingBefore && lastCoverage
-          ? lastCoverage.potentialGrossPayout
-          : motherGross;
+    const activePayout =
+      useLayDutch || useBudget
+        ? worstCoveragePayout
+        : activeOverIdx !== -1
+          ? coverageSlips[activeOverIdx].potentialGrossPayout
+          : anyPendingBefore && lastCoverage
+            ? lastCoverage.potentialGrossPayout
+            : motherGross;
 
     const layQuote = layQuotePlan;
     const commission = commPlan;
@@ -598,7 +725,7 @@ export function generateCustomSlips(
       bonusPercentage: 0,
       finalMultiplier: layQuote,
       stake: layStake,
-      targetProfit: getStepTargetProfit(N, N, targetProfit, asymmetricMode),
+      targetProfit: getStepTargetProfit(N, N, tEff, asymmetricMode),
       cumulativeCost: Number(bookStakesTotal.toFixed(2)),
       // Se esce Over la banca incassa lo stake del puntatore meno commissione
       potentialGrossPayout: layWinProfit,
@@ -629,6 +756,7 @@ export function generateCustomSlips(
         reason: useLayDutch ? null : harmReason,
         budgetUsed: null,
         requiredCapital: null,
+        targetUsed: tEff,
       };
     }
   }
@@ -655,9 +783,7 @@ export function generateCustomSlips(
       s.realizedNetIfWon =
         s.type === 'FINAL_LAY'
           ? Number((s.potentialGrossPayout - bookStakesTotal).toFixed(2))
-          : Number(
-              (s.potentialGrossPayout - (bookStakesTotal + layLiabilityIfPlaced)).toFixed(2),
-            );
+          : Number((s.potentialGrossPayout - (bookStakesTotal + layLiabilityIfPlaced)).toFixed(2));
     });
   } else {
     motherSlip.realizedNetIfWon = Number(
@@ -690,6 +816,7 @@ export function generateCustomSlips(
         reason: useBookDutch ? null : harmReason,
         budgetUsed: null,
         requiredCapital: null,
+        targetUsed: tEff,
       };
     }
   }
@@ -723,7 +850,44 @@ export function generateCustomSlips(
       // requiredCapital (capitale dutched per +t) calcolato in matrix.ts
       // confrontando col modo dutch: qui resta null.
       requiredCapital: null,
+      targetUsed: targetProfit,
     };
+  }
+
+  // M2a — verifica STRETTA modo ROI (tolleranza zero, quanto compreso).
+  // Il sizing avviene a t_s = t0 + cuscino anti-quanto; il CONTRATTO e'
+  // t = r*E_effettiva (E dopo sizing e arrotondi): feasible <=> OGNI ramo
+  // arrotondato (madre, coperture, banca) chiude >= t. Se il cuscino non basta
+  // (leva estrema), la scala e' infattibile: in lay abbassare L allarga il
+  // margine (reason layQuote + Lmax operativa), in book il margine e'
+  // strutturale (dutch). Solo in ROI: in fixed resta la semantica storica
+  // (verdetto onesto via equalizedNet, retrocompatibilita' UI/test).
+  if (roiMode && harmonization?.feasible) {
+    const tNeed = Number((roiRate * totalPotentialExposure).toFixed(2));
+    harmonization.targetUsed = tNeed;
+    const roiNets = [motherSlip.realizedNetIfWon, ...coverageSlips.map((s) => s.realizedNetIfWon)];
+    if (!(Math.min(...roiNets) >= tNeed - 1e-9)) {
+      harmonization.feasible = false;
+      harmonization.equalizedNet = null;
+      harmonization.reason = harmonization.finaleMode === 'lay' ? 'layQuote' : 'dutch';
+    }
+  }
+
+  // M1-precheck — tetto payout del book: se un payout book supera il maxPayout,
+  // la garanzia e' ineseguibile (reason 'terms'). Solo sui payout bookmaker
+  // (la banca lay non e' un payout book). Col book default (cap illimitato)
+  // il controllo e' inerte.
+  const payoutCap = book?.maxPayout ?? null;
+  if (payoutCap !== null && payoutCap > 0 && harmonization?.feasible) {
+    const bookPayouts = [
+      motherSlip.potentialGrossPayout,
+      ...coverageSlips.filter((s) => s.type !== 'FINAL_LAY').map((s) => s.potentialGrossPayout),
+    ];
+    if (bookPayouts.some((p) => p > payoutCap)) {
+      harmonization.feasible = false;
+      harmonization.equalizedNet = null;
+      harmonization.reason = 'terms';
+    }
   }
 
   // Capitale effettivo: puntate bookmaker piazzate + (banca piazzata? la sua
@@ -762,7 +926,9 @@ export function generateCustomSlips(
     // prima (ogni Over sostituisce la schedina attiva con quella nuova).
     let lastOverIdx = -1;
     matches.forEach((m, i) => {
-      if (m.outcome === 'OVER') {lastOverIdx = i;}
+      if (m.outcome === 'OVER') {
+        lastOverIdx = i;
+      }
     });
     overallStatus = 'WON_COVERAGE';
     winningSlipCode = `C${lastOverIdx + 1}`;

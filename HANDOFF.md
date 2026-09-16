@@ -844,3 +844,81 @@ manuale dell'utente.
 - Test +6 (epoch UTC, formati, TZ-aware, NaN, caso reale Roma-Inter) +
   fix `now` assoluto nei vecchi test F17 -> **172/172**, tsc, lint 0 error,
   build OK.
+## F27 — Certificazione mai-perdita: modo ROI 4% + tetto S0 + gate pre-piazzamento (2026-09-16)
+
+- **Richiesta utente**: modello matematico "perfetto e inconfutabile" con coperture
+  dinamiche su mercati misti 2-way in [1.25, 2.1], target ROI 4% del capitale,
+  tetto S0 10€, stress di tutte le possibilita avverse prima di scrivere codice.
+- **Audit (verifiche V1-V7 superate)**: dutch lay pareggia per identita algebrica
+  (Under `D-D(L-1)/(L-c)-I = t`, Over `B(1-c)-I = t`); banca sul payout peggiore;
+  guardia 0.99; `L_max` esatta; verdetto sui numeri arrotondati; realized con coda.
+- **Buchi chiusi**:
+  - B1/B2 quanto vs target: modo ROI con **cuscino anti-quanto** (sizing a
+    `t_s = t0 + C_q`, contratto `t = r*E_effettiva` verificato a tolleranza zero).
+  - B3 bump oltre tetto: `baseCap` (mai bump/stake S0 oltre), `reason: 'cap'`.
+  - B4 quote stimate vs piazzate: **`src/engine/requote.ts`** (`requoteGate` con
+    quote osservate + re-snap banca a tick/minimo exchange + riverifica netti).
+  - B5 bonus assunto: `effectiveBonus(book, n, hasOver)` (overEligible) +
+    `reason: 'terms'` se payout oltre maxPayout. Leghe escluse (UserMatch senza
+    lega: rischio residuo documentato).
+  - B6 taglie exchange: `snapLayPriceUp` (tick UP conservativo), `snapExchangeStakeUp`
+    (min 2€), reason 'exchange' se lo snap mangia il margine.
+  - Hint Lmax mostrato solo con reason layQuote (con mother sarebbe fuorviante).
+- **Forme chiuse ROI**: lay `E=(1+A2)b/denomE`, book `E=b/(1-S(1+r))`; esistenza
+  garantita nel range (r*A2<<1); madre scala-invariante (tiene a ogni b o a nessuno).
+- **Scoperta onesta**: la banda fattibile ROI+cap10 e STRETTA (madre deve coprire
+  il leverage E/b): random uniforme 1.25-2.1 ~2%, banda alta (1.8-2.1, lay<=1.5,
+  N 2-4) ~30%. La caccia alle scale e' il lavoro del finder, non del sizing.
+- **API**: `LayFinaleOptions` += targetMode/roiPct/baseCap; `generateCustomSlips`
+  += param `book?`; `HarmonizationInfo.reason` += 'cap'|'terms'; += `targetUsed`;
+  threading in matrix/finder; banner cap/terms in LiveSlipTracker (2 rami).
+- **Motore fixed invariato** (retrocompatibilita): ROI e' opt-in, tolleranza zero
+  solo in ROI.
+- **Test**: +34 (roi 14: S1/S2/S10/S12/S13; requote 12: S3/S4/S5/S6/S7/S14;
+  adversarial 8: S9/S11/S15). **209/209**, tsc pulito, eslint 0 error, build OK.
+- **Non committato** (attende richiesta utente). UI toggles ROI nel workbench:
+  follow-up proposto (motore pronto, `SavedSlipParams` da estendere).
+
+## F28 — UI visibile modo ROI + gate (2026-09-16, seguito F27)
+
+- **Problema utente**: "vedo che e rimasto tutto uguale" (F27 era solo motore+test).
+- **Workbench LiveSlipTracker**: switch Target [€ fisso | ROI %] + input ROI %
+  (default 4) + Cap € (default 10); readout verde "Target certificato €X (r% di
+  €Y esposti)" quando la scala verifica; bottone "Verifica pre-piazzamento"
+  (requoteGate sulle quote in tabella + vincoli exchange, esito VIA LIBERA/STOP);
+  card schedine salvate con etichetta ROI; persistenza targetMode/roiPct/baseCap
+  in SavedSlipParams (+load, default fixed per vecchi salvataggi).
+- **Calendario finder**: toggle ROI ON/OFF + input ROI % e Cap € passati al motore.
+- **Nota prettier**: i due componenti + types.ts hanno violazioni pre-esistenti a
+  HEAD con la prettier installata (verificato via diff HEAD): nessun --write
+  whole-file per non inquinare il diff; nuovo codice in stile file. File
+  toccati dal tooling con LF in repo CRLF normalizzati a CRLF.
+- Verifiche: tsc pulito, eslint 0 error, **209/209**, build OK. Non committato.
+
+## F29 — Scout Radar: caccia autonoma scale da giocare (2026-09-16)
+
+- **Richiesta utente**: non scegliere piu le squadre a mano; un agente spazza le
+  partite, prova le combinazioni di parametri, testa ogni esito e compila da solo
+  la lista da giocare. Trigger entrambi (pulsante ora, auto dopo); griglia
+  completa; lista sola-lettura; locale + cloud.
+- **Scoperta di misura** (scan dedicati): a S0<=10 il pre-match chiude ~mai (la lay
+  prematch = ultimo Under lega L bassa a m0 bassa: la madre non copre il leverage;
+  e il cuscino anti-quanto alza E contro la madre). La banda reale sono le
+  **ipotesi in-play** (lay scontata -10/-20/-30% con madre intatta): N=3 ad alta
+  quota, 122 fattibili / 45 super-shock su griglia uniforme-alta. Lo Scout le
+  cerca tutte e le etichetta (prematch vs inplay-10/20/30).
+- **P1 `src/engine/scout.ts`**: sweep deterministico a 2 stadi (finestre contigue
+  cronologiche con gap>=2h, dedup; spremitura esatta via solveMatrix su
+  S0 x r% x scenari lay x modi) + batteria shock riusabile (Q-5/-10, L+0.10/+0.20,
+  comm 5%, no-bonus). Promozione: feasible + Q-5% + L+0.10 obbligatori (gli altri
+  in pagella); ranking € garantiti desc; budget solve, scadenza primo kickoff-2h.
+- **P2 store**: `scout_runs` (migration 20260916120000, DA APPLICARE su remote) +
+  `useScoutRuns` (locale-first + write-through, ultime 10) + tipo ScoutRun.
+- **P3 UI**: pannello "Radar Scout" nel Calendario (sotto il finder): pulsante
+  Lancia Scout con progress live, card read-only (gambe, E/G/target, badge lay,
+  6 badge shock, scadenza), statistiche run + conteggi scarti, Svuota.
+  Nessun import/tracking (scelta utente: solo elenco).
+- **Test**: scout.test.ts (5: promozione+invarianti, pool avvelenata vuota,
+  determinismo, budget, gap<2h). **214/214**, tsc, eslint 0 error, build OK.
+- **Aperto**: applicare migration su remote; auto-cron oraria (P4); import 1-click
+  e tracking live se richiesti. Non committato.
