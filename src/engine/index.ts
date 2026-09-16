@@ -4,7 +4,13 @@ export { buildSequentialTimeline } from './timeline';
 export { generateCustomSlips } from './slips';
 export { calculateBinomialRisk, evaluateScenario } from './risk';
 export { getBonusPercentage } from './bonus';
-export { getBonusForBook, selectBestBook, DEFAULT_BOOK, DEFAULT_BONUS_TABLE } from './books';
+export {
+  getBonusForBook,
+  selectBestBook,
+  DEFAULT_BOOK,
+  DEFAULT_BONUS_TABLE,
+  GLOBAL_MAX_PAYOUT,
+} from './books';
 export type { BookSelection } from './books';
 export {
   sizeTicket,

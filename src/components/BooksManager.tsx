@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { bonusTableToCsv, parseBonusCsv, useBooks } from '../hooks/useBooks';
-import { DEFAULT_BOOK } from '../engine/books';
+import { DEFAULT_BOOK, GLOBAL_MAX_PAYOUT } from '../engine/books';
 import type { Book } from '../types';
 
 function emptyTable(): Record<number, number> {
@@ -244,6 +244,12 @@ export const BooksManager: React.FC = () => {
           per gestire i book.
         </div>
       )}
+      <div className="border border-red-500/40 bg-red-500/10 rounded-xs px-3 py-2 text-xs font-mono text-red-300 flex items-center gap-2">
+        <AlertTriangle className="w-4 h-4 shrink-0" />
+        Tetto vincita €{GLOBAL_MAX_PAYOUT.toLocaleString('it-IT')}: nessuna multipla può pagare
+        oltre, su nessun book — oltre la giocata è vietata (il motore scarta con motivo
+        apposito).
+      </div>
       {error && (
         <div className="border border-red-500/40 bg-red-500/10 rounded-xs px-3 py-2 text-xs font-mono text-red-300">
           {error}
@@ -285,7 +291,11 @@ export const BooksManager: React.FC = () => {
                   cap {b.bonusCap}% · min {b.minStake}€ · max {b.maxLegs} gambe ·{' '}
                   {b.multiDaysLimit == null ? 'multiple ∞ gg' : `multiple ≤ ${b.multiDaysLimit}gg`}{' '}
                   · {b.overEligible ? 'Over ok' : 'no Over'} · v
-                  {(versionsByBook[b.id] ?? []).length}
+                  {(versionsByBook[b.id] ?? []).length} · vincita max €
+                  {(b.maxPayout !== null && b.maxPayout > 0
+                    ? Math.min(b.maxPayout, GLOBAL_MAX_PAYOUT)
+                    : GLOBAL_MAX_PAYOUT
+                  ).toLocaleString('it-IT')}
                 </div>
               </button>
             ))}

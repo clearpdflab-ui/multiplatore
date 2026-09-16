@@ -5,7 +5,7 @@ import {
   AsymmetricMode,
   FinalHedgeMode,
 } from '../types';
-import { DEFAULT_BONUS_TABLE, DEFAULT_BOOK } from './books';
+import { DEFAULT_BONUS_TABLE, DEFAULT_BOOK, GLOBAL_MAX_PAYOUT } from './books';
 import type { Book } from '../types';
 import { roundToFiftyCents, getStepTargetProfit } from './dutching';
 
@@ -59,7 +59,9 @@ export interface SlipBookInfo {
 }
 
 export function getSlipBook(slip: Pick<GeneratedSlip, 'items' | 'type'>): SlipBookInfo {
-  const books = [...new Set(slip.items.map((it) => it.book).filter((b): b is string => Boolean(b)))];
+  const books = [
+    ...new Set(slip.items.map((it) => it.book).filter((b): b is string => Boolean(b))),
+  ];
   if (books.length === 1) {
     return { single: books[0], books, mixed: false };
   }
@@ -115,9 +117,11 @@ export interface HarmonizationInfo {
   baseUsed: number; // S0 effettivo (adeguato al minimo se serve)
   baseMinRequired: number; // S0 minimo per chiudere anche il ramo madre
   // M2a: 'cap' = S0 minimo oltre il tetto operativo (mai bump oltre il cap);
-  // 'terms' = payout oltre il maxPayout del book (garanzia ineseguibile).
+  // 'terms' = payout oltre il maxPayout del book o il tetto globale 50k
+  // (garanzia ineseguibile). termsDetail spiega quale ticket/cap e' scattato.
   reason: 'layQuote' | 'dutch' | 'mother' | 'quota' | 'budget' | 'cap' | 'terms' | null;
   targetUsed: number; // t usato per il sizing (fisso oppure r% di E in modo ROI)
+  termsDetail?: string | null;
   budgetUsed: number | null; // I_tot usato (null = sizing dutch, non budget)
   // Capitale dutched che servirebbe per +t (riferimento quando il budget
   // non basta): confronto onesto col modo dutch.
@@ -894,20 +898,34 @@ export function generateCustomSlips(
     }
   }
 
-  // M1-precheck — tetto payout del book: se un payout book supera il maxPayout,
-  // la garanzia e' ineseguibile (reason 'terms'). Solo sui payout bookmaker
-  // (la banca lay non e' un payout book). Col book default (cap illimitato)
-  // il controllo e' inerte.
-  const payoutCap = book?.maxPayout ?? null;
-  if (payoutCap !== null && payoutCap > 0 && harmonization?.feasible) {
-    const bookPayouts = [
-      motherSlip.potentialGrossPayout,
-      ...coverageSlips.filter((s) => s.type !== 'FINAL_LAY').map((s) => s.potentialGrossPayout),
+  // M1-precheck + tetto globale — tetto vincita per ticket: il cap effettivo e'
+  // min(tetto book, GLOBAL_MAX_PAYOUT 50k). Vale SEMPRE (anche col book default),
+  // su madre + coperture book + vincita della banca lay: oltre, la vincita non
+  // e' incassabile per intero da nessuna parte -> garanzia ineseguibile.
+  const bookCap = book?.maxPayout ?? null;
+  if (harmonization?.feasible) {
+    const capChecks: { code: string; payout: number }[] = [
+      { code: 'S0', payout: motherSlip.potentialGrossPayout },
+      ...coverageSlips
+        .filter((s) => s.type !== 'FINAL_LAY')
+        .map((s) => ({ code: s.code, payout: s.potentialGrossPayout })),
+      ...coverageSlips
+        .filter((s) => s.type === 'FINAL_LAY')
+        .map((s) => ({ code: `${s.code} (banca)`, payout: s.potentialGrossPayout })),
     ];
-    if (bookPayouts.some((p) => p > payoutCap)) {
-      harmonization.feasible = false;
-      harmonization.equalizedNet = null;
-      harmonization.reason = 'terms';
+    for (const c of capChecks) {
+      const effCap =
+        bookCap !== null && bookCap > 0 ? Math.min(bookCap, GLOBAL_MAX_PAYOUT) : GLOBAL_MAX_PAYOUT;
+      const scope = effCap === GLOBAL_MAX_PAYOUT ? 'tetto globale' : 'tetto book';
+      if (c.payout > effCap) {
+        harmonization.feasible = false;
+        harmonization.equalizedNet = null;
+        harmonization.reason = 'terms';
+        harmonization.termsDetail =
+          `${c.code} €${c.payout.toFixed(2)} > ${scope} €${effCap.toFixed(2)}` +
+          (scope === 'tetto book' && book?.name ? ` (${book.name})` : '');
+        break;
+      }
     }
   }
 

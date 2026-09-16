@@ -968,3 +968,14 @@ manuale dell'utente.
   **218/218**, tsc, eslint 0 error, build OK.
 - **Prossimo (F31b)**: bonus/cap per-ticket nel sizing (oggi il sizing usa il book
   default anche se i ticket sono prenotati altrove).
+
+## Tetto 50k — vincita massima globale, giocata vietata oltre (2026-09-16)
+
+- **Regola utente**: nessuna multipla puo pagare oltre €50.000 su nessun book.
+- `GLOBAL_MAX_PAYOUT = 50000` in books.ts (re-export index/harmony); cap effettivo
+  = min(tetto book, 50k). Enforcement in slips.ts SEMPRE (anche book default), su
+  madre + coperture + vincita banca lay -> reason terms + termsDetail ("Cx €.. >
+  tetto globale/book €.."). Banner terms mostra il dettaglio; BooksManager con
+  nota rossa + vincita max effettiva per book.
+- **Test**: +3 adversarial (sopra/sotto soglia, precedenza tetto book minore).
+  **221/221**, tsc, eslint 0 error, build OK.

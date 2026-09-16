@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { generateCustomSlips, getSlipBook } from '../../src/engine/slips';
+import { DEFAULT_BOOK } from '../../src/engine/books';
 import { canOpenCycle, type CycleLedger } from '../../src/engine/harmony';
 import type { UserMatch } from '../../src/types';
 
@@ -211,7 +212,60 @@ describe('F31 prenotate — vincolo book strutturato end-to-end', () => {
   });
 
   it('senza book: nessun chip, nessun crash (retrocompatibilita)', () => {
-    const r = generateCustomSlips(mkScale([[1.6, 2.2], [1.55, 2.4]]), 10, 20);
+    const r = generateCustomSlips(
+      mkScale([
+        [1.6, 2.2],
+        [1.55, 2.4],
+      ]),
+      10,
+      20,
+    );
     expect(getSlipBook(r.motherSlip)).toEqual({ single: null, books: [], mixed: false });
+  });
+});
+
+describe('Tetto vincita globale 50k — giocata vietata oltre', () => {
+  const hi2: [number, number][] = [
+    [2.1, 2.0],
+    [2.1, 2.1],
+  ];
+
+  it('payout oltre 50k: feasible=false, reason terms con dettaglio', () => {
+    const r = generateCustomSlips(mkScale(hi2), 15000, 45, 'flat', false, 1.1, 4, 'book_single', {
+      harmonized: true,
+    });
+    expect(r.harmonization?.feasible).toBe(false);
+    expect(r.harmonization?.reason).toBe('terms');
+    expect(r.harmonization?.equalizedNet).toBeNull();
+    expect(r.harmonization?.termsDetail ?? '').toContain('tetto globale');
+    expect(r.harmonization?.termsDetail ?? '').toContain('50000.00');
+  });
+
+  it('sotto 50k: il tetto non scatta (stessa scala, base normale)', () => {
+    const r = generateCustomSlips(mkScale(hi2), 100, 45, 'flat', false, 1.1, 4, 'book_single', {
+      harmonized: true,
+    });
+    expect(r.harmonization?.feasible).toBe(true);
+    expect(r.harmonization?.reason).toBeNull();
+  });
+
+  it('tetto book piu basso del globale: vince il book (precedenza al minore)', () => {
+    const smallBook = { ...DEFAULT_BOOK, maxPayout: 300 };
+    const r = generateCustomSlips(
+      mkScale(hi2),
+      100,
+      45,
+      'flat',
+      false,
+      1.1,
+      4,
+      'book_single',
+      { harmonized: true },
+      3.5,
+      smallBook,
+    );
+    expect(r.harmonization?.feasible).toBe(false);
+    expect(r.harmonization?.reason).toBe('terms');
+    expect(r.harmonization?.termsDetail ?? '').toContain('tetto book');
   });
 });

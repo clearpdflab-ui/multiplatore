@@ -376,4 +376,4 @@ export function canOpenCycle(args: {
   return { ok: true, reason: 'ok' };
 }
 
-export { selectBestBook, DEFAULT_BOOK, DEFAULT_BONUS_TABLE } from './books';
+export { selectBestBook, DEFAULT_BOOK, DEFAULT_BONUS_TABLE, GLOBAL_MAX_PAYOUT } from './books';

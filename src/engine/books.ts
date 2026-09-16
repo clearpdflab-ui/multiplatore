@@ -32,6 +32,11 @@ export const DEFAULT_BONUS_TABLE: Record<number, number> = {
   30: 354.9,
 };
 
+// Tetto VINCITA globale: nessuna multipla puo' pagare oltre questa cifra su
+// nessun book (regola dura utente). Il cap effettivo di un ticket e'
+// min(tetto book, GLOBAL_MAX_PAYOUT).
+export const GLOBAL_MAX_PAYOUT = 50000;
+
 // Seed-equivalent default book ("Main", cap 500). Live books come from
 // Supabase via useBooks; engine functions accept any Book.
 export const DEFAULT_BOOK: Book = {

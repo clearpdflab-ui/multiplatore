@@ -847,10 +847,13 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                 ) : slipsResult.harmonization.reason === 'terms' ? (
                   <>
                     <strong className="text-red-400">
-                      TETTO PAYOUT BOOK: garanzia ineseguibile
+                      TETTO VINCITA: giocata vietata
                     </strong>{' '}
-                    — un payout della scala supera il max payout del book: il ramo
-                    madre/copertura verrebbe tagliato. Cambia book o accorcia la scala.
+                    —{' '}
+                    {slipsResult.harmonization.termsDetail ??
+                      'un payout supera il tetto (max €50.000 su tutti i book)'}
+                    : oltre non si incassa per intero da nessuna parte. Accorcia la scala o
+                    abbassa gli stake.
                   </>
                 ) : (
                   <>
