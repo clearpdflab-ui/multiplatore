@@ -117,6 +117,9 @@ export interface CoverSuggestionParams {
   bet?: number;
   size?: number; // pagine da N risultati (default 100, verificato sull'API)
   page?: number;
+  // Paginazione automatica: segue le pagine finche' piene, fino a maxPages
+  // (default 5 -> fino a 500 righe: la finestra 10gg supera le 100/pagina).
+  maxPages?: number;
 }
 
 function coverSelections(line: number): string {
@@ -170,11 +173,21 @@ export async function fetchCoverSuggestions(
   p: CoverSuggestionParams,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<CoverOddsFetchResult> {
-  const covers = await fetchResourceWithRetry<RawLdlCoverOddsItem[]>(
-    'puntapunta',
-    buildPuntaPuntaQuery(p),
-    timeoutMs,
-  );
+  const size = p.size ?? 100;
+  const maxPages = Math.max(1, Math.min(p.maxPages ?? 5, 10));
+  const covers: RawLdlCoverOddsItem[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const chunk = await fetchResourceWithRetry<RawLdlCoverOddsItem[]>(
+      'puntapunta',
+      buildPuntaPuntaQuery({ ...p, size, page: p.page !== undefined ? p.page + page : page }),
+      timeoutMs,
+    );
+    covers.push(...chunk);
+    // Pagina esplicita richiesta: una sola. Altrimenti stop alla prima non piena.
+    if (p.page !== undefined || chunk.length < size) {
+      break;
+    }
+  }
   const [sitesRes, eventsRes] = await Promise.allSettled([
     fetchResourceWithRetry<RawLdlSite[]>('sites', undefined, timeoutMs, 1),
     fetchResourceWithRetry<RawLdlEvent[]>('events', undefined, timeoutMs, 1),

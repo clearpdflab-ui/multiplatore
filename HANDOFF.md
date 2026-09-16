@@ -942,3 +942,12 @@ manuale dell'utente.
   valutate su 6 partite; gap-test precedente ancora verde.
 - **215/215**, tsc, eslint 0 error. Da committare assieme a F29 (se non ancora
   pushato) o commit dedicato.
+
+## F30 — Finestra multipla 7gg -> 10gg + paginazione feed (2026-09-16)
+
+- `CALENDAR_WINDOW_DAYS` 7 -> 10 (feed dateTo, Trova Partite, spread check e
+  label seguono la costante; il min() col multi_days_limit dei book resta).
+- `fetchCoverSuggestions` pagina in automatico (page piene, max 5 -> 500 righe):
+  la 10gg supera le 100 righe/pagina. Chiamate con `page` esplicita invariate
+  (1 sola pagina). Book/gestionale e Scout/finder senza tetti propri: seguono.
+- 215/215, tsc, eslint 0 error, build OK.

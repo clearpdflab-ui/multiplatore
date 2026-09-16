@@ -47,7 +47,7 @@ interface CalendarOddsMonitorProps {
 }
 
 const REFRESH_INTERVAL_MS = 60000;
-const CALENDAR_WINDOW_DAYS = 7;
+const CALENDAR_WINDOW_DAYS = 10;
 const MAX_AUTO_PAGES = 3;
 // F17: regola relay — una partita selezionata deve avere almeno 2 ore di
 // margine dall'ora attuale (tempo per piazzare madre + copertura).
@@ -925,7 +925,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
     setFirstHalfIds([]);
   };
 
-  // Finestra effettiva: min(7gg, limite giorni multipla piu' restrittivo tra
+  // Finestra effettiva: min(10gg, limite giorni multipla piu' restrittivo tra
   // i book madre selezionati (dal gestionale).
   const motherWindowDays = useMemo(() => {
     let days = CALENDAR_WINDOW_DAYS;
