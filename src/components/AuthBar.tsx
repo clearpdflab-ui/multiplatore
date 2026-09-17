@@ -49,7 +49,7 @@ export const AuthBar: React.FC = () => {
         </button>
       ) : (
         <form
-          className="flex items-center gap-1.5"
+          className="flex items-center gap-1.5 flex-wrap justify-end"
           onSubmit={(e) => {
             e.preventDefault();
             setBusy(true);

@@ -24,7 +24,8 @@ export const Header: React.FC<HeaderProps> = ({ currentView, onViewChange }) => 
             MULTISCALE
           </h1>
         </div>
-        <div className="hidden lg:block">
+        {/* Login sempre visibile: su mobile compatto, su desktop esteso */}
+        <div className="shrink-0">
           <AuthBar />
         </div>
       </div>
