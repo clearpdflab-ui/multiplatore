@@ -1,4 +1,4 @@
-export type ViewMode = 'live_slips' | 'calendar_odds' | 'practical' | 'math' | 'books' | 'cycles';
+export type ViewMode = 'live_slips' | 'calendar_odds' | 'practical' | 'math' | 'books' | 'cycles' | 'place';
 
 export type CalculationModel = 'original_sum' | 'real_product' | 'optimized_sequential';
 

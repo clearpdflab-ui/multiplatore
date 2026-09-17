@@ -8,9 +8,11 @@ import { LiveSlipTracker } from './components/LiveSlipTracker';
 import { CalendarOddsMonitor } from './components/CalendarOddsMonitor';
 import { BooksManager } from './components/BooksManager';
 import { CyclesDashboard } from './components/CyclesDashboard';
+import { PlaceView } from './components/PlaceView';
+import { OperationProvider } from './store/operation';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<ViewMode>('live_slips');
+  const [currentView, setCurrentView] = useState<ViewMode>('calendar_odds');
   const [importedMatches, setImportedMatches] = useState<UserMatch[] | null>(null);
 
   const handleImportMatches = (matches: UserMatch[]) => {
@@ -18,35 +20,43 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#0A0B10] text-[#E0E2E7] font-sans flex flex-col selection:bg-[#3B82F6]/30">
-      {/* Header */}
-      <Header currentView={currentView} onViewChange={setCurrentView} />
+    <OperationProvider>
+      <div className="min-h-screen w-full bg-[#0A0B10] text-[#E0E2E7] font-sans flex flex-col selection:bg-[#3B82F6]/30">
+        {/* Header */}
+        <Header currentView={currentView} onViewChange={setCurrentView} />
 
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-        {currentView === 'calendar_odds' ? (
-          <CalendarOddsMonitor
-            onImportToTracker={handleImportMatches}
-            onNavigateToTracker={() => setCurrentView('live_slips')}
-          />
-        ) : currentView === 'live_slips' ? (
-          <LiveSlipTracker
-            importedMatches={importedMatches}
-            onOpenCalendar={() => setCurrentView('calendar_odds')}
-          />
-        ) : currentView === 'practical' ? (
-          <PracticalSimulator />
-        ) : currentView === 'books' ? (
-          <BooksManager />
-        ) : currentView === 'cycles' ? (
-          <CyclesDashboard />
-        ) : (
-          <MathematicalAnalysis />
-        )}
-      </main>
+        {/* Main Content Area */}
+        <main className="flex-1 w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+          {currentView === 'calendar_odds' ? (
+            <CalendarOddsMonitor
+              onImportToTracker={handleImportMatches}
+              onNavigateToTracker={() => setCurrentView('live_slips')}
+            />
+          ) : currentView === 'live_slips' ? (
+            <LiveSlipTracker
+              importedMatches={importedMatches}
+              onOpenCalendar={() => setCurrentView('calendar_odds')}
+              onOpenPlace={() => setCurrentView('place')}
+            />
+          ) : currentView === 'place' ? (
+            <PlaceView
+              onOpenCerca={() => setCurrentView('calendar_odds')}
+              onOpenPrepara={() => setCurrentView('live_slips')}
+            />
+          ) : currentView === 'practical' ? (
+            <PracticalSimulator />
+          ) : currentView === 'books' ? (
+            <BooksManager />
+          ) : currentView === 'cycles' ? (
+            <CyclesDashboard />
+          ) : (
+            <MathematicalAnalysis />
+          )}
+        </main>
 
-      {/* Footer */}
-      <Footer currentView={currentView} onViewChange={setCurrentView} />
-    </div>
+        {/* Footer */}
+        <Footer currentView={currentView} onViewChange={setCurrentView} />
+      </div>
+    </OperationProvider>
   );
 }

@@ -994,3 +994,15 @@ manuale dell'utente.
   chain capStops + regressione pulita). **228/228**, tsc, eslint 0 error, build OK.
   Nota: warning `n` unused e violazioni prettier in CyclesDashboard/harmony.test
   pre-esistenti a HEAD (non toccati per non inquinare il diff).
+
+## U1 — Guscio UX: 4 passi + kit UI + pagina Piazza (2026-09-17)
+
+- **Nav**: stepper 1.Cerca 2.Prepara 3.Piazza 4.Segui + menu Strumenti
+  (Simulatore/Analisi/Book). Vista default = Cerca. Footer allineato.
+- **Kit** `components/ui/`: Button, Card, Badge, Banner (titolo+1 riga+1 azione),
+  EmptyState, Field. Store `operation` condiviso Prepara<->Piazza (locale).
+- **Pagina Piazza**: 3 numeri (garantito/esposizione/target), riverifica globale,
+  schede piazzamento (stake gigante, book, gambe, copia, checklist persistente),
+  empty state guidati. Workbench invariato + sync + "Vai a Piazza".
+- Segui = vista Cicli esistente (ledger). U2 spacchettamento componenti dopo.
+- **228/228**, tsc, eslint 0 error, build OK.

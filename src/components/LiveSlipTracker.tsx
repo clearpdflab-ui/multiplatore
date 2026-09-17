@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   UserMatch,
   AsymmetricMode,
@@ -22,6 +22,7 @@ import {
 } from '../utils/mathEngine';
 import { proposeTarget } from '../engine/matrix';
 import { requoteGate } from '../engine/requote';
+import { useOperation } from '../store/useOperation';
 import {
   Layers,
   Clock,
@@ -53,11 +54,13 @@ import {
 interface LiveSlipTrackerProps {
   importedMatches?: UserMatch[] | null;
   onOpenCalendar?: () => void;
+  onOpenPlace?: () => void;
 }
 
 export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
   importedMatches,
   onOpenCalendar,
+  onOpenPlace,
 }) => {
   // Matches state initialized from localStorage or defaults
   const [matches, setMatches] = useState<UserMatch[]>(() => {
@@ -385,6 +388,52 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
     const d = new Date();
     return `Schedina ${matches.length} eventi — ${d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })} ${d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
   };
+
+  // U1 — tiene aggiornata l'operazione condivisa con Piazza (salta il primo
+  // render per non cancellare un'operazione esistente all'avvio).
+  const { setOperation } = useOperation();
+  const firstSync = useRef(true);
+  useEffect(() => {
+    if (firstSync.current) {
+      firstSync.current = false;
+      return;
+    }
+    setOperation(matches, {
+      baseStake,
+      targetProfit,
+      targetMode,
+      roiPct,
+      baseCap,
+      asymmetricMode,
+      enableBooster,
+      boosterOdds,
+      finalHedgeMode,
+      layOdds: layOdds ?? undefined,
+      layCommissionPct,
+      layStake: layStake ?? undefined,
+      harmonized,
+      budget: budgetTot ?? undefined,
+      line: slipLine,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    matches,
+    baseStake,
+    targetProfit,
+    targetMode,
+    roiPct,
+    baseCap,
+    asymmetricMode,
+    enableBooster,
+    boosterOdds,
+    finalHedgeMode,
+    layOdds,
+    layCommissionPct,
+    layStake,
+    harmonized,
+    budgetTot,
+    slipLine,
+  ]);
 
   const flashSlipMsg = (m: string) => {
     setSlipMsg(m);
@@ -1403,6 +1452,16 @@ export const LiveSlipTracker: React.FC<LiveSlipTrackerProps> = ({
                   >
                     {gateVerdict.text}
                   </span>
+                )}
+                {onOpenPlace && (
+                  <button
+                    onClick={onOpenPlace}
+                    disabled={matches.length < 2}
+                    className="px-2 py-1 text-[11px] font-mono font-bold rounded-xs border transition-colors bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40 disabled:opacity-50"
+                    title="Vai al passo 3: schede di piazzamento un ticket alla volta"
+                  >
+                    Vai a Piazza →
+                  </button>
                 )}
               </div>
             </div>
