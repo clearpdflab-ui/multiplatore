@@ -1006,3 +1006,14 @@ manuale dell'utente.
   empty state guidati. Workbench invariato + sync + "Vai a Piazza".
 - Segui = vista Cicli esistente (ledger). U2 spacchettamento componenti dopo.
 - **228/228**, tsc, eslint 0 error, build OK.
+
+## Cerca a schede: un modello di risultato per scheda (2026-09-17)
+
+- **Problema utente**: risultati confusi (lista + Trova Partite + finder + synth +
+  Radar accatastati e sovrapposti).
+- Tre schede: **1·Partite** (scelgo io, con Trova Partite + filtri + import),
+  **2·Scale** (finder + calibratore quote ideali), **3·Radar** (caccia autonoma),
+  con contatori (n sel / n ok). Banner dimezzato con guida alle schede.
+  Trova Partite salta da solo alla scheda Partite. Avvisi feed/token globali.
+- Solo spostamenti JSX + 1 state: zero logica motore toccata.
+- **228/228**, tsc, eslint 0 error, build OK.

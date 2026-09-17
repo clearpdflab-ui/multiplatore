@@ -295,6 +295,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
   const [finderLoading, setFinderLoading] = useState(false);
   const [finderResult, setFinderResult] = useState<FinderResult | null>(null);
   const [finderLayUsed, setFinderLayUsed] = useState<string>('auto');
+  // Riorganizzazione Cerca: un solo modello di risultato per scheda.
+  // Partite = scelgo io · Scale = il motore compone · Radar = caccia autonoma.
+  const [cercaTab, setCercaTab] = useState<'partite' | 'scale' | 'radar'>('partite');
   // Scout Radar: caccia autonoma (P1-P3). Legge `rows`, scrive la shortlist
   // sola-lettura via useScoutRuns (locale + cloud).
   const { latest: scoutLatest, saveRun: saveScoutRun, clearRuns: clearScoutRuns } = useScoutRuns();
@@ -1023,6 +1026,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         }
       }
       setAutoMsg(msg);
+      // La selezione vive nella scheda Partite: portacelo da solo.
+      setCercaTab('partite');
     } catch (e) {
       setAutoMsg(`⚠ Ricerca non riuscita: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -1116,12 +1121,11 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               Calendario Partite &amp; Monitoraggio Bookmaker Live
             </h2>
             <p className="text-xs sm:text-sm text-[#94A3B8] mt-1 max-w-3xl leading-relaxed">
-              Partite ed quote under/over {selectedLine} recuperate in tempo reale dal feed OddsScasser su
-              finestra di <strong className="text-white">{CALENDAR_WINDOW_DAYS} giorni</strong>. Usa{' '}
-              <strong className="text-blue-300">Trova Partite</strong> per selezionare in automatico
-              fino a 30 eventi con copertura completa e quota Under sopra la soglia, sui book in cui
-              sei registrato. Seleziona le partite per generare la{' '}
-              <strong className="text-emerald-400">Schedina Madre</strong>.
+              Quote under/over {selectedLine} dal feed OddsScasser, finestra{' '}
+              <strong className="text-white">{CALENDAR_WINDOW_DAYS} giorni</strong>. Tre modi,
+              un solo risultato: <strong className="text-white">Partite</strong> se scegli tu,{' '}
+              <strong className="text-emerald-400">Scale</strong> se compone il motore,{' '}
+              <strong className="text-sky-400">Radar</strong> per la caccia autonoma.
             </p>
           </div>
 
@@ -1217,7 +1221,36 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
         </div>
       </div>
 
-      {/* F24 — Scala Ideale inversa: dai q0 + target, il motore propone N* e quote */}
+      {/* Schede risultato: un modello per scheda, niente sovrapposizioni */}
+      <div className="flex items-center gap-1 font-mono overflow-x-auto" role="tablist">
+        {(
+          [
+            { id: 'partite', label: '1 · Partite', hint: 'Sfoglia e seleziona a mano (o con Trova Partite)', extra: `${selectedEventIds.length} sel` },
+            { id: 'scale', label: '2 · Scale', hint: 'Il motore compone scale che chiudono (finder + calibratore)', extra: finderResult ? `${finderResult.feasible.length} ok` : '' },
+            { id: 'radar', label: '3 · Radar', hint: 'Caccia autonoma completa con shock test', extra: scoutLatest ? `${scoutLatest.picks.length} ok` : '' },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={cercaTab === t.id}
+            title={t.hint}
+            onClick={() => setCercaTab(t.id)}
+            className={`px-3 py-2 text-xs uppercase tracking-wider rounded-xs shrink-0 transition-colors ${
+              cercaTab === t.id
+                ? 'bg-[#3B82F6] text-white font-bold shadow-sm'
+                : 'text-[#94A3B8] hover:text-white hover:bg-[#1A1D26] border border-[#2D3139]'
+            }`}
+          >
+            {t.label}
+            {t.extra && <span className="opacity-75"> · {t.extra}</span>}
+          </button>
+        ))}
+      </div>
+
+      {cercaTab === 'scale' && (
+        <>
+          {/* F24 — Scala Ideale inversa: dai q0 + target, il motore propone N* e quote */}
       <div className="bg-[#0F1117] border border-violet-500/30 p-4 rounded-sm space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div>
@@ -1522,8 +1555,12 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           </div>
         )}
       </div>
+        </>
+      )}
 
-      {/* Scout Radar: caccia autonoma scale da giocare (sola lettura) */}
+      {cercaTab === 'radar' && (
+        <>
+          {/* Scout Radar: caccia autonoma scale da giocare (sola lettura) */}
       <div className="bg-[#0F1117] border border-sky-500/30 p-4 rounded-sm space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div>
@@ -1601,6 +1638,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Token LDL problematico: procedura di rinnovo (non e' un guasto di rete) */}
       {tokenIssue && (
@@ -1662,7 +1701,9 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
       )}
 
       {/* Esito ricerca automatica partite */}
-      {autoMsg && (
+      {cercaTab === 'partite' && (
+        <>
+          {autoMsg && (
         <div
           className={`border p-3 rounded-xs font-mono text-xs flex items-center gap-2 ${
             autoMsg.startsWith('⚠')
@@ -2033,6 +2074,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Educational Box */}
       <div className="bg-[#141824] border border-[#2D3139] p-5 rounded-sm">
