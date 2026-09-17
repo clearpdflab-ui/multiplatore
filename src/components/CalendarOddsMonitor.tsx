@@ -110,7 +110,7 @@ function BookMultiSelect({
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-40 mt-1 w-72 bg-[#0F1117] border border-[#2D3139] rounded-sm shadow-xl">
+          <div className="absolute right-0 z-40 mt-1 w-72 max-w-[calc(100vw-2rem)] bg-[#0F1117] border border-[#2D3139] rounded-sm shadow-xl">
             <div className="p-2 border-b border-[#2D3139]">
               <input
                 autoFocus
@@ -1859,8 +1859,10 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
               {selectedEventIds.length}
             </div>
             <div>
-              <div className="text-white font-bold text-sm font-mono flex items-center gap-2">
-                <span>{selectedEventIds.length} Partite Selezionate per la Multipla Madre</span>
+                <div className="text-white font-bold text-sm font-mono flex items-center gap-2 flex-wrap">
+                  <span>
+                    {selectedEventIds.length} Partite Selezionate per la Multipla Madre
+                  </span>
                 {selectedEventIds.length >= 8 && (
                   <span className="text-[10px] px-1.5 py-0.2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xs">
                     Bonus +26.2% Sbloccato!
@@ -1895,7 +1897,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
 
       {/* Fixtures List */}
       <div className="bg-[#0F1117] border border-[#2D3139] rounded-sm overflow-hidden">
-        <div className="p-4 border-b border-[#2D3139] flex items-center justify-between">
+        <div className="p-4 border-b border-[#2D3139] flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-xs uppercase font-mono text-white font-bold tracking-wider flex items-center gap-2">
             <Layers className="w-4 h-4 text-[#3B82F6]" />
             Partite &amp; Copertura Bookmaker (Under {selectedLine} / Over {selectedLine})
@@ -1953,8 +1955,8 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                   </button>
 
                   {/* Match info */}
-                  <div className="flex-1 min-w-[220px]">
-                    <div className="flex items-center gap-1 text-[10px] text-[#64748B] mb-0.5">
+                  <div className="flex-1 min-w-0 md:min-w-[220px]">
+                    <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] text-[#64748B] mb-0.5">
                       <Clock className="w-3 h-3" />
                       <span>{formatKickoff(row.kickoff)}</span>
                       {isKickoffTooSoon(row, Date.now(), MIN_HOURS_TO_KICKOFF) && (
@@ -2013,7 +2015,7 @@ export const CalendarOddsMonitor: React.FC<CalendarOddsMonitorProps> = ({
                   </div>
 
                   {/* Books coverage */}
-                  <div className="flex-1 min-w-[240px]">
+                  <div className="flex-1 min-w-0 md:min-w-[240px]">
                     {row.books.length === 0 ? (
                       <div className="text-[11px] font-mono text-[#64748B]">
                         Nessuna copertura disponibile
